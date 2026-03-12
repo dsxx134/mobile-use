@@ -2,6 +2,8 @@
 
 Date: 2026-03-12
 
+Status: Superseded later the same day by `2026-03-12-personal-github-only.md`.
+
 ## Decision
 - Create `dsxx134/mobile-use` as the writable GitHub repository for this project.
 - Rename the original remote to `upstream`.
