@@ -3,6 +3,7 @@ __pycache__
 **/mobile-use.egg-info
 .vscode/settings.json
 .venv/
+.worktrees/
 
 # User config
 llm-config.override.jsonc
