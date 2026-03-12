@@ -75,7 +75,9 @@ class AndroidDebugService:
             "width": ui_data.width,
             "height": ui_data.height,
             "base64": ui_data.base64,
+            "hierarchy_xml": ui_data.hierarchy_xml,
             "elements": ui_data.elements,
+            "element_count": len(ui_data.elements),
         }
 
     def dump_ui_hierarchy(self, serial: str) -> dict[str, Any]:

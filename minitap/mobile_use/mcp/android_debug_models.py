@@ -79,7 +79,9 @@ class ScreenDataResult(BaseModel):
     width: int
     height: int
     base64: str
+    hierarchy_xml: str
     elements: list[dict[str, Any]]
+    element_count: int
 
 
 class HierarchyDumpResult(BaseModel):
