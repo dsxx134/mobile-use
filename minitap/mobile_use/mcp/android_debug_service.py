@@ -169,6 +169,7 @@ class AndroidDebugService:
             "serial": serial,
             "local_path": str(source_path),
             "remote_path": remote_path,
+            "file_size_bytes": source_path.stat().st_size,
             "scan_media": scan_media,
             "success": True,
         }
