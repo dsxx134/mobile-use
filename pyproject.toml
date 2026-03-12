@@ -16,6 +16,7 @@ requires-python = ">=3.12"
 dependencies = [
     "langgraph>=1.0.2,<2.0.0",
     "adbutils==2.9.3",
+    "mcp>=1.26.0",
     "langchain-google-genai>=4.0.0",
     "langchain>=1.0.0",
     "langchain-core>=1.0.0",
@@ -54,6 +55,7 @@ dev = [
 
 [project.scripts]
 mobile-use = "minitap.mobile_use.main:cli"
+mobile-use-android-debug-mcp = "minitap.mobile_use.mcp.android_debug_mcp:main"
 
 [project.urls]
 "Homepage" = "https://minitap.ai/"
