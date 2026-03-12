@@ -277,6 +277,47 @@ uv run python scripts/android_debug_mcp_smoke.py
 - Inspect screenshots, hierarchy XML, and foreground app state from one MCP endpoint
 - Support Xianyu publishing automation with a repo-local Android debugging toolchain
 
+## Xianyu Publish Foundation
+
+This branch also includes the first business-layer foundation for Xianyu publishing. It does
+not submit listings inside the Xianyu app yet. Instead, it covers the upstream data and media
+pipeline that the publish state machine will consume next.
+
+### What is implemented
+
+- `feishu_source`: reads candidate listing records from Feishu Bitable and normalizes them into
+  a `ListingDraft`
+- `media_sync`: downloads Feishu attachment assets into a local staging directory and pushes them
+  onto an Android device directory through `adbutils`
+
+### Required environment variables
+
+- `FEISHU_APP_ID`
+- `FEISHU_APP_SECRET`
+- `XIANYU_BITABLE_APP_TOKEN`
+- `XIANYU_BITABLE_TABLE_ID`
+- Optional: `XIANYU_ANDROID_MEDIA_DIR` (defaults to `/sdcard/DCIM/XianyuPublish`)
+
+### Default Bitable field mapping
+
+- `商品标题`
+- `商品描述`
+- `售价`
+- `商品图片`
+- `发布状态`
+- `是否允许发布`
+
+### Smoke test the foundation settings
+
+```bash
+uv run python scripts/xianyu_publish_foundation_smoke.py
+```
+
+### Current boundary
+
+- This foundation stops at `ListingDraft` creation and Android media sync
+- The deterministic Xianyu app publish state machine is the next layer to implement
+
 ## 🔎 Agentic System Overview
 
 <div align="center">

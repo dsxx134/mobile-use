@@ -49,9 +49,14 @@ class XianyuMediaSyncService:
         for index, attachment in enumerate(listing.attachments, start=1):
             download_url = download_urls.get(attachment.file_token)
             if not download_url:
-                raise ValueError(f"Missing download URL for attachment token: {attachment.file_token}")
+                raise ValueError(
+                    f"Missing download URL for attachment token: {attachment.file_token}"
+                )
 
-            destination = staging_dir / self._build_staged_name(index=index, original_name=attachment.name)
+            destination = staging_dir / self._build_staged_name(
+                index=index,
+                original_name=attachment.name,
+            )
             self._download_file(download_url, destination)
             local_paths.append(destination.resolve())
 
@@ -68,7 +73,8 @@ class XianyuMediaSyncService:
             raise ValueError("ListingDraft has no local_image_paths to push")
 
         device = self._adb_client.device(serial=serial)
-        remote_root = f"{(remote_dir or self.settings.XIANYU_ANDROID_MEDIA_DIR).rstrip('/')}/{listing.record_id}"
+        remote_base_dir = (remote_dir or self.settings.XIANYU_ANDROID_MEDIA_DIR).rstrip("/")
+        remote_root = f"{remote_base_dir}/{listing.record_id}"
         remote_paths: list[str] = []
 
         for local_path in listing.local_image_paths:

@@ -24,3 +24,8 @@ Updated: 2026-03-12
 - FastMCP tools should return Pydantic output models so structured output schemas are available to MCP clients.
 - `android_debug_get_screen_data` is the primary snapshot tool and now preserves both flattened elements and raw `hierarchy_xml`, plus `element_count`, so debugging clients do not need a second round-trip to inspect structure.
 - `scripts/android_debug_mcp_smoke.py` is the local sanity-check entrypoint for confirming that ADB can see connected Android targets before starting the MCP server.
+- The Xianyu business layer now lives under `minitap/mobile_use/scenarios/xianyu_publish/` and is intentionally split into:
+  - normalized listing models/settings
+  - `FeishuBitableSource` for read-only Bitable access and attachment URL resolution
+  - `XianyuMediaSyncService` for local staging and Android media push
+- The next layer should consume `ListingDraft` directly and stay isolated from raw Feishu record payloads.
