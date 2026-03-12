@@ -230,7 +230,7 @@ To run mobile-use, simply pass your command as an argument.
 **Example 1: Basic Command**
 
 ```bash
-python ./src/mobile_use/main.py "Go to settings and tell me my current battery level"
+uv run mobile-use "Go to settings and tell me my current battery level"
 ```
 
 **Example 2: Data Scraping**
@@ -238,13 +238,44 @@ python ./src/mobile_use/main.py "Go to settings and tell me my current battery l
 Extract specific information and get it back in a structured format. For instance, to get a list of your unread emails:
 
 ```bash
-python ./src/mobile_use/main.py \
+uv run mobile-use \
   "Open Gmail, find all unread emails, and list their sender and subject line" \
   --output-description "A JSON list of objects, each with 'sender' and 'subject' keys"
 ```
 
 > [!NOTE]
 > If you haven't configured a specific model, mobile-use will prompt you to choose one from the available options.
+
+## Android Debug MCP
+
+The repository also ships a local Android debugging MCP server for device inspection and
+automation debugging. It reuses the same `adbutils` and `UIAutomatorClient` stack as the
+main Android controller, so debug snapshots stay aligned with production automation.
+
+### Requirements
+
+- `adb` available in your `PATH`
+- A connected Android device or emulator
+- Optional: `scrcpy` for live mirroring while debugging
+- Optional: `uiautodev` for independent hierarchy inspection
+
+### Start the MCP server
+
+```bash
+uv run mobile-use-android-debug-mcp
+```
+
+### Smoke test the local setup
+
+```bash
+uv run python scripts/android_debug_mcp_smoke.py
+```
+
+### Intended use
+
+- Debug Android UI flows before encoding them into deterministic automations
+- Inspect screenshots, hierarchy XML, and foreground app state from one MCP endpoint
+- Support Xianyu publishing automation with a repo-local Android debugging toolchain
 
 ## 🔎 Agentic System Overview
 

@@ -18,6 +18,8 @@ Status: Active
 - Local `main` and `feat/android-debug-mcp` branches pushed to personal `origin` on 2026-03-12.
 - Original repository remote removed locally to prevent accidental sync.
 - Android Debug MCP batch 1 completed on `feat/android-debug-mcp`: package scaffold, service tests, and FastMCP tool wrappers with structured outputs.
+- Android Debug MCP batch 2 completed on `feat/android-debug-mcp`: snapshot ergonomics, smoke script, README usage notes, and full batch verification.
+- Smoke script on 2026-03-12 detected two local Android targets: `E2P6R22708000602` and `emulator-5564`.
 
 ## Operational Rule
 - Important milestones should be committed and pushed to GitHub instead of remaining only local.

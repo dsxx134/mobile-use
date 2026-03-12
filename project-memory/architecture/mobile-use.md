@@ -22,3 +22,5 @@ Updated: 2026-03-12
 - Add a repo-local Android debugging MCP that reuses existing Android stack semantics for Xianyu publishing automation.
 - The new MCP lives under `minitap/mobile_use/mcp/` and wraps the existing `adbutils` + `UIAutomatorClient` behavior instead of introducing Appium or a second Android control path.
 - FastMCP tools should return Pydantic output models so structured output schemas are available to MCP clients.
+- `android_debug_get_screen_data` is the primary snapshot tool and now preserves both flattened elements and raw `hierarchy_xml`, plus `element_count`, so debugging clients do not need a second round-trip to inspect structure.
+- `scripts/android_debug_mcp_smoke.py` is the local sanity-check entrypoint for confirming that ADB can see connected Android targets before starting the MCP server.
