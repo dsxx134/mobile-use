@@ -8,6 +8,13 @@ class XianyuPublishSettings(BaseSettings):
     XIANYU_BITABLE_APP_TOKEN: str | None = None
     XIANYU_BITABLE_TABLE_ID: str | None = None
     XIANYU_ANDROID_MEDIA_DIR: str = "/sdcard/DCIM/XianyuPublish"
+    xianyu_package_name: str = "com.taobao.idlefish"
+    xianyu_main_activity: str = "com.taobao.idlefish.maincontainer.activity.MainActivity"
+    publish_entry_text: str = "卖闲置"
+    publish_option_text: str = "发闲置"
+    permission_allow_text: str = "允许"
+    album_select_text: str = "选择"
+    album_confirm_text: str = "确定"
 
     title_field_name: str = Field(default="商品标题")
     description_field_name: str = Field(default="商品描述")

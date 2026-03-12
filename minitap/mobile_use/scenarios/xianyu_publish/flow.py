@@ -1,7 +1,9 @@
 import re
 from collections.abc import Iterable
 
+from minitap.mobile_use.mcp.android_debug_service import AndroidDebugService
 from minitap.mobile_use.scenarios.xianyu_publish.models import TapTarget, XianyuScreenAnalysis
+from minitap.mobile_use.scenarios.xianyu_publish.settings import XianyuPublishSettings
 
 _BOUNDS_RE = re.compile(r"\[(?P<left>\d+),(?P<top>\d+)\]\[(?P<right>\d+),(?P<bottom>\d+)\]")
 
@@ -47,6 +49,9 @@ def parse_android_bounds(bounds: str | dict | None) -> TapTarget | None:
 
 
 class XianyuFlowAnalyzer:
+    def __init__(self, settings: XianyuPublishSettings | None = None) -> None:
+        self._settings = settings or XianyuPublishSettings()
+
     def _visible_texts(self, elements: Iterable[dict]) -> list[str]:
         visible_texts: list[str] = []
         for element in elements:
@@ -84,7 +89,9 @@ class XianyuFlowAnalyzer:
         visible_texts = self._visible_texts(elements)
         targets: dict[str, TapTarget] = {}
 
-        permission_allow = self._find_target(elements, exact_text="允许")
+        permission_allow = self._find_target(
+            elements, exact_text=self._settings.permission_allow_text
+        )
         if (
             current_package == "com.android.permissioncontroller"
             and any("是否允许" in text for text in visible_texts)
@@ -99,9 +106,9 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
-        publish_entry = self._find_target(elements, exact_text="卖闲置")
+        publish_entry = self._find_target(elements, exact_text=self._settings.publish_entry_text)
         if (
-            current_package == "com.taobao.idlefish"
+            current_package == self._settings.xianyu_package_name
             and publish_entry is not None
             and any(text == "闲鱼" for text in visible_texts)
         ):
@@ -114,9 +121,11 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
-        publish_idle_item = self._find_target(elements, contains_text="发闲置")
+        publish_idle_item = self._find_target(
+            elements, contains_text=self._settings.publish_option_text
+        )
         if (
-            current_package == "com.taobao.idlefish"
+            current_package == self._settings.xianyu_package_name
             and publish_idle_item is not None
             and any(text == "关闭" for text in visible_texts)
         ):
@@ -129,10 +138,10 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
-        album_select = self._find_target(elements, exact_text="选择")
-        album_confirm = self._find_target(elements, exact_text="确定")
+        album_select = self._find_target(elements, exact_text=self._settings.album_select_text)
+        album_confirm = self._find_target(elements, exact_text=self._settings.album_confirm_text)
         if (
-            current_package == "com.taobao.idlefish"
+            current_package == self._settings.xianyu_package_name
             and album_select is not None
             and any(text in {"所有文件", "相册"} for text in visible_texts)
         ):
@@ -154,3 +163,97 @@ class XianyuFlowAnalyzer:
             visible_texts=visible_texts,
             targets=targets,
         )
+
+
+class XianyuPublishFlowService:
+    def __init__(
+        self,
+        settings: XianyuPublishSettings | None = None,
+        android_service: AndroidDebugService | None = None,
+        analyzer: XianyuFlowAnalyzer | None = None,
+    ) -> None:
+        self._settings = settings or XianyuPublishSettings()
+        self._android = android_service or AndroidDebugService()
+        self._analyzer = analyzer or XianyuFlowAnalyzer(settings=self._settings)
+
+    def _analyze(self, serial: str) -> XianyuScreenAnalysis:
+        return self._analyzer.detect_screen(self._android.get_screen_data(serial))
+
+    def _tap_target(self, serial: str, target: TapTarget, target_name: str) -> None:
+        if target is None:
+            raise RuntimeError(f"Missing tap target for {target_name}")
+        self._android.tap(serial, target.x, target.y)
+
+    def open_home(self, serial: str) -> None:
+        device = self._android.get_device(serial)
+        device.shell(
+            "am start -n "
+            f"{self._settings.xianyu_package_name}/{self._settings.xianyu_main_activity}"
+        )
+
+    def advance_to_album_picker(
+        self,
+        serial: str,
+        max_steps: int = 6,
+    ) -> XianyuScreenAnalysis:
+        for _ in range(max_steps):
+            analysis = self._analyze(serial)
+            if analysis.screen_name == "album_picker":
+                return analysis
+
+            if (
+                analysis.current_package != self._settings.xianyu_package_name
+                and analysis.screen_name != "media_permission_dialog"
+            ):
+                self.open_home(serial)
+                continue
+
+            if analysis.screen_name == "home":
+                target = analysis.targets.get("publish_entry")
+                if target is None:
+                    raise RuntimeError("Missing publish entry target on Xianyu home screen")
+                self._tap_target(serial, target, "publish_entry")
+                continue
+
+            if analysis.screen_name == "publish_chooser":
+                target = analysis.targets.get("publish_idle_item")
+                if target is None:
+                    raise RuntimeError("Missing publish option target on Xianyu chooser screen")
+                self._tap_target(serial, target, "publish_idle_item")
+                continue
+
+            if analysis.screen_name == "media_permission_dialog":
+                target = analysis.targets.get("permission_allow")
+                if target is None:
+                    raise RuntimeError("Missing allow button target on media permission dialog")
+                self._tap_target(serial, target, "permission_allow")
+                continue
+
+            self.open_home(serial)
+
+        final_analysis = self._analyze(serial)
+        if final_analysis.screen_name == "album_picker":
+            return final_analysis
+        raise RuntimeError(
+            f"Failed to reach album picker within {max_steps} steps: {final_analysis.screen_name}"
+        )
+
+    def select_cover_image(self, serial: str) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        if analysis.screen_name != "album_picker":
+            raise RuntimeError(
+                f"Cannot select album media from screen: {analysis.screen_name}"
+            )
+
+        select_target = analysis.targets.get("album_select")
+        if select_target is None:
+            raise RuntimeError("Missing selectable media target on album picker")
+        self._tap_target(serial, select_target, "album_select")
+
+        post_select = self._analyze(serial)
+        confirm_target = post_select.targets.get("album_confirm")
+        if confirm_target is None:
+            return post_select
+
+        self._tap_target(serial, confirm_target, "album_confirm")
+        return self._analyze(serial)
