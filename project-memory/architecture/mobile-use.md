@@ -20,3 +20,5 @@ Updated: 2026-03-12
 
 ## Current Extension Direction
 - Add a repo-local Android debugging MCP that reuses existing Android stack semantics for Xianyu publishing automation.
+- The new MCP lives under `minitap/mobile_use/mcp/` and wraps the existing `adbutils` + `UIAutomatorClient` behavior instead of introducing Appium or a second Android control path.
+- FastMCP tools should return Pydantic output models so structured output schemas are available to MCP clients.

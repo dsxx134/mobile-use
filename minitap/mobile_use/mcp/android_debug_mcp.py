@@ -153,7 +153,9 @@ async def android_debug_press_home(params: DeviceSelector) -> DeviceCommandResul
 
 @mcp.tool(
     name="android_debug_push_media_to_device",
-    description="Push a local media file to an Android device and optionally scan it into media DB.",
+    description=(
+        "Push a local media file to an Android device and optionally scan it into media DB."
+    ),
     annotations=WRITE,
     structured_output=True,
 )

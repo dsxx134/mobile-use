@@ -17,6 +17,7 @@ Status: Active
 - Personal GitHub repo created at `https://github.com/dsxx134/mobile-use` and set as default `origin`.
 - Local `main` and `feat/android-debug-mcp` branches pushed to personal `origin` on 2026-03-12.
 - Original repository remote removed locally to prevent accidental sync.
+- Android Debug MCP batch 1 completed on `feat/android-debug-mcp`: package scaffold, service tests, and FastMCP tool wrappers with structured outputs.
 
 ## Operational Rule
 - Important milestones should be committed and pushed to GitHub instead of remaining only local.
