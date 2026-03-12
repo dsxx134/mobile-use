@@ -37,3 +37,22 @@ class ListingStatusFilter(BaseModel):
 
     pending_status: str = Field(default="待发布")
     allow_publish: bool = True
+
+
+class TapTarget(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    x: int = Field(..., ge=0)
+    y: int = Field(..., ge=0)
+    text: str | None = None
+    bounds: str | None = None
+
+
+class XianyuScreenAnalysis(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    screen_name: str
+    current_package: str | None = None
+    current_activity: str | None = None
+    visible_texts: list[str] = Field(default_factory=list)
+    targets: dict[str, TapTarget] = Field(default_factory=dict)
