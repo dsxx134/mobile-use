@@ -28,4 +28,15 @@ Updated: 2026-03-12
   - normalized listing models/settings
   - `FeishuBitableSource` for read-only Bitable access and attachment URL resolution
   - `XianyuMediaSyncService` for local staging and Android media push
-- The next layer should consume `ListingDraft` directly and stay isolated from raw Feishu record payloads.
+  - `XianyuFlowAnalyzer` for pure screen classification and tap-target extraction
+  - `XianyuPublishFlowService` for deterministic Xianyu navigation built on `AndroidDebugService`
+- The Xianyu flow currently recognizes:
+  - home tab
+  - publish chooser
+  - Android media permission dialog
+  - album picker
+- On the Huawei tablet used for development, reliable home recovery requires:
+  - `am start -n com.taobao.idlefish/com.taobao.idlefish.maincontainer.activity.MainActivity`
+  - not just `app_start(package)`, which can reopen a non-home category page
+- `scripts/xianyu_publish_flow_smoke.py` is the quickest way to inspect the current Xianyu screen classification on a connected Android device.
+- The next layer should still consume `ListingDraft` directly and stay isolated from raw Feishu record payloads.

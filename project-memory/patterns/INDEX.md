@@ -9,5 +9,7 @@
 | personal-repo-only-remote | 2026-03-12 | personal-repo-only-remote.md |
 | windows-uv-cache-isolation | 2026-03-12 | windows-uv-cache-isolation.md |
 | push-at-milestones | 2026-03-12 | push-at-milestones.md |
+| xianyu-home-recovery-uses-explicit-main-activity | 2026-03-12 | xianyu-home-recovery-uses-explicit-main-activity.md |
+| xianyu-flow-starts-with-screen-analysis | 2026-03-12 | xianyu-flow-starts-with-screen-analysis.md |
 
-Total: 7
+Total: 9

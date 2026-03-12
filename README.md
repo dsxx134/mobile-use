@@ -280,8 +280,8 @@ uv run python scripts/android_debug_mcp_smoke.py
 ## Xianyu Publish Foundation
 
 This branch also includes the first business-layer foundation for Xianyu publishing. It does
-not submit listings inside the Xianyu app yet. Instead, it covers the upstream data and media
-pipeline that the publish state machine will consume next.
+not submit listings inside the Xianyu app yet. Instead, it now covers the upstream data/media
+pipeline plus the first deterministic in-app publish navigation layer.
 
 ### What is implemented
 
@@ -289,6 +289,23 @@ pipeline that the publish state machine will consume next.
   a `ListingDraft`
 - `media_sync`: downloads Feishu attachment assets into a local staging directory and pushes them
   onto an Android device directory through `adbutils`
+- `flow`: recognizes key Xianyu publish screens and can deterministically advance from the
+  Xianyu home tab into the album picker
+
+### Deterministic flow coverage
+
+- Recovers the app with an explicit Xianyu main-activity launch instead of relying on the generic
+  package launcher
+- Recognizes:
+  - Xianyu home tab
+  - publish chooser
+  - Android media permission dialog
+  - album picker
+- Can:
+  - tap `卖闲置`
+  - tap `发闲置`
+  - accept the media permission dialog
+  - select one image and confirm it
 
 ### Required environment variables
 
@@ -313,10 +330,16 @@ pipeline that the publish state machine will consume next.
 uv run python scripts/xianyu_publish_foundation_smoke.py
 ```
 
+### Smoke test the current Xianyu screen recognizer
+
+```bash
+uv run python scripts/xianyu_publish_flow_smoke.py
+```
+
 ### Current boundary
 
-- This foundation stops at `ListingDraft` creation and Android media sync
-- The deterministic Xianyu app publish state machine is the next layer to implement
+- The flow currently stops after media selection / confirmation
+- Title, description, price, category, and final publish submission are the next layer
 
 ## 🔎 Agentic System Overview
 
