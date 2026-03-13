@@ -1,5 +1,7 @@
 import re
+import time
 from collections.abc import Iterable
+from collections.abc import Callable
 
 from minitap.mobile_use.mcp.android_debug_service import AndroidDebugService
 from minitap.mobile_use.scenarios.xianyu_publish.models import TapTarget, XianyuScreenAnalysis
@@ -88,6 +90,7 @@ class XianyuFlowAnalyzer:
         elements = screen_data.get("elements", [])
         visible_texts = self._visible_texts(elements)
         targets: dict[str, TapTarget] = {}
+        preferred_album_menu_label = f"{self._settings.preferred_album_name}·"
 
         permission_allow = self._find_target(
             elements, exact_text=self._settings.permission_allow_text
@@ -138,18 +141,70 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
-        album_select = self._find_target(elements, exact_text=self._settings.album_select_text)
-        album_confirm = self._find_target(elements, exact_text=self._settings.album_confirm_text)
+        album_source = self._find_target(
+            elements, exact_text=self._settings.album_source_label_text
+        )
+        preferred_album_source = self._find_target(
+            elements, contains_text=preferred_album_menu_label
+        )
         if (
             current_package == self._settings.xianyu_package_name
-            and album_select is not None
-            and any(text in {"所有文件", "相册"} for text in visible_texts)
+            and album_source is not None
+            and preferred_album_source is not None
         ):
-            targets["album_select"] = album_select
+            targets["album_source"] = album_source
+            targets["preferred_album_source"] = preferred_album_source
+            return XianyuScreenAnalysis(
+                screen_name="album_source_menu",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
+        album_select = self._find_target(elements, exact_text=self._settings.album_select_text)
+        album_confirm = self._find_target(elements, exact_text=self._settings.album_confirm_text)
+        selected_album_source = self._find_target(
+            elements, exact_text=self._settings.preferred_album_name
+        ) or album_source
+        if (
+            current_package == self._settings.xianyu_package_name
+            and (album_select is not None or album_confirm is not None)
+            and any(
+                text in {
+                    self._settings.album_source_label_text,
+                    "相册",
+                    self._settings.preferred_album_name,
+                }
+                for text in visible_texts
+            )
+        ):
+            if selected_album_source is not None:
+                targets["album_source"] = selected_album_source
+            if album_select is not None:
+                targets["album_select"] = album_select
             if album_confirm is not None:
                 targets["album_confirm"] = album_confirm
             return XianyuScreenAnalysis(
                 screen_name="album_picker",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
+        if (
+            current_package == self._settings.xianyu_package_name
+            and any("宝贝价格是根据市场行情计算得出" in text for text in visible_texts)
+            and any(text == "添加" for text in visible_texts)
+            and (
+                any("删除" in text for text in visible_texts)
+                or any(text.endswith("张照片") for text in visible_texts)
+                or any("价格计算中" in text for text in visible_texts)
+            )
+        ):
+            return XianyuScreenAnalysis(
+                screen_name="photo_analysis",
                 current_package=current_package,
                 current_activity=current_activity,
                 visible_texts=visible_texts,
@@ -171,18 +226,52 @@ class XianyuPublishFlowService:
         settings: XianyuPublishSettings | None = None,
         android_service: AndroidDebugService | None = None,
         analyzer: XianyuFlowAnalyzer | None = None,
+        sleep_fn: Callable[[float], None] | None = None,
     ) -> None:
         self._settings = settings or XianyuPublishSettings()
         self._android = android_service or AndroidDebugService()
         self._analyzer = analyzer or XianyuFlowAnalyzer(settings=self._settings)
+        self._sleep = sleep_fn or time.sleep
 
     def _analyze(self, serial: str) -> XianyuScreenAnalysis:
         return self._analyzer.detect_screen(self._android.get_screen_data(serial))
+
+    def _looks_like_loading_overlay(self, analysis: XianyuScreenAnalysis) -> bool:
+        if analysis.screen_name != "unknown":
+            return False
+        if analysis.current_package != self._settings.xianyu_package_name:
+            return False
+        if not analysis.visible_texts:
+            return True
+        loading_noise = {
+            "开启护眼模式",
+            "勿扰",
+            "振铃器静音。",
+            "WLAN 信号强度满格。",
+        }
+        return all(
+            text in loading_noise or text.isdigit() or ":" in text
+            for text in analysis.visible_texts
+        )
 
     def _tap_target(self, serial: str, target: TapTarget, target_name: str) -> None:
         if target is None:
             raise RuntimeError(f"Missing tap target for {target_name}")
         self._android.tap(serial, target.x, target.y)
+
+    def _wait_for_non_loading_screen(
+        self,
+        serial: str,
+        *,
+        max_polls: int = 6,
+    ) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        for _ in range(max_polls):
+            if not self._looks_like_loading_overlay(analysis):
+                return analysis
+            self._sleep(1.0)
+            analysis = self._analyze(serial)
+        return analysis
 
     def open_home(self, serial: str) -> None:
         device = self._android.get_device(serial)
@@ -238,22 +327,69 @@ class XianyuPublishFlowService:
             f"Failed to reach album picker within {max_steps} steps: {final_analysis.screen_name}"
         )
 
-    def select_cover_image(self, serial: str) -> XianyuScreenAnalysis:
+    def switch_album_source(
+        self,
+        serial: str,
+        preferred_album_name: str | None = None,
+    ) -> XianyuScreenAnalysis:
+        target_album_name = preferred_album_name or self._settings.preferred_album_name
+        analysis = self._analyze(serial)
+        if analysis.screen_name != "album_picker":
+            raise RuntimeError(
+                f"Cannot switch album source from screen: {analysis.screen_name}"
+            )
+
+        current_source = analysis.targets.get("album_source")
+        if current_source is not None and current_source.text == target_album_name:
+            return analysis
+
+        source_target = analysis.targets.get("album_source")
+        if source_target is None:
+            raise RuntimeError("Missing current album source target on album picker")
+        self._tap_target(serial, source_target, "album_source")
+
+        source_menu = self._analyze(serial)
+        if source_menu.screen_name != "album_source_menu":
+            raise RuntimeError(
+                "Expected album source menu after tapping source label, "
+                f"got {source_menu.screen_name}"
+            )
+
+        preferred_source = source_menu.targets.get("preferred_album_source")
+        if preferred_source is None:
+            raise RuntimeError(f"Missing preferred album source target for {target_album_name}")
+        self._tap_target(serial, preferred_source, "preferred_album_source")
+
+        updated_picker = self._analyze(serial)
+        if updated_picker.screen_name != "album_picker":
+            raise RuntimeError(
+                f"Expected album picker after switching source, got {updated_picker.screen_name}"
+            )
+        return updated_picker
+
+    def select_cover_image(
+        self,
+        serial: str,
+        preferred_album_name: str | None = None,
+    ) -> XianyuScreenAnalysis:
         analysis = self._analyze(serial)
         if analysis.screen_name != "album_picker":
             raise RuntimeError(
                 f"Cannot select album media from screen: {analysis.screen_name}"
             )
 
+        if preferred_album_name is not None:
+            analysis = self.switch_album_source(serial, preferred_album_name=preferred_album_name)
+
         select_target = analysis.targets.get("album_select")
         if select_target is None:
             raise RuntimeError("Missing selectable media target on album picker")
         self._tap_target(serial, select_target, "album_select")
 
-        post_select = self._analyze(serial)
+        post_select = self._wait_for_non_loading_screen(serial)
         confirm_target = post_select.targets.get("album_confirm")
         if confirm_target is None:
             return post_select
 
         self._tap_target(serial, confirm_target, "album_confirm")
-        return self._analyze(serial)
+        return self._wait_for_non_loading_screen(serial)

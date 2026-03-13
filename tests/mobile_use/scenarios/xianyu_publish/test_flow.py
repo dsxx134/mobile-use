@@ -32,9 +32,10 @@ def _make_screen(
 
 
 class FakeAndroidService:
-    def __init__(self, screens: list[dict]):
+    def __init__(self, screens: list[dict], advance_on_get_indices: set[int] | None = None):
         self._screens = screens
         self._index = 0
+        self._advance_on_get_indices = advance_on_get_indices or set()
         self.device = Mock()
         self.tap_calls: list[tuple[str, int, int]] = []
 
@@ -42,7 +43,10 @@ class FakeAndroidService:
         return self._screens[self._index]["current_app"]
 
     def get_screen_data(self, serial: str) -> dict:
-        return self._screens[self._index]
+        screen = self._screens[self._index]
+        if self._index in self._advance_on_get_indices and self._index < len(self._screens) - 1:
+            self._index += 1
+        return screen
 
     def tap(self, serial: str, x: int, y: int, long_press: bool = False) -> dict:
         self.tap_calls.append((serial, x, y))
@@ -157,6 +161,98 @@ def test_detects_media_permission_dialog_and_album_picker():
     assert album_analysis.targets["album_select"].y == 260
     assert album_analysis.targets["album_confirm"].x == 1920
     assert album_analysis.targets["album_confirm"].y == 1415
+
+
+def test_detects_album_source_menu_and_preferred_source_target():
+    analyzer = XianyuFlowAnalyzer(
+        settings=XianyuPublishSettings(preferred_album_name="XianyuPublish")
+    )
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "所有文件", "bounds": "[1810,85][2030,185]"},
+            {"text": "所有文件·889", "bounds": "[1600,320][2240,470]"},
+            {"text": "所有视频·492", "bounds": "[1600,500][2240,650]"},
+            {"text": "XianyuPublish·1", "bounds": "[1600,650][2240,800]"},
+            {"text": "查看大图", "bounds": "[1601,210][1918,526]"},
+            {"text": "选择", "bounds": "[1818,210][1918,310]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "album_source_menu"
+    assert analysis.targets["album_source"].x == 1920
+    assert analysis.targets["album_source"].y == 135
+    assert analysis.targets["preferred_album_source"].text == "XianyuPublish·1"
+    assert analysis.targets["preferred_album_source"].x == 1920
+    assert analysis.targets["preferred_album_source"].y == 725
+
+
+def test_detects_album_picker_when_preferred_source_is_selected():
+    analyzer = XianyuFlowAnalyzer(
+        settings=XianyuPublishSettings(preferred_album_name="XianyuPublish")
+    )
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+            {"text": "预览", "bounds": "[2320,118][2380,165]"},
+            {"text": "查看大图", "bounds": "[1601,210][1918,526]"},
+            {"text": "选择", "bounds": "[1818,210][1918,310]"},
+            {"text": "关闭", "bounds": "[1280,1470][2560,1600]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "album_picker"
+    assert analysis.targets["album_source"].text == "XianyuPublish"
+    assert analysis.targets["album_select"].x == 1868
+    assert analysis.targets["album_select"].y == 260
+
+
+def test_detects_photo_analysis_screen_after_confirm():
+    analyzer = XianyuFlowAnalyzer(settings=XianyuPublishSettings())
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "宝贝价格是根据市场行情计算得出", "bounds": "[1320,541][1733,569]"},
+            {"text": "7张照片", "bounds": "[1360,607][1460,635]"},
+            {"text": "添加", "bounds": "[2268,537][2328,567]"},
+            {"text": "照片模糊未识别到宝贝\n删除", "bounds": "[1280,681][2560,1600]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "photo_analysis"
+    assert analysis.visible_texts == [
+        "宝贝价格是根据市场行情计算得出",
+        "7张照片",
+        "添加",
+        "照片模糊未识别到宝贝\n删除",
+    ]
+
+
+def test_detects_photo_analysis_screen_while_price_is_still_computing():
+    analyzer = XianyuFlowAnalyzer(settings=XianyuPublishSettings())
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "宝贝价格是根据市场行情计算得出", "bounds": "[1320,541][1733,569]"},
+            {"text": "13张照片", "bounds": "[1360,607][1460,635]"},
+            {"text": "添加", "bounds": "[2268,537][2328,567]"},
+            {
+                "text": "价格计算中 预计需要2分钟\n宝贝价格是根据市场行情计算得出，完成后通知你",
+                "bounds": "[1280,686][2560,1600]",
+            },
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "photo_analysis"
 
 
 def test_open_home_uses_explicit_main_activity_shell():
@@ -352,3 +448,206 @@ def test_select_cover_image_returns_latest_analysis_after_confirm():
 
     assert result.screen_name == "unknown"
     assert result.visible_texts == ["标题", "描述一下宝贝吧"]
+
+
+def test_switch_album_source_opens_source_menu_and_chooses_preferred_album():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "所有文件", "bounds": "[1810,85][2030,185]"},
+                    {"text": "选择", "bounds": "[1790,202][1947,319]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "所有文件", "bounds": "[1810,85][2030,185]"},
+                    {"text": "所有文件·889", "bounds": "[1600,320][2240,470]"},
+                    {"text": "XianyuPublish·1", "bounds": "[1600,650][2240,800]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "选择", "bounds": "[1818,210][1918,310]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(preferred_album_name="XianyuPublish"),
+        android_service=android_service,
+    )
+
+    result = flow.switch_album_source("device-1")
+
+    assert result.screen_name == "album_picker"
+    assert result.targets["album_source"].text == "XianyuPublish"
+    assert android_service.tap_calls == [
+        ("device-1", 1920, 135),
+        ("device-1", 1920, 725),
+    ]
+
+
+def test_select_cover_image_can_switch_to_preferred_album_before_selecting():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "所有文件", "bounds": "[1810,85][2030,185]"},
+                    {"text": "选择", "bounds": "[1790,202][1947,319]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "所有文件", "bounds": "[1810,85][2030,185]"},
+                    {"text": "所有文件·889", "bounds": "[1600,320][2240,470]"},
+                    {"text": "XianyuPublish·1", "bounds": "[1600,650][2240,800]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "选择", "bounds": "[1818,210][1918,310]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "预览 (1)", "bounds": "[2385,118][2530,165]"},
+                    {"text": "确定", "bounds": "[1620,1365][2220,1465]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "宝贝价格是根据市场行情计算得出", "bounds": "[1320,541][1733,569]"},
+                    {"text": "1张照片", "bounds": "[1360,607][1460,635]"},
+                    {"text": "添加", "bounds": "[2268,537][2328,567]"},
+                    {"text": "照片模糊未识别到宝贝\n删除", "bounds": "[1280,681][2560,1600]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(preferred_album_name="XianyuPublish"),
+        android_service=android_service,
+    )
+
+    result = flow.select_cover_image("device-1", preferred_album_name="XianyuPublish")
+
+    assert result.screen_name == "photo_analysis"
+    assert android_service.tap_calls == [
+        ("device-1", 1920, 135),
+        ("device-1", 1920, 725),
+        ("device-1", 1868, 260),
+        ("device-1", 1920, 1415),
+    ]
+
+
+def test_select_cover_image_waits_for_photo_analysis_after_blank_loading_screen():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "选择", "bounds": "[1818,210][1918,310]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "预览 (1)", "bounds": "[2385,118][2530,165]"},
+                    {"text": "确定", "bounds": "[1620,1365][2220,1465]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "10:53", "bounds": "[86,14][180,66]"},
+                    {"text": "100", "bounds": "[2391,20][2445,58]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "宝贝价格是根据市场行情计算得出", "bounds": "[1320,541][1733,569]"},
+                    {"text": "1张照片", "bounds": "[1360,607][1460,635]"},
+                    {"text": "添加", "bounds": "[2268,537][2328,567]"},
+                    {"text": "照片模糊未识别到宝贝\n删除", "bounds": "[1280,681][2560,1600]"},
+                ],
+            ),
+        ],
+        advance_on_get_indices={2},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(preferred_album_name="XianyuPublish"),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.select_cover_image("device-1")
+
+    assert result.screen_name == "photo_analysis"
+    assert result.visible_texts[-1] == "照片模糊未识别到宝贝\n删除"
+
+
+def test_select_cover_image_waits_for_confirm_button_before_confirming():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "选择", "bounds": "[1818,210][1918,310]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "10:53", "bounds": "[86,14][180,66]"},
+                    {"text": "100", "bounds": "[2391,20][2445,58]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "预览 (1)", "bounds": "[2385,118][2530,165]"},
+                    {"text": "确定", "bounds": "[1620,1365][2220,1465]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "宝贝价格是根据市场行情计算得出", "bounds": "[1320,541][1733,569]"},
+                    {"text": "1张照片", "bounds": "[1360,607][1460,635]"},
+                    {"text": "添加", "bounds": "[2268,537][2328,567]"},
+                    {"text": "照片模糊未识别到宝贝\n删除", "bounds": "[1280,681][2560,1600]"},
+                ],
+            ),
+        ],
+        advance_on_get_indices={1},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(preferred_album_name="XianyuPublish"),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.select_cover_image("device-1")
+
+    assert result.screen_name == "photo_analysis"
+    assert android_service.tap_calls == [
+        ("device-1", 1868, 260),
+        ("device-1", 1920, 1415),
+    ]

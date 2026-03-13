@@ -13,6 +13,8 @@ class XianyuPublishSettings(BaseSettings):
     publish_entry_text: str = "卖闲置"
     publish_option_text: str = "发闲置"
     permission_allow_text: str = "允许"
+    album_source_label_text: str = "所有文件"
+    preferred_album_name: str = "XianyuPublish"
     album_select_text: str = "选择"
     album_confirm_text: str = "确定"
 
