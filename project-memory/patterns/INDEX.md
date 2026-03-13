@@ -22,5 +22,7 @@
 | xianyu-shipping-panel-uses-bottom-sheet-options | 2026-03-13 | xianyu-shipping-panel-uses-bottom-sheet-options.md |
 | android-fastinput-first-use-may-switch-away | 2026-03-13 | android-fastinput-first-use-may-switch-away.md |
 | xianyu-space-empty-state-leads-to-publish-chooser | 2026-03-13 | xianyu-space-empty-state-leads-to-publish-chooser.md |
+| xianyu-draft-resume-dialog-blocks-form-entry | 2026-03-13 | xianyu-draft-resume-dialog-blocks-form-entry.md |
+| xianyu-location-region-picker-uses-clickable-region-row | 2026-03-13 | xianyu-location-region-picker-uses-clickable-region-row.md |
 
-Total: 20
+Total: 22

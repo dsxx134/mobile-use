@@ -33,10 +33,13 @@ Updated: 2026-03-13
 - The Xianyu flow currently recognizes:
   - home tab
   - publish chooser
+  - draft-resume dialog
   - portrait listing form
   - description editor
   - sale-price keypad panel
   - shipping bottom sheet
+  - location root chooser
+  - location region picker
   - Android media permission dialog
   - album picker
   - album source menu
@@ -63,6 +66,7 @@ Updated: 2026-03-13
   - open Xianyu home
   - tap `卖闲置`
   - tap `发闲置`
+  - if a draft-resume dialog appears, tap `继续`
   - land on the standard portrait listing form
 - On the real portrait listing form, several actionable controls are surfaced via `content-desc`
   rather than plain `text`, including:
@@ -108,6 +112,14 @@ Updated: 2026-03-13
   returns. The flow now polls through both states.
 - `买家自提` is visible in the panel but is not yet treated as deterministic because the visible
   target did not reliably change the selected mode during real-device probing.
+- The flow service now also has a deterministic location-entry bridge from the portrait listing form:
+  - tap the `选择位置` row
+  - enter the root `location_panel`
+  - tap the full `请选择宝贝所在地` row
+  - enter the hierarchical `location_region_picker`
+- Final location persistence is still unresolved on this app/device pair. Real-device probes showed
+  that tapping a common address or a district row can return to the listing form without a stable,
+  visible location confirmation, so the flow stops at entering the picker for now.
 - On a fresh Android session, the first UIAutomator FastInputIME use can trigger one-time
   `com.github.uiautomator/.AdbKeyboard` installation and temporarily switch foreground away from
   Xianyu. After that warm-up, subsequent text entry stays in-app.

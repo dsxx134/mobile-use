@@ -312,6 +312,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - tap `卖闲置`
   - tap `发闲置`
   - force the Huawei tablet into portrait mode before entering the real publish form
+  - continue through the draft-resume dialog when `发闲置` reopens an unfinished listing
   - extract the portrait publish-form targets from real-device `content-desc` semantics
   - enter the dedicated description editor from the portrait form
   - fill description text and return to the portrait form
@@ -320,6 +321,8 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - confirm the price and return to the portrait form
   - open the shipping bottom sheet from the portrait form
   - switch between verified mail shipping modes and return to the portrait form
+  - open the root location chooser from the portrait form
+  - enter the hierarchical location region picker by tapping `请选择宝贝所在地`
   - accept the media permission dialog
   - reopen the album picker directly from the portrait form by tapping `添加图片`
   - switch the album source to a dedicated folder like `XianyuPublish`
@@ -361,9 +364,13 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - force portrait
   - tap `卖闲置`
   - tap `发闲置`
-  - land directly on the standard listing form
+  - if Xianyu has an unfinished draft, tap `继续`
+  - land on the standard listing form
 - On the real portrait form, key controls such as `发布`, `添加图片`, and the large description tile
   are exposed through `content-desc` values like `发布, 发布` and `描述, 描述一下宝贝的品牌型号、货品来源…`
+- On this Huawei tablet, tapping `发闲置` does not always enter the form directly; an unfinished
+  draft can surface a blocking dialog with `放弃` and `继续`, and the deterministic path is to tap
+  `继续`
 - The description path now uses a dedicated editor state with a `完成` control
 - On this Huawei tablet, `input_text()` can already return from that editor back to `listing_form`;
   the flow now detects that and avoids stale `完成` taps that can accidentally open `价格设置`
@@ -390,6 +397,16 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   `unknown` overlay before the portrait form returns; the flow now polls through both transitions
 - `买家自提` is still outside the deterministic support set for now because its visible text target
   did not prove reliably selectable during real-device probing
+- The portrait form also exposes a `选择位置` row; the flow now recognizes both the root
+  `宝贝所在地` chooser and the hierarchical `所在地` region picker
+- The stable path into region selection is:
+  - tap `选择位置`
+  - wait for `宝贝所在地`
+  - tap the full `请选择宝贝所在地` row
+  - enter the `所在地` region picker
+- Final location writeback is still not treated as deterministic yet; real-device probing did not
+  produce a stable, visible confirmation on the listing form after selecting either a common
+  address or a region row
 - From that portrait form, tapping `添加图片` opens the album picker directly without going back
   through the older publish chooser path
 - On a fresh device session, the first FastInputIME text entry can trigger a one-time
