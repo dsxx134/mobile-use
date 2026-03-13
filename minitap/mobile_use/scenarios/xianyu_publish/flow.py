@@ -71,6 +71,33 @@ def normalize_price_input(price: str | float | int) -> str:
     return normalized or "0"
 
 
+def normalize_shipping_method(method: str) -> str:
+    raw = str(method).strip()
+    if not raw:
+        raise ValueError("Shipping method cannot be empty")
+
+    aliases = {
+        "包邮": "包邮",
+        "邮寄包邮": "包邮",
+        "不包邮-按距离付费": "不包邮-按距离付费",
+        "不包邮-固定邮费": "不包邮-固定邮费",
+        "无需邮寄": "无需邮寄",
+    }
+    normalized = aliases.get(raw)
+    if normalized is None:
+        raise ValueError(f"Unsupported shipping method: {method!r}")
+    return normalized
+
+
+def extract_listing_shipping_value(target: TapTarget | None) -> str | None:
+    if target is None or not target.text:
+        return None
+    lines = [line.strip() for line in target.text.splitlines() if line.strip()]
+    if len(lines) >= 2 and lines[0] == "发货方式":
+        return lines[1]
+    return None
+
+
 class XianyuFlowAnalyzer:
     def __init__(self, settings: XianyuPublishSettings | None = None) -> None:
         self._settings = settings or XianyuPublishSettings()
@@ -103,6 +130,81 @@ class XianyuFlowAnalyzer:
                 continue
             return target.model_copy(update={"text": text})
         return None
+
+    def _find_multiline_option_target(
+        self,
+        elements: Iterable[dict],
+        *,
+        header_text: str,
+        option_text: str,
+    ) -> TapTarget | None:
+        for element in elements:
+            text = _extract_text(element)
+            bounds = element.get("bounds")
+            if text is None or not isinstance(bounds, str):
+                continue
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            if header_text not in lines or option_text not in lines:
+                continue
+            match = _BOUNDS_RE.fullmatch(bounds)
+            if match is None:
+                continue
+            left = int(match.group("left"))
+            top = int(match.group("top"))
+            right = int(match.group("right"))
+            bottom = int(match.group("bottom"))
+            row_height = (bottom - top) / len(lines)
+            line_index = lines.index(option_text)
+            return TapTarget(
+                x=(left + right) // 2,
+                y=int(top + ((line_index + 0.5) * row_height)),
+                bounds=bounds,
+                text=option_text,
+            )
+        return None
+
+    def _find_shipping_mail_option_targets(self, elements: Iterable[dict]) -> dict[str, TapTarget]:
+        multiline_target = self._find_target(elements, contains_text="包邮")
+        if multiline_target is None or multiline_target.text is None:
+            return {}
+
+        lines = [line.strip() for line in multiline_target.text.splitlines() if line.strip()]
+        if not lines or lines[0] != "邮寄":
+            return {}
+
+        option_labels = [line for line in lines[1:] if line.strip()]
+        if not option_labels:
+            return {}
+
+        icon_targets: list[TapTarget] = []
+        for element in elements:
+            element_class = element.get("class") or element.get("className")
+            if element_class != "android.widget.ImageView":
+                continue
+            target = parse_android_bounds(element.get("bounds"))
+            if target is None or target.x > 200:
+                continue
+            if target.y < multiline_target.y - 200 or target.y > multiline_target.y + 500:
+                continue
+            icon_targets.append(target)
+
+        if len(icon_targets) < len(option_labels):
+            return {}
+
+        icon_targets.sort(key=lambda target: target.y)
+        target_names = {
+            "包邮": "shipping_option_mail_free",
+            "不包邮-按距离付费": "shipping_option_mail_distance",
+            "不包邮-固定邮费": "shipping_option_mail_fixed",
+            "无需邮寄": "shipping_option_no_mail",
+        }
+        option_targets: dict[str, TapTarget] = {}
+        for label, icon_target in zip(option_labels, icon_targets, strict=False):
+            target_name = target_names.get(label)
+            if target_name is None:
+                continue
+            option_targets[target_name] = icon_target.model_copy(update={"text": label})
+        return option_targets
 
     def detect_screen(self, screen_data: dict) -> XianyuScreenAnalysis:
         current_app = screen_data.get("current_app", {})
@@ -151,6 +253,7 @@ class XianyuFlowAnalyzer:
         add_image = self._find_target(elements, exact_text="添加图片")
         description_entry = self._find_target(elements, contains_text="描述")
         price_entry = self._find_target(elements, exact_text="价格设置")
+        shipping_entry = self._find_target(elements, contains_text="发货方式")
         description_done = self._find_target(elements, exact_text="完成")
         if (
             current_package == self._settings.xianyu_package_name
@@ -199,6 +302,24 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
+        shipping_confirm = self._find_target(elements, exact_text="确定")
+        shipping_mail_targets = self._find_shipping_mail_option_targets(elements)
+        if (
+            current_package == self._settings.xianyu_package_name
+            and shipping_confirm is not None
+            and shipping_mail_targets
+            and any(text == "发货方式" for text in visible_texts)
+        ):
+            targets["shipping_confirm"] = shipping_confirm
+            targets.update(shipping_mail_targets)
+            return XianyuScreenAnalysis(
+                screen_name="shipping_panel",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
         if (
             current_package == self._settings.xianyu_package_name
             and any(text == "发闲置" for text in visible_texts)
@@ -213,6 +334,8 @@ class XianyuFlowAnalyzer:
                 targets["description_entry"] = description_entry
             if price_entry is not None:
                 targets["price_entry"] = price_entry
+            if shipping_entry is not None:
+                targets["shipping_entry"] = shipping_entry
             return XianyuScreenAnalysis(
                 screen_name="listing_form",
                 current_package=current_package,
@@ -363,7 +486,10 @@ class XianyuPublishFlowService:
             "WLAN 信号强度满格。",
         }
         return all(
-            text in loading_noise or text.isdigit() or ":" in text
+            text in loading_noise
+            or text.isdigit()
+            or ":" in text
+            or text.startswith("正在充电")
             for text in analysis.visible_texts
         )
 
@@ -409,6 +535,29 @@ class XianyuPublishFlowService:
         if analysis.screen_name == "album_picker":
             raise RuntimeError(
                 f"Post-confirm flow did not leave album picker within {max_polls} polls"
+            )
+        return analysis
+
+    def _wait_for_post_shipping_confirm_screen(
+        self,
+        serial: str,
+        *,
+        max_polls: int = 6,
+    ) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        for _ in range(max_polls):
+            if (
+                self._looks_like_loading_overlay(analysis)
+                or analysis.screen_name == "shipping_panel"
+            ):
+                self._sleep(1.0)
+                analysis = self._analyze(serial)
+                continue
+            return analysis
+
+        if analysis.screen_name == "shipping_panel":
+            raise RuntimeError(
+                f"Shipping confirm flow did not leave shipping panel within {max_polls} polls"
             )
         return analysis
 
@@ -734,6 +883,37 @@ class XianyuPublishFlowService:
             f"Failed to reach price panel within {max_steps} steps: {final_analysis.screen_name}"
         )
 
+    def advance_listing_form_to_shipping_panel(
+        self,
+        serial: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        for _ in range(max_steps):
+            analysis = self._analyze(serial)
+            if analysis.screen_name == "shipping_panel":
+                return analysis
+
+            if analysis.screen_name == "listing_form":
+                target = analysis.targets.get("shipping_entry")
+                if target is None:
+                    raise RuntimeError("Missing shipping_entry target on listing form")
+                self._tap_target(serial, target, "shipping_entry")
+                analysis = self._wait_for_non_loading_screen(serial)
+                if analysis.screen_name in {"shipping_panel", "unknown"}:
+                    continue
+
+            raise RuntimeError(
+                "Cannot reach shipping panel from current screen: "
+                f"{analysis.screen_name}"
+            )
+
+        final_analysis = self._analyze(serial)
+        if final_analysis.screen_name == "shipping_panel":
+            return final_analysis
+        raise RuntimeError(
+            f"Failed to reach shipping panel within {max_steps} steps: {final_analysis.screen_name}"
+        )
+
     def fill_description(
         self,
         serial: str,
@@ -810,5 +990,57 @@ class XianyuPublishFlowService:
             raise RuntimeError(
                 "Price flow did not return to listing form: "
                 f"{final_analysis.screen_name}"
+            )
+        return final_analysis
+
+    def set_shipping_method(
+        self,
+        serial: str,
+        method: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        desired_method = normalize_shipping_method(method)
+        current_analysis = self._analyze(serial)
+        if current_analysis.screen_name == "listing_form":
+            current_method = extract_listing_shipping_value(
+                current_analysis.targets.get("shipping_entry")
+            )
+            if current_method == desired_method:
+                return current_analysis
+
+        analysis = self.advance_listing_form_to_shipping_panel(serial, max_steps=max_steps)
+        target_name = {
+            "包邮": "shipping_option_mail_free",
+            "不包邮-按距离付费": "shipping_option_mail_distance",
+            "不包邮-固定邮费": "shipping_option_mail_fixed",
+            "无需邮寄": "shipping_option_no_mail",
+        }[desired_method]
+        option_target = analysis.targets.get(target_name)
+        if option_target is None:
+            raise RuntimeError(f"Missing {target_name} target on shipping panel")
+        self._tap_target(serial, option_target, target_name)
+
+        updated_panel = self._wait_for_non_loading_screen(serial)
+        if updated_panel.screen_name == "shipping_panel":
+            analysis = updated_panel
+
+        confirm_target = analysis.targets.get("shipping_confirm") or updated_panel.targets.get(
+            "shipping_confirm"
+        )
+        if confirm_target is None:
+            raise RuntimeError("Missing shipping_confirm target on shipping panel")
+        self._tap_target(serial, confirm_target, "shipping_confirm")
+
+        final_analysis = self._wait_for_post_shipping_confirm_screen(serial)
+        if final_analysis.screen_name != "listing_form":
+            raise RuntimeError(
+                "Shipping flow did not return to listing form: "
+                f"{final_analysis.screen_name}"
+            )
+
+        final_method = extract_listing_shipping_value(final_analysis.targets.get("shipping_entry"))
+        if final_method != desired_method:
+            raise RuntimeError(
+                f"Shipping flow ended on {final_method!r} instead of {desired_method!r}"
             )
         return final_analysis
