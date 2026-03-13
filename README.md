@@ -301,10 +301,13 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - publish chooser
   - Android media permission dialog
   - album picker
+  - album source menu
+  - post-confirm photo analysis screen
 - Can:
   - tap `卖闲置`
   - tap `发闲置`
   - accept the media permission dialog
+  - switch the album source to a dedicated folder like `XianyuPublish`
   - select one image and confirm it
 
 ### Required environment variables
@@ -336,9 +339,17 @@ uv run python scripts/xianyu_publish_foundation_smoke.py
 uv run python scripts/xianyu_publish_flow_smoke.py
 ```
 
+### Current media-selection behavior
+
+- For deterministic selection, push listing images into a dedicated device folder such as
+  `XIANYU_ANDROID_MEDIA_DIR=/sdcard/DCIM/XianyuPublish`
+- The flow can switch the picker from `所有文件` into `XianyuPublish` before tapping `选择`
+- After confirming the selection, the current app version lands on a `photo_analysis` screen
+  before any final listing form appears
+
 ### Current boundary
 
-- The flow currently stops after media selection / confirmation
+- The flow currently stops after the `photo_analysis` screen
 - Title, description, price, category, and final publish submission are the next layer
 
 ## 🔎 Agentic System Overview

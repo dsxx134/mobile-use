@@ -22,6 +22,7 @@ Status: Active
 - Smoke script on 2026-03-12 detected two local Android targets: `E2P6R22708000602` and `emulator-5564`.
 - Xianyu publish foundation batch 1 completed on `feat/android-debug-mcp`: scenario models/settings, Feishu Bitable source, media staging, Android media push, and foundation smoke script.
 - Xianyu publish flow batch 1 completed on `feat/android-debug-mcp`: screen analyzer, explicit-home recovery, deterministic navigation from Xianyu home to album picker, cover-image selection, and flow smoke script.
+- Xianyu publish flow batch 2 completed on `feat/android-debug-mcp`: deterministic album-source switching, `photo_analysis` screen recognition, and wait/retry handling for post-select and post-confirm loading gaps.
 
 ## Operational Rule
 - Important milestones should be committed and pushed to GitHub instead of remaining only local.

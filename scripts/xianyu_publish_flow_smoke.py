@@ -39,6 +39,7 @@ def main() -> None:
                 "current_app": screen["current_app"],
                 "screen_name": analysis.screen_name,
                 "target_keys": sorted(analysis.targets.keys()),
+                "preferred_album_name": settings.preferred_album_name,
                 "visible_text_preview": analysis.visible_texts[:12],
             },
             ensure_ascii=False,

@@ -11,5 +11,7 @@
 | push-at-milestones | 2026-03-12 | push-at-milestones.md |
 | xianyu-home-recovery-uses-explicit-main-activity | 2026-03-12 | xianyu-home-recovery-uses-explicit-main-activity.md |
 | xianyu-flow-starts-with-screen-analysis | 2026-03-12 | xianyu-flow-starts-with-screen-analysis.md |
+| xianyu-media-selection-should-switch-to-a-dedicated-album | 2026-03-13 | xianyu-media-selection-should-switch-to-a-dedicated-album.md |
+| xianyu-post-confirm-screen-is-photo-analysis | 2026-03-13 | xianyu-post-confirm-screen-is-photo-analysis.md |
 
-Total: 9
+Total: 11

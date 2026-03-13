@@ -35,8 +35,13 @@ Updated: 2026-03-12
   - publish chooser
   - Android media permission dialog
   - album picker
+  - album source menu
+  - photo analysis screen after media confirmation
 - On the Huawei tablet used for development, reliable home recovery requires:
   - `am start -n com.taobao.idlefish/com.taobao.idlefish.maincontainer.activity.MainActivity`
   - not just `app_start(package)`, which can reopen a non-home category page
+- Deterministic media selection is safer when the flow switches the picker from `所有文件` to a dedicated source folder such as `XianyuPublish`.
+- The post-confirm destination is currently a `photo_analysis` screen rather than the final listing form, so form filling must build on top of that state instead of assuming the form appears immediately.
+- The flow service now tolerates brief blank/loading snapshots after tapping `选择` and `确定` by polling until the next meaningful screen appears.
 - `scripts/xianyu_publish_flow_smoke.py` is the quickest way to inspect the current Xianyu screen classification on a connected Android device.
 - The next layer should still consume `ListingDraft` directly and stay isolated from raw Feishu record payloads.
