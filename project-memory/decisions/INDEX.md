@@ -7,5 +7,6 @@
 | use repository-local memory | 2026-03-12 | 2026-03-12-repo-local-memory.md |
 | xianyu flow first scope is home to album | 2026-03-12 | 2026-03-12-xianyu-flow-first-scope-is-home-to-album.md |
 | xianyu flow switches to dedicated album before select | 2026-03-13 | 2026-03-13-xianyu-flow-switches-to-dedicated-album-before-select.md |
+| xianyu post confirm transition is handled in flow service | 2026-03-13 | 2026-03-13-xianyu-post-confirm-transition-is-handled-in-flow-service.md |
 
-Total: 5
+Total: 6

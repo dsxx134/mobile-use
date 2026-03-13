@@ -344,8 +344,13 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 - For deterministic selection, push listing images into a dedicated device folder such as
   `XIANYU_ANDROID_MEDIA_DIR=/sdcard/DCIM/XianyuPublish`
 - The flow can switch the picker from `所有文件` into `XianyuPublish` before tapping `选择`
-- After confirming the selection, the current app version lands on a `photo_analysis` screen
-  before any final listing form appears
+- After tapping `确定`, real devices can briefly linger on an album-picker tail state that still
+  shows `预览 (1)` and `确定`; the flow now polls until that transient state clears
+- Once the tail state clears, the current app version lands on a `photo_analysis` screen before
+  any final listing form appears
+- On recognizable product images, that `photo_analysis` screen can surface a detected-item branch
+  such as `1个宝贝` plus a computed price range, but the automation still does not advance into
+  the final edit form yet
 
 ### Current boundary
 

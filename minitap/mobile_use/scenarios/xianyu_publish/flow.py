@@ -273,6 +273,26 @@ class XianyuPublishFlowService:
             analysis = self._analyze(serial)
         return analysis
 
+    def _wait_for_post_confirm_screen(
+        self,
+        serial: str,
+        *,
+        max_polls: int = 6,
+    ) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        for _ in range(max_polls):
+            if self._looks_like_loading_overlay(analysis) or analysis.screen_name == "album_picker":
+                self._sleep(1.0)
+                analysis = self._analyze(serial)
+                continue
+            return analysis
+
+        if analysis.screen_name == "album_picker":
+            raise RuntimeError(
+                f"Post-confirm flow did not leave album picker within {max_polls} polls"
+            )
+        return analysis
+
     def open_home(self, serial: str) -> None:
         device = self._android.get_device(serial)
         device.shell(
@@ -392,4 +412,4 @@ class XianyuPublishFlowService:
             return post_select
 
         self._tap_target(serial, confirm_target, "album_confirm")
-        return self._wait_for_non_loading_screen(serial)
+        return self._wait_for_post_confirm_screen(serial)

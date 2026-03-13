@@ -651,3 +651,98 @@ def test_select_cover_image_waits_for_confirm_button_before_confirming():
         ("device-1", 1868, 260),
         ("device-1", 1920, 1415),
     ]
+
+
+def test_select_cover_image_waits_until_album_picker_tail_transitions_to_photo_analysis():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "选择", "bounds": "[1818,210][1918,310]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "预览 (1)", "bounds": "[2385,118][2530,165]"},
+                    {"text": "确定", "bounds": "[1620,1365][2220,1465]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "预览 (1)", "bounds": "[2385,118][2530,165]"},
+                    {"text": "确定", "bounds": "[1620,1365][2220,1465]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "宝贝价格是根据市场行情计算得出", "bounds": "[1320,541][1733,569]"},
+                    {"text": "2张照片", "bounds": "[1360,607][1460,635]"},
+                    {"text": "添加", "bounds": "[2268,537][2328,567]"},
+                    {"text": "照片模糊未识别到宝贝\n删除", "bounds": "[1280,681][2560,1600]"},
+                ],
+            ),
+        ],
+        advance_on_get_indices={2},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(preferred_album_name="XianyuPublish"),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.select_cover_image("device-1")
+
+    assert result.screen_name == "photo_analysis"
+    assert android_service.tap_calls == [
+        ("device-1", 1868, 260),
+        ("device-1", 1920, 1415),
+    ]
+
+
+def test_select_cover_image_raises_when_post_confirm_flow_never_leaves_album_picker():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "选择", "bounds": "[1818,210][1918,310]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "预览 (1)", "bounds": "[2385,118][2530,165]"},
+                    {"text": "确定", "bounds": "[1620,1365][2220,1465]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "XianyuPublish", "bounds": "[1753,85][2088,185]"},
+                    {"text": "预览 (1)", "bounds": "[2385,118][2530,165]"},
+                    {"text": "确定", "bounds": "[1620,1365][2220,1465]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(preferred_album_name="XianyuPublish"),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    try:
+        flow.select_cover_image("device-1")
+    except RuntimeError as exc:
+        assert str(exc) == "Post-confirm flow did not leave album picker within 6 polls"
+    else:
+        raise AssertionError("Expected select_cover_image() to raise for a stuck album picker")
