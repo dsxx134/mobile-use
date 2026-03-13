@@ -38,14 +38,17 @@ class FakeAndroidService:
         screens: list[dict],
         advance_on_get_indices: set[int] | None = None,
         advance_on_input_indices: set[int] | None = None,
+        advance_on_tap_calls: set[int] | None = None,
     ):
         self._screens = screens
         self._index = 0
         self._advance_on_get_indices = advance_on_get_indices or set()
         self._advance_on_input_indices = advance_on_input_indices or set()
+        self._advance_on_tap_calls = advance_on_tap_calls
         self.device = Mock()
         self.tap_calls: list[tuple[str, int, int]] = []
         self.input_text_calls: list[tuple[str, str]] = []
+        self._tap_count = 0
 
     def get_current_app(self, serial: str) -> dict:
         return self._screens[self._index]["current_app"]
@@ -58,7 +61,15 @@ class FakeAndroidService:
 
     def tap(self, serial: str, x: int, y: int, long_press: bool = False) -> dict:
         self.tap_calls.append((serial, x, y))
-        if self._index < len(self._screens) - 1:
+        self._tap_count += 1
+        should_advance = (
+            self._index < len(self._screens) - 1
+            and (
+                self._advance_on_tap_calls is None
+                or self._tap_count in self._advance_on_tap_calls
+            )
+        )
+        if should_advance:
             self._index += 1
         return {"serial": serial, "x": x, "y": y, "success": True, "long_press": long_press}
 
@@ -183,6 +194,32 @@ def test_detects_portrait_listing_form_targets_from_content_desc():
     assert analysis.targets["description_entry"].y == 1000
 
 
+def test_detects_listing_form_price_entry_target():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+            {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+            {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+            {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+            {
+                "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                "bounds": "[30,737][1570,1264]",
+            },
+            {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+            {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "listing_form"
+    assert analysis.targets["price_entry"].text == "价格设置"
+    assert analysis.targets["price_entry"].x == 800
+    assert analysis.targets["price_entry"].y == 1705
+
+
 def test_detects_description_editor_from_portrait_form():
     analyzer = XianyuFlowAnalyzer()
     screen = _make_screen(
@@ -210,6 +247,38 @@ def test_detects_description_editor_from_portrait_form():
     assert analysis.targets["description_done"].text == "完成"
     assert analysis.targets["description_done"].x == 1525
     assert analysis.targets["description_entry"].text == "描述, 描述一下宝贝的品牌型号、货品来源…"
+
+
+def test_detects_price_panel_with_confirm_delete_and_keypad_targets():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {
+                "text": "可以设「粉丝价」啦！快去给你的粉丝专属优惠吧！",
+                "bounds": "[0,965][1600,2560]",
+            },
+            {"text": "价格设置", "bounds": "[40,1258][1560,1378]"},
+            {"text": "设置粉丝价", "bounds": "[40,1378][315,1498]"},
+            {"text": "原价设置", "bounds": "[40,1503][1560,1623]"},
+            {"text": "库存设置", "bounds": "[40,1628][1560,1748]"},
+            {"text": "1", "bounds": "[120,1961][280,2109]"},
+            {"text": "3", "bounds": "[920,1961][1080,2109]"},
+            {"text": "9", "bounds": "[920,2261][1080,2409]"},
+            {"text": ".", "bounds": "[120,2411][280,2559]"},
+            {"text": "删除", "bounds": "[1320,2035][1480,2185]"},
+            {"text": "确定", "bounds": "[1320,2335][1480,2485]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "price_panel"
+    assert analysis.targets["price_confirm"].x == 1400
+    assert analysis.targets["price_delete"].x == 1400
+    assert analysis.targets["price_key_3"].x == 1000
+    assert analysis.targets["price_key_9"].y == 2335
+    assert analysis.targets["price_key_decimal"].text == "."
 
 
 def test_detects_media_permission_dialog_and_album_picker():
@@ -879,6 +948,118 @@ def test_fill_description_returns_immediately_when_input_text_already_restores_l
     assert result.screen_name == "listing_form"
     assert android_service.tap_calls == [("device-1", 800, 1000)]
     assert android_service.input_text_calls == [("device-1", "自动回表单描述")]
+
+
+def test_advance_listing_form_to_price_panel_taps_price_entry():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "价格设置", "bounds": "[40,1258][1560,1378]"},
+                    {"text": "原价设置", "bounds": "[40,1503][1560,1623]"},
+                    {"text": "库存设置", "bounds": "[40,1628][1560,1748]"},
+                    {"text": "1", "bounds": "[120,1961][280,2109]"},
+                    {"text": "删除", "bounds": "[1320,2035][1480,2185]"},
+                    {"text": "确定", "bounds": "[1320,2335][1480,2485]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_listing_form_to_price_panel("device-1")
+
+    assert result.screen_name == "price_panel"
+    assert android_service.tap_calls == [("device-1", 800, 1705)]
+
+
+def test_fill_price_clears_existing_digits_taps_keypad_and_confirms():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "价格设置", "bounds": "[40,1258][1560,1378]"},
+                    {"text": "原价设置", "bounds": "[40,1503][1560,1623]"},
+                    {"text": "库存设置", "bounds": "[40,1628][1560,1748]"},
+                    {"text": "3", "bounds": "[920,1961][1080,2109]"},
+                    {"text": "9", "bounds": "[920,2261][1080,2409]"},
+                    {"text": ".", "bounds": "[120,2411][280,2559]"},
+                    {"text": "删除", "bounds": "[1320,2035][1480,2185]"},
+                    {"text": "确定", "bounds": "[1320,2335][1480,2485]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+        ],
+        advance_on_tap_calls={1, 8},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _: None,
+    )
+
+    result = flow.fill_price("device-1", "39.9", max_steps=4, max_clear_presses=2)
+
+    assert result.screen_name == "listing_form"
+    assert android_service.tap_calls == [
+        ("device-1", 800, 1705),
+        ("device-1", 1400, 2110),
+        ("device-1", 1400, 2110),
+        ("device-1", 1000, 2035),
+        ("device-1", 1000, 2335),
+        ("device-1", 200, 2485),
+        ("device-1", 1000, 2335),
+        ("device-1", 1400, 2410),
+    ]
 
 
 def test_select_cover_image_taps_first_select_then_confirm():

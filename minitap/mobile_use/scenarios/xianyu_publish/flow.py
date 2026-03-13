@@ -2,6 +2,8 @@ import re
 import time
 from collections.abc import Iterable
 from collections.abc import Callable
+from decimal import Decimal
+from decimal import InvalidOperation
 
 from minitap.mobile_use.mcp.android_debug_service import AndroidDebugService
 from minitap.mobile_use.scenarios.xianyu_publish.models import TapTarget, XianyuScreenAnalysis
@@ -48,6 +50,25 @@ def parse_android_bounds(bounds: str | dict | None) -> TapTarget | None:
         )
 
     return None
+
+
+def normalize_price_input(price: str | float | int) -> str:
+    raw = str(price).strip()
+    if not raw:
+        raise ValueError("Price input cannot be empty")
+
+    try:
+        value = Decimal(raw)
+    except InvalidOperation as exc:
+        raise ValueError(f"Invalid price input: {price!r}") from exc
+
+    if value < 0:
+        raise ValueError("Price input cannot be negative")
+
+    normalized = format(value, "f")
+    if "." in normalized:
+        normalized = normalized.rstrip("0").rstrip(".")
+    return normalized or "0"
 
 
 class XianyuFlowAnalyzer:
@@ -129,6 +150,7 @@ class XianyuFlowAnalyzer:
         )
         add_image = self._find_target(elements, exact_text="添加图片")
         description_entry = self._find_target(elements, contains_text="描述")
+        price_entry = self._find_target(elements, exact_text="价格设置")
         description_done = self._find_target(elements, exact_text="完成")
         if (
             current_package == self._settings.xianyu_package_name
@@ -150,6 +172,33 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
+        price_confirm = self._find_target(elements, exact_text="确定")
+        price_delete = self._find_target(elements, exact_text="删除")
+        if (
+            current_package == self._settings.xianyu_package_name
+            and price_confirm is not None
+            and price_delete is not None
+            and any("价格设置" in text for text in visible_texts)
+            and any("原价设置" in text for text in visible_texts)
+            and any("库存设置" in text for text in visible_texts)
+        ):
+            targets["price_confirm"] = price_confirm
+            targets["price_delete"] = price_delete
+            for digit in "0123456789":
+                digit_target = self._find_target(elements, exact_text=digit)
+                if digit_target is not None:
+                    targets[f"price_key_{digit}"] = digit_target
+            decimal_target = self._find_target(elements, exact_text=".")
+            if decimal_target is not None:
+                targets["price_key_decimal"] = decimal_target
+            return XianyuScreenAnalysis(
+                screen_name="price_panel",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
         if (
             current_package == self._settings.xianyu_package_name
             and any(text == "发闲置" for text in visible_texts)
@@ -162,6 +211,8 @@ class XianyuFlowAnalyzer:
             targets["add_image"] = add_image
             if description_entry is not None:
                 targets["description_entry"] = description_entry
+            if price_entry is not None:
+                targets["price_entry"] = price_entry
             return XianyuScreenAnalysis(
                 screen_name="listing_form",
                 current_package=current_package,
@@ -652,6 +703,37 @@ class XianyuPublishFlowService:
             f"{max_steps} steps: {final_analysis.screen_name}"
         )
 
+    def advance_listing_form_to_price_panel(
+        self,
+        serial: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        for _ in range(max_steps):
+            analysis = self._analyze(serial)
+            if analysis.screen_name == "price_panel":
+                return analysis
+
+            if analysis.screen_name == "listing_form":
+                target = analysis.targets.get("price_entry")
+                if target is None:
+                    raise RuntimeError("Missing price_entry target on listing form")
+                self._tap_target(serial, target, "price_entry")
+                analysis = self._wait_for_non_loading_screen(serial)
+                if analysis.screen_name in {"price_panel", "unknown"}:
+                    continue
+
+            raise RuntimeError(
+                "Cannot reach price panel from current screen: "
+                f"{analysis.screen_name}"
+            )
+
+        final_analysis = self._analyze(serial)
+        if final_analysis.screen_name == "price_panel":
+            return final_analysis
+        raise RuntimeError(
+            f"Failed to reach price panel within {max_steps} steps: {final_analysis.screen_name}"
+        )
+
     def fill_description(
         self,
         serial: str,
@@ -676,6 +758,57 @@ class XianyuPublishFlowService:
         if final_analysis.screen_name != "listing_form":
             raise RuntimeError(
                 "Description flow did not return to listing form: "
+                f"{final_analysis.screen_name}"
+            )
+        return final_analysis
+
+    def fill_price(
+        self,
+        serial: str,
+        price: str | float | int,
+        max_steps: int = 4,
+        max_clear_presses: int = 8,
+        key_delay_seconds: float = 0.2,
+    ) -> XianyuScreenAnalysis:
+        price_text = normalize_price_input(price)
+        analysis = self.advance_listing_form_to_price_panel(serial, max_steps=max_steps)
+
+        delete_target = analysis.targets.get("price_delete")
+        if delete_target is None:
+            raise RuntimeError("Missing price_delete target on price panel")
+        for _ in range(max_clear_presses):
+            self._tap_target(serial, delete_target, "price_delete")
+            if key_delay_seconds > 0:
+                self._sleep(key_delay_seconds)
+
+        current_panel = self._analyze(serial)
+        targets = (
+            current_panel.targets
+            if current_panel.screen_name == "price_panel"
+            else analysis.targets
+        )
+
+        for char in price_text:
+            target_name = "price_key_decimal" if char == "." else f"price_key_{char}"
+            key_target = targets.get(target_name) or analysis.targets.get(target_name)
+            if key_target is None:
+                raise RuntimeError(f"Missing keypad target for price character: {char!r}")
+            self._tap_target(serial, key_target, target_name)
+            if key_delay_seconds > 0:
+                self._sleep(key_delay_seconds)
+            updated_panel = self._analyze(serial)
+            if updated_panel.screen_name == "price_panel":
+                targets = updated_panel.targets
+
+        confirm_target = targets.get("price_confirm") or analysis.targets.get("price_confirm")
+        if confirm_target is None:
+            raise RuntimeError("Missing price_confirm target on price panel")
+        self._tap_target(serial, confirm_target, "price_confirm")
+
+        final_analysis = self._wait_for_non_loading_screen(serial)
+        if final_analysis.screen_name != "listing_form":
+            raise RuntimeError(
+                "Price flow did not return to listing form: "
                 f"{final_analysis.screen_name}"
             )
         return final_analysis
