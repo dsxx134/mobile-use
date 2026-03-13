@@ -544,6 +544,47 @@ def test_detects_album_picker_when_preferred_source_is_selected():
     assert analysis.targets["album_select"].y == 260
 
 
+def test_detects_selected_media_preview_with_next_step_target():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "关闭", "bounds": "[15,88][115,188]", "clickable": "true"},
+            {"text": "XianyuPublish", "bounds": "[633,85][968,185]", "clickable": "true"},
+            {"text": "查看大图", "bounds": "[401,210][798,606]", "clickable": "true"},
+            {"text": "取消选择, 1", "bounds": "[698,210][798,310]", "clickable": "true"},
+            {"text": "删除图片", "bounds": "[40,2380][190,2520]", "clickable": "true"},
+            {"text": "下一步 (1)", "bounds": "[1340,2380][1560,2520]", "clickable": "true"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "selected_media_preview"
+    assert analysis.targets["media_preview_next_step"].x == 1450
+    assert analysis.targets["media_preview_next_step"].y == 2450
+
+
+def test_detects_media_edit_screen_with_done_target():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "1/1", "bounds": "[0,0][1600,2560]"},
+            {"text": "点击添加标签", "bounds": "[0,190][1600,2135]", "clickable": "true"},
+            {"text": "裁剪", "bounds": "[50,2175][300,2315]", "clickable": "true"},
+            {"text": "背景模糊", "bounds": "[1300,2175][1550,2315]", "clickable": "true"},
+            {"text": "完成", "bounds": "[1300,2410][1520,2490]", "clickable": "true"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "media_edit_screen"
+    assert analysis.targets["media_edit_done"].x == 1410
+    assert analysis.targets["media_edit_done"].y == 2450
+
+
 def test_detects_photo_analysis_screen_after_confirm():
     analyzer = XianyuFlowAnalyzer(settings=XianyuPublishSettings())
     screen = _make_screen(
@@ -856,6 +897,171 @@ def test_advance_to_listing_form_continues_existing_draft():
     flow = XianyuPublishFlowService(
         settings=XianyuPublishSettings(),
         android_service=android_service,
+    )
+
+    result = flow.advance_to_listing_form("device-1")
+
+    assert result.screen_name == "listing_form"
+    assert android_service.tap_calls == [
+        ("device-1", 639, 1510),
+        ("device-1", 1920, 761),
+        ("device-1", 1187, 2405),
+    ]
+
+
+def test_advance_to_listing_form_waits_for_listing_form_after_tapping_draft_resume_continue():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                elements=[
+                    {"text": "闲鱼", "bounds": "[614,1566][665,1600]"},
+                    {"content-desc": "卖闲置", "bounds": "[537,1420][742,1600]"},
+                ]
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "content-desc": "发闲置\n自己拍图卖·啥都能换钱",
+                        "bounds": "[1280,650][2560,873]",
+                        "clickable": "true",
+                    },
+                    {
+                        "content-desc": "关闭",
+                        "bounds": "[1280,1470][2560,1600]",
+                        "clickable": "true",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "你有未编辑完成的宝贝，是否继续？", "bounds": "[0,2025][1600,2560]"},
+                    {"text": "放弃", "clickable": "true", "bounds": "[40,2355][785,2455]"},
+                    {"text": "继续", "clickable": "true", "bounds": "[815,2355][1560,2455]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "你有未编辑完成的宝贝，是否继续？", "bounds": "[0,2025][1600,2560]"},
+                    {"text": "放弃", "clickable": "true", "bounds": "[40,2355][785,2455]"},
+                    {"text": "继续", "clickable": "true", "bounds": "[815,2355][1560,2455]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                    {"content-desc": "选择位置", "bounds": "[70,1915][1530,2055]"},
+                ],
+            ),
+        ],
+        advance_on_tap_calls={1, 2, 3},
+        advance_on_get_indices={3},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _: None,
+    )
+
+    result = flow.advance_to_listing_form("device-1")
+
+    assert result.screen_name == "listing_form"
+    assert android_service.tap_calls == [
+        ("device-1", 639, 1510),
+        ("device-1", 1920, 761),
+        ("device-1", 1187, 2405),
+    ]
+
+
+def test_advance_to_listing_form_waits_through_stale_home_and_publish_chooser_snapshots():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                elements=[
+                    {"text": "闲鱼", "bounds": "[614,1566][665,1600]"},
+                    {"content-desc": "卖闲置", "bounds": "[537,1420][742,1600]"},
+                ]
+            ),
+            _make_screen(
+                elements=[
+                    {"text": "闲鱼", "bounds": "[614,1566][665,1600]"},
+                    {"content-desc": "卖闲置", "bounds": "[537,1420][742,1600]"},
+                ]
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "content-desc": "发闲置\n自己拍图卖·啥都能换钱",
+                        "bounds": "[1280,650][2560,873]",
+                        "clickable": "true",
+                    },
+                    {
+                        "content-desc": "关闭",
+                        "bounds": "[1280,1470][2560,1600]",
+                        "clickable": "true",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "content-desc": "发闲置\n自己拍图卖·啥都能换钱",
+                        "bounds": "[1280,650][2560,873]",
+                        "clickable": "true",
+                    },
+                    {
+                        "content-desc": "关闭",
+                        "bounds": "[1280,1470][2560,1600]",
+                        "clickable": "true",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "你有未编辑完成的宝贝，是否继续？", "bounds": "[0,2025][1600,2560]"},
+                    {"text": "放弃", "clickable": "true", "bounds": "[40,2355][785,2455]"},
+                    {"text": "继续", "clickable": "true", "bounds": "[815,2355][1560,2455]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                    {"content-desc": "选择位置", "bounds": "[70,1915][1530,2055]"},
+                ],
+            ),
+        ],
+        advance_on_tap_calls={1, 2, 3},
+        advance_on_get_indices={1, 3},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _: None,
     )
 
     result = flow.advance_to_listing_form("device-1")
@@ -1992,6 +2198,173 @@ def test_select_cover_image_waits_for_photo_analysis_after_blank_loading_screen(
 
     assert result.screen_name == "photo_analysis"
     assert result.visible_texts[-1] == "照片模糊未识别到宝贝\n删除"
+
+
+def test_select_cover_image_taps_next_step_from_selected_media_preview():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "XianyuPublish", "bounds": "[633,85][968,185]"},
+                    {"content-desc": "选择", "bounds": "[698,210][798,310]"},
+                    {"content-desc": "相册\nTab 1 of 3", "bounds": "[525,2440][695,2560]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "XianyuPublish", "bounds": "[633,85][968,185]"},
+                    {"content-desc": "预览 (1)", "bounds": "[670,2380][930,2520]"},
+                    {"content-desc": "确定", "bounds": "[1340,2380][1560,2520]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "关闭", "bounds": "[15,88][115,188]", "clickable": "true"},
+                    {"text": "XianyuPublish", "bounds": "[633,85][968,185]", "clickable": "true"},
+                    {"text": "查看大图", "bounds": "[401,210][798,606]", "clickable": "true"},
+                    {"text": "取消选择, 1", "bounds": "[698,210][798,310]", "clickable": "true"},
+                    {"text": "删除图片", "bounds": "[40,2380][190,2520]", "clickable": "true"},
+                    {"text": "下一步 (1)", "bounds": "[1340,2380][1560,2520]", "clickable": "true"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "宝贝价格是根据市场行情计算得出", "bounds": "[1320,541][1733,569]"},
+                    {"text": "1张照片", "bounds": "[1360,607][1460,635]"},
+                    {"text": "添加", "bounds": "[2268,537][2328,567]"},
+                    {"text": "照片模糊未识别到宝贝\n删除", "bounds": "[1280,681][2560,1600]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.select_cover_image("device-1")
+
+    assert result.screen_name == "photo_analysis"
+    assert android_service.tap_calls == [
+        ("device-1", 748, 260),
+        ("device-1", 1450, 2450),
+        ("device-1", 1450, 2450),
+    ]
+
+
+def test_select_cover_image_taps_next_step_when_preview_appears_without_confirm_step():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "XianyuPublish", "bounds": "[633,85][968,185]"},
+                    {"content-desc": "选择", "bounds": "[698,210][798,310]"},
+                    {"content-desc": "相册\nTab 1 of 3", "bounds": "[525,2440][695,2560]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "关闭", "bounds": "[15,88][115,188]", "clickable": "true"},
+                    {"text": "XianyuPublish", "bounds": "[633,85][968,185]", "clickable": "true"},
+                    {"text": "查看大图", "bounds": "[401,210][798,606]", "clickable": "true"},
+                    {"text": "取消选择, 1", "bounds": "[698,210][798,310]", "clickable": "true"},
+                    {"text": "删除图片", "bounds": "[40,2380][190,2520]", "clickable": "true"},
+                    {"text": "下一步 (1)", "bounds": "[1340,2380][1560,2520]", "clickable": "true"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "宝贝价格是根据市场行情计算得出", "bounds": "[1320,541][1733,569]"},
+                    {"text": "1张照片", "bounds": "[1360,607][1460,635]"},
+                    {"text": "添加", "bounds": "[2268,537][2328,567]"},
+                    {"text": "照片模糊未识别到宝贝\n删除", "bounds": "[1280,681][2560,1600]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.select_cover_image("device-1")
+
+    assert result.screen_name == "photo_analysis"
+    assert android_service.tap_calls == [
+        ("device-1", 748, 260),
+        ("device-1", 1450, 2450),
+    ]
+
+
+def test_select_cover_image_taps_done_on_media_edit_screen_and_returns_listing_form():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "XianyuPublish", "bounds": "[633,85][968,185]"},
+                    {"content-desc": "选择", "bounds": "[698,210][798,310]"},
+                    {"content-desc": "相册\nTab 1 of 3", "bounds": "[525,2440][695,2560]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "关闭", "bounds": "[15,88][115,188]", "clickable": "true"},
+                    {"text": "XianyuPublish", "bounds": "[633,85][968,185]", "clickable": "true"},
+                    {"text": "查看大图", "bounds": "[401,210][798,606]", "clickable": "true"},
+                    {"text": "取消选择, 1", "bounds": "[698,210][798,310]", "clickable": "true"},
+                    {"text": "删除图片", "bounds": "[40,2380][190,2520]", "clickable": "true"},
+                    {"text": "下一步 (1)", "bounds": "[1340,2380][1560,2520]", "clickable": "true"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "1/1", "bounds": "[0,0][1600,2560]"},
+                    {"text": "点击添加标签", "bounds": "[0,190][1600,2135]", "clickable": "true"},
+                    {"text": "裁剪", "bounds": "[50,2175][300,2315]", "clickable": "true"},
+                    {"text": "背景模糊", "bounds": "[1300,2175][1550,2315]", "clickable": "true"},
+                    {"text": "完成", "bounds": "[1300,2410][1520,2490]", "clickable": "true"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.select_cover_image("device-1")
+
+    assert result.screen_name == "listing_form"
+    assert android_service.tap_calls == [
+        ("device-1", 748, 260),
+        ("device-1", 1450, 2450),
+        ("device-1", 1410, 2450),
+    ]
 
 
 def test_select_cover_image_waits_for_confirm_button_before_confirming():

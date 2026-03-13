@@ -502,6 +502,39 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
+        media_preview_next_step = self._find_target(elements, contains_text="下一步")
+        if (
+            current_package == self._settings.xianyu_package_name
+            and media_preview_next_step is not None
+            and any("取消选择" in text for text in visible_texts)
+            and any("删除图片" in text for text in visible_texts)
+        ):
+            targets["media_preview_next_step"] = media_preview_next_step
+            return XianyuScreenAnalysis(
+                screen_name="selected_media_preview",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
+        media_edit_done = self._find_target(elements, exact_text="完成")
+        if (
+            current_package == self._settings.xianyu_package_name
+            and media_edit_done is not None
+            and any(text == "裁剪" for text in visible_texts)
+            and any(text == "背景模糊" for text in visible_texts)
+            and any("点击添加标签" in text for text in visible_texts)
+        ):
+            targets["media_edit_done"] = media_edit_done
+            return XianyuScreenAnalysis(
+                screen_name="media_edit_screen",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
         if (
             current_package == self._settings.xianyu_package_name
             and any("宝贝价格是根据市场行情计算得出" in text for text in visible_texts)
@@ -650,6 +683,49 @@ class XianyuPublishFlowService:
             )
         return analysis
 
+    def _wait_for_post_draft_resume_screen(
+        self,
+        serial: str,
+        *,
+        max_polls: int = 6,
+    ) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        for _ in range(max_polls):
+            if (
+                self._looks_like_loading_overlay(analysis)
+                or analysis.screen_name == "draft_resume_dialog"
+            ):
+                self._sleep(1.0)
+                analysis = self._analyze(serial)
+                continue
+            return analysis
+
+        if analysis.screen_name == "draft_resume_dialog":
+            raise RuntimeError(
+                "Draft resume flow did not leave draft_resume_dialog within "
+                f"{max_polls} polls"
+            )
+        return analysis
+
+    def _wait_for_screen_transition(
+        self,
+        serial: str,
+        *,
+        transient_screen_names: set[str],
+        max_polls: int = 6,
+    ) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        for _ in range(max_polls):
+            if (
+                self._looks_like_loading_overlay(analysis)
+                or analysis.screen_name in transient_screen_names
+            ):
+                self._sleep(1.0)
+                analysis = self._analyze(serial)
+                continue
+            return analysis
+        return analysis
+
     def open_home(self, serial: str) -> None:
         device = self._android.get_device(serial)
         device.shell(
@@ -684,6 +760,12 @@ class XianyuPublishFlowService:
                 if target is None:
                     raise RuntimeError("Missing publish entry target on Xianyu home screen")
                 self._tap_target(serial, target, "publish_entry")
+                analysis = self._wait_for_screen_transition(
+                    serial,
+                    transient_screen_names={"home"},
+                )
+                if analysis.screen_name == "listing_form":
+                    return analysis
                 continue
 
             if analysis.screen_name == "publish_chooser":
@@ -691,6 +773,12 @@ class XianyuPublishFlowService:
                 if target is None:
                     raise RuntimeError("Missing publish option target on Xianyu chooser screen")
                 self._tap_target(serial, target, "publish_idle_item")
+                analysis = self._wait_for_screen_transition(
+                    serial,
+                    transient_screen_names={"publish_chooser"},
+                )
+                if analysis.screen_name == "listing_form":
+                    return analysis
                 continue
 
             if analysis.screen_name == "media_permission_dialog":
@@ -769,12 +857,40 @@ class XianyuPublishFlowService:
         self._tap_target(serial, select_target, "album_select")
 
         post_select = self._wait_for_non_loading_screen(serial)
+        if post_select.screen_name == "selected_media_preview":
+            next_step_target = post_select.targets.get("media_preview_next_step")
+            if next_step_target is None:
+                raise RuntimeError("Missing media_preview_next_step target on preview screen")
+            self._tap_target(serial, next_step_target, "media_preview_next_step")
+            post_next_step = self._wait_for_non_loading_screen(serial)
+            if post_next_step.screen_name == "media_edit_screen":
+                done_target = post_next_step.targets.get("media_edit_done")
+                if done_target is None:
+                    raise RuntimeError("Missing media_edit_done target on media edit screen")
+                self._tap_target(serial, done_target, "media_edit_done")
+                return self._wait_for_non_loading_screen(serial)
+            return post_next_step
+
         confirm_target = post_select.targets.get("album_confirm")
         if confirm_target is None:
             return post_select
 
         self._tap_target(serial, confirm_target, "album_confirm")
-        return self._wait_for_post_confirm_screen(serial)
+        post_confirm = self._wait_for_post_confirm_screen(serial)
+        if post_confirm.screen_name == "selected_media_preview":
+            next_step_target = post_confirm.targets.get("media_preview_next_step")
+            if next_step_target is None:
+                raise RuntimeError("Missing media_preview_next_step target on preview screen")
+            self._tap_target(serial, next_step_target, "media_preview_next_step")
+            post_next_step = self._wait_for_non_loading_screen(serial)
+            if post_next_step.screen_name == "media_edit_screen":
+                done_target = post_next_step.targets.get("media_edit_done")
+                if done_target is None:
+                    raise RuntimeError("Missing media_edit_done target on media edit screen")
+                self._tap_target(serial, done_target, "media_edit_done")
+                return self._wait_for_non_loading_screen(serial)
+            return post_next_step
+        return post_confirm
 
     def advance_photo_analysis_to_publish_chooser(
         self,
@@ -842,6 +958,12 @@ class XianyuPublishFlowService:
                 if target is None:
                     raise RuntimeError("Missing publish entry target on Xianyu home screen")
                 self._tap_target(serial, target, "publish_entry")
+                analysis = self._wait_for_screen_transition(
+                    serial,
+                    transient_screen_names={"home"},
+                )
+                if analysis.screen_name == "listing_form":
+                    return analysis
                 continue
 
             if analysis.screen_name == "publish_chooser":
@@ -849,6 +971,12 @@ class XianyuPublishFlowService:
                 if target is None:
                     raise RuntimeError("Missing publish option target on Xianyu chooser screen")
                 self._tap_target(serial, target, "publish_idle_item")
+                analysis = self._wait_for_screen_transition(
+                    serial,
+                    transient_screen_names={"publish_chooser"},
+                )
+                if analysis.screen_name == "listing_form":
+                    return analysis
                 continue
 
             if analysis.screen_name == "draft_resume_dialog":
@@ -856,6 +984,9 @@ class XianyuPublishFlowService:
                 if target is None:
                     raise RuntimeError("Missing continue target on draft resume dialog")
                 self._tap_target(serial, target, "draft_resume_continue")
+                analysis = self._wait_for_post_draft_resume_screen(serial)
+                if analysis.screen_name == "listing_form":
+                    return analysis
                 continue
 
             self.open_home(serial)
