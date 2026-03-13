@@ -35,6 +35,7 @@ Updated: 2026-03-13
   - publish chooser
   - portrait listing form
   - description editor
+  - sale-price keypad panel
   - Android media permission dialog
   - album picker
   - album source menu
@@ -67,6 +68,7 @@ Updated: 2026-03-13
   - `发布, 发布`
   - `添加图片`
   - `描述, 描述一下宝贝的品牌型号、货品来源…`
+  - `价格设置`
 - The flow service now has a direct bridge from the portrait listing form into the album picker by
   tapping `添加图片` and waiting through the short loading gap or permission dialog until the picker
   becomes stable.
@@ -77,6 +79,16 @@ Updated: 2026-03-13
   - return to the portrait listing form
 - On the Huawei tablet, `input_text()` can already collapse the description editor back to
   `listing_form`; the flow must check for that state before tapping any stale `完成` coordinates.
+- The flow service now also has a direct sale-price path from the portrait listing form:
+  - tap the `价格设置` row
+  - enter a dedicated `price_panel` bottom sheet
+  - clear the previous value with `删除`
+  - tap keypad digits and `.`
+  - tap `确定`
+  - return to the portrait listing form
+- On this Huawei tablet, sale-price entry is driven by the bottom-sheet keypad, not by IME text
+  input. Real-device verification showed that tapping `399.9` through the keypad returns to the
+  form and renders the row as `¥399.90`.
 - On a fresh Android session, the first UIAutomator FastInputIME use can trigger one-time
   `com.github.uiautomator/.AdbKeyboard` installation and temporarily switch foreground away from
   Xianyu. After that warm-up, subsequent text entry stays in-app.

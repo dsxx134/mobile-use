@@ -28,6 +28,7 @@ Status: Active
 - Xianyu publish flow batch 5 completed on `feat/android-debug-mcp`: portrait-mode publish-form recognition, orientation enforcement on the Huawei tablet, and a real-device-verified `advance_to_listing_form()` path that lands directly on the standard Xianyu listing form after tapping `发闲置`.
 - Xianyu publish flow batch 6 completed on `feat/android-debug-mcp`: richer portrait-form target extraction from `content-desc`, a deterministic `advance_listing_form_to_album_picker()` bridge, and real-device verification that tapping `添加图片` from the portrait form opens the album picker.
 - Xianyu publish flow batch 7 completed on `feat/android-debug-mcp`: `description_editor` recognition, deterministic description entry/fill helpers, and real-device verification that `fill_description()` now returns to `listing_form` on the warmed Huawei tablet.
+- Xianyu publish flow batch 8 completed on `feat/android-debug-mcp`: `price_panel` recognition, deterministic sale-price keypad entry from the portrait form, and real-device verification that `fill_price()` returns to `listing_form` with the updated price row.
 
 ## Operational Rule
 - Important milestones should be committed and pushed to GitHub instead of remaining only local.

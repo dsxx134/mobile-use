@@ -290,7 +290,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `media_sync`: downloads Feishu attachment assets into a local staging directory and pushes them
   onto an Android device directory through `adbutils`
 - `flow`: recognizes key Xianyu publish screens and can deterministically advance from the
-  Xianyu home tab into the album picker
+  Xianyu home tab into the portrait listing form, album picker, description editor, and sale-price panel
 
 ### Deterministic flow coverage
 
@@ -301,6 +301,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - publish chooser
   - portrait listing form
   - description editor
+  - sale-price keypad panel
   - Android media permission dialog
   - album picker
   - album source menu
@@ -313,6 +314,9 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - extract the portrait publish-form targets from real-device `content-desc` semantics
   - enter the dedicated description editor from the portrait form
   - fill description text and return to the portrait form
+  - open the sale-price bottom sheet from the portrait form
+  - clear and enter a sale price through the on-screen keypad
+  - confirm the price and return to the portrait form
   - accept the media permission dialog
   - reopen the album picker directly from the portrait form by tapping `添加图片`
   - switch the album source to a dedicated folder like `XianyuPublish`
@@ -360,6 +364,16 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 - The description path now uses a dedicated editor state with a `完成` control
 - On this Huawei tablet, `input_text()` can already return from that editor back to `listing_form`;
   the flow now detects that and avoids stale `完成` taps that can accidentally open `价格设置`
+- The portrait form also exposes a tappable `价格设置` row; on the Huawei tablet it opens a
+  dedicated bottom-sheet keypad with `删除`, `确定`, and digit targets rather than a text IME
+- Sale price entry is now deterministic:
+  - tap `价格设置`
+  - clear the previous value with `删除`
+  - tap digits plus `.` on the keypad
+  - tap `确定`
+  - wait until the portrait form is visible again
+- Real-device verification confirmed that entering `399.9` through the keypad returns to
+  `listing_form` and renders the price row as `¥399.90`
 - From that portrait form, tapping `添加图片` opens the album picker directly without going back
   through the older publish chooser path
 - On a fresh device session, the first FastInputIME text entry can trigger a one-time
@@ -385,9 +399,9 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 
 ### Current boundary
 
-- The flow can now reach the portrait listing form, fill description text, and reopen the album
-  picker from `添加图片`
-- Price, shipping, location, category, and final publish submission are still the next layer
+- The flow can now reach the portrait listing form, fill description text, set the sale price,
+  and reopen the album picker from `添加图片`
+- Shipping, location, category, and final publish submission are still the next layer
 
 ## 🔎 Agentic System Overview
 
