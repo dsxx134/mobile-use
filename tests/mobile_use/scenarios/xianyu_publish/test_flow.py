@@ -132,6 +132,44 @@ def test_detects_portrait_listing_form_instead_of_publish_chooser():
     assert analysis.targets["add_image"].x == 160
 
 
+def test_detects_portrait_listing_form_targets_from_content_desc():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+            {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+            {"content-desc": "草稿箱·1", "bounds": "[1225,115][1410,155]"},
+            {
+                "content-desc": "发布, 发布",
+                "bounds": "[1410,95][1600,175]",
+                "clickable": "true",
+            },
+            {
+                "content-desc": "添加图片",
+                "bounds": "[70,250][550,730]",
+                "clickable": "true",
+            },
+            {
+                "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                "bounds": "[30,737][1570,1264]",
+                "clickable": "true",
+            },
+            {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+            {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "listing_form"
+    assert analysis.targets["submit_listing"].text == "发布, 发布"
+    assert analysis.targets["submit_listing"].x == 1505
+    assert analysis.targets["add_image"].x == 310
+    assert analysis.targets["description_entry"].text == "描述, 描述一下宝贝的品牌型号、货品来源…"
+    assert analysis.targets["description_entry"].y == 1000
+
+
 def test_detects_media_permission_dialog_and_album_picker():
     analyzer = XianyuFlowAnalyzer()
     permission_screen = _make_screen(
@@ -492,6 +530,140 @@ def test_advance_to_listing_form_returns_existing_listing_form_without_extra_tap
 
     assert result.screen_name == "listing_form"
     assert android_service.tap_calls == []
+
+
+def test_advance_listing_form_to_album_picker_taps_add_image():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "所有文件", "bounds": "[690,85][910,185]"},
+                    {"content-desc": "选择", "bounds": "[698,210][798,310]"},
+                    {"content-desc": "相册\nTab 1 of 3", "bounds": "[525,2440][695,2560]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_listing_form_to_album_picker("device-1")
+
+    assert result.screen_name == "album_picker"
+    assert android_service.tap_calls == [("device-1", 310, 490)]
+
+
+def test_advance_listing_form_to_album_picker_handles_media_permission_dialog():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                package="com.android.permissioncontroller",
+                activity="com.android.permissioncontroller.permission.ui.GrantPermissionsActivity",
+                elements=[
+                    {"text": "是否允许“闲鱼”访问媒体？", "bounds": "[584,468][1976,562]"},
+                    {"text": "允许", "bounds": "[1280,970][1920,1122]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "所有文件", "bounds": "[690,85][910,185]"},
+                    {"content-desc": "选择", "bounds": "[698,210][798,310]"},
+                    {"content-desc": "相册\nTab 1 of 3", "bounds": "[525,2440][695,2560]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_listing_form_to_album_picker("device-1")
+
+    assert result.screen_name == "album_picker"
+    assert android_service.tap_calls == [
+        ("device-1", 310, 490),
+        ("device-1", 1600, 1046),
+    ]
+
+
+def test_advance_listing_form_to_album_picker_waits_for_album_picker_after_loading_gap():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "所有文件", "bounds": "[690,85][910,185]"},
+                    {"content-desc": "选择", "bounds": "[698,210][798,310]"},
+                    {"content-desc": "相册\nTab 1 of 3", "bounds": "[525,2440][695,2560]"},
+                ],
+            ),
+        ],
+        advance_on_get_indices={1},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _: None,
+    )
+
+    result = flow.advance_listing_form_to_album_picker("device-1")
+
+    assert result.screen_name == "album_picker"
+    assert android_service.tap_calls == [("device-1", 310, 490)]
 
 
 def test_select_cover_image_taps_first_select_then_confirm():

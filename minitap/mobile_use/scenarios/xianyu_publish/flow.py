@@ -124,8 +124,11 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
-        submit_listing = self._find_target(elements, exact_text="发布")
+        submit_listing = self._find_target(elements, exact_text="发布") or self._find_target(
+            elements, contains_text="发布"
+        )
         add_image = self._find_target(elements, exact_text="添加图片")
+        description_entry = self._find_target(elements, contains_text="描述")
         if (
             current_package == self._settings.xianyu_package_name
             and any(text == "发闲置" for text in visible_texts)
@@ -136,6 +139,8 @@ class XianyuFlowAnalyzer:
             if submit_listing is not None:
                 targets["submit_listing"] = submit_listing
             targets["add_image"] = add_image
+            if description_entry is not None:
+                targets["description_entry"] = description_entry
             return XianyuScreenAnalysis(
                 screen_name="listing_form",
                 current_package=current_package,
@@ -543,4 +548,53 @@ class XianyuPublishFlowService:
             return final_analysis
         raise RuntimeError(
             f"Failed to reach listing form within {max_steps} steps: {final_analysis.screen_name}"
+        )
+
+    def advance_listing_form_to_album_picker(
+        self,
+        serial: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        for _ in range(max_steps):
+            analysis = self._analyze(serial)
+            if analysis.screen_name == "album_picker":
+                return analysis
+
+            if analysis.screen_name == "listing_form":
+                target = analysis.targets.get("add_image")
+                if target is None:
+                    raise RuntimeError("Missing add_image target on listing form")
+                self._tap_target(serial, target, "add_image")
+                analysis = self._wait_for_non_loading_screen(serial)
+                if analysis.screen_name == "album_picker":
+                    return analysis
+                if analysis.screen_name == "media_permission_dialog":
+                    continue
+                if analysis.screen_name == "unknown":
+                    continue
+                continue
+
+            if analysis.screen_name == "media_permission_dialog":
+                target = analysis.targets.get("permission_allow")
+                if target is None:
+                    raise RuntimeError("Missing allow button target on media permission dialog")
+                self._tap_target(serial, target, "permission_allow")
+                analysis = self._wait_for_non_loading_screen(serial)
+                if analysis.screen_name == "album_picker":
+                    return analysis
+                if analysis.screen_name == "unknown":
+                    continue
+                continue
+
+            raise RuntimeError(
+                "Cannot reach album picker from current screen: "
+                f"{analysis.screen_name}"
+            )
+
+        final_analysis = self._analyze(serial)
+        if final_analysis.screen_name == "album_picker":
+            return final_analysis
+        raise RuntimeError(
+            "Failed to reach album picker from listing form within "
+            f"{max_steps} steps: {final_analysis.screen_name}"
         )

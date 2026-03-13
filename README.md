@@ -309,7 +309,9 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - tap `卖闲置`
   - tap `发闲置`
   - force the Huawei tablet into portrait mode before entering the real publish form
+  - extract the portrait publish-form targets from real-device `content-desc` semantics
   - accept the media permission dialog
+  - reopen the album picker directly from the portrait form by tapping `添加图片`
   - switch the album source to a dedicated folder like `XianyuPublish`
   - select one image and confirm it
   - bridge from the Xianyu space analysis flow back into the standard publish chooser
@@ -350,6 +352,10 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - tap `卖闲置`
   - tap `发闲置`
   - land directly on the standard listing form
+- On the real portrait form, key controls such as `发布`, `添加图片`, and the large description tile
+  are exposed through `content-desc` values like `发布, 发布` and `描述, 描述一下宝贝的品牌型号、货品来源…`
+- From that portrait form, tapping `添加图片` opens the album picker directly without going back
+  through the older publish chooser path
 - For deterministic selection, push listing images into a dedicated device folder such as
   `XIANYU_ANDROID_MEDIA_DIR=/sdcard/DCIM/XianyuPublish`
 - The flow can switch the picker from `所有文件` into `XianyuPublish` before tapping `选择`
@@ -370,9 +376,9 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 
 ### Current boundary
 
-- The flow currently stops after reaching the portrait listing form
-- Filling title, description, price, image upload, category, and final publish submission are the
-  next layer
+- The flow can now reach the portrait listing form and reopen the album picker from `添加图片`
+- Filling description, price, shipping, location, category, and final publish submission are still
+  the next layer
 
 ## 🔎 Agentic System Overview
 

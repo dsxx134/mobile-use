@@ -61,6 +61,14 @@ Updated: 2026-03-13
   - tap `卖闲置`
   - tap `发闲置`
   - land on the standard portrait listing form
+- On the real portrait listing form, several actionable controls are surfaced via `content-desc`
+  rather than plain `text`, including:
+  - `发布, 发布`
+  - `添加图片`
+  - `描述, 描述一下宝贝的品牌型号、货品来源…`
+- The flow service now has a direct bridge from the portrait listing form into the album picker by
+  tapping `添加图片` and waiting through the short loading gap or permission dialog until the picker
+  becomes stable.
 - The landscape space-analysis path remains supported for investigation and fallback, but it is no longer the default route for entering the form.
 - `scripts/xianyu_publish_flow_smoke.py` is the quickest way to inspect the current Xianyu screen classification on a connected Android device.
 - The next layer should still consume `ListingDraft` directly and stay isolated from raw Feishu record payloads.
