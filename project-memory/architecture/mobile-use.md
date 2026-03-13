@@ -30,11 +30,14 @@ Updated: 2026-03-13
   - `XianyuMediaSyncService` for local staging and Android media push
   - `XianyuFlowAnalyzer` for pure screen classification and tap-target extraction
   - `XianyuPublishFlowService` for deterministic Xianyu navigation built on `AndroidDebugService`
+  - `XianyuPrepareRunner` for business orchestration across Feishu source, media sync, and the deterministic flow layer
 - The Xianyu flow currently recognizes:
   - home tab
   - publish chooser
   - draft-resume dialog
   - portrait listing form
+  - selected-media preview
+  - media-edit screen
   - description editor
   - sale-price keypad panel
   - shipping bottom sheet
@@ -68,6 +71,8 @@ Updated: 2026-03-13
   - tap `发闲置`
   - if a draft-resume dialog appears, tap `继续`
   - land on the standard portrait listing form
+- After tapping draft `继续`, the flow must still tolerate a brief tail where the same dialog is
+  visible again before the listing form appears.
 - On the real portrait listing form, several actionable controls are surfaced via `content-desc`
   rather than plain `text`, including:
   - `发布, 发布`
@@ -120,6 +125,21 @@ Updated: 2026-03-13
 - Final location persistence is still unresolved on this app/device pair. Real-device probes showed
   that tapping a common address or a district row can return to the listing form without a stable,
   visible location confirmation, so the flow stops at entering the picker for now.
+- Because this portrait `发闲置` form does not currently expose a separate title field through the
+  accessibility tree, the business runner treats `ListingDraft.title` as the first line of the
+  body text and appends `ListingDraft.description` below it when needed.
+- `XianyuPrepareRunner` is the current deterministic vertical slice:
+  - pick the first publishable record from Bitable
+  - resolve and download attachment media
+  - push media to the device
+  - attach the first image through the existing album flow
+  - if the app returns `selected_media_preview`, tap `下一步 (1)`
+  - if the app returns `media_edit_screen`, tap `完成`
+  - if the app returns `photo_analysis`, bridge back into the form
+  - fill the merged body text
+  - fill the sale price
+- The runner intentionally stops at a prepared portrait listing form and does not yet own category,
+  stable location persistence, shipping values from Feishu, or final publish submission.
 - On a fresh Android session, the first UIAutomator FastInputIME use can trigger one-time
   `com.github.uiautomator/.AdbKeyboard` installation and temporarily switch foreground away from
   Xianyu. After that warm-up, subsequent text entry stays in-app.

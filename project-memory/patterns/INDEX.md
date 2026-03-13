@@ -24,5 +24,8 @@
 | xianyu-space-empty-state-leads-to-publish-chooser | 2026-03-13 | xianyu-space-empty-state-leads-to-publish-chooser.md |
 | xianyu-draft-resume-dialog-blocks-form-entry | 2026-03-13 | xianyu-draft-resume-dialog-blocks-form-entry.md |
 | xianyu-location-region-picker-uses-clickable-region-row | 2026-03-13 | xianyu-location-region-picker-uses-clickable-region-row.md |
+| xianyu-title-is-folded-into-description-body | 2026-03-13 | xianyu-title-is-folded-into-description-body.md |
+| xianyu-draft-resume-continue-needs-post-tap-polling | 2026-03-13 | xianyu-draft-resume-continue-needs-post-tap-polling.md |
+| xianyu-image-selection-can-return-directly-to-listing-form | 2026-03-13 | xianyu-image-selection-can-return-directly-to-listing-form.md |
 
-Total: 22
+Total: 25

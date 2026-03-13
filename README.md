@@ -313,6 +313,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - tap `发闲置`
   - force the Huawei tablet into portrait mode before entering the real publish form
   - continue through the draft-resume dialog when `发闲置` reopens an unfinished listing
+  - poll through the post-`继续` tail until the dialog really clears
   - extract the portrait publish-form targets from real-device `content-desc` semantics
   - enter the dedicated description editor from the portrait form
   - fill description text and return to the portrait form
@@ -327,7 +328,9 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - reopen the album picker directly from the portrait form by tapping `添加图片`
   - switch the album source to a dedicated folder like `XianyuPublish`
   - select one image and confirm it
+  - continue through image preview and image edit screens back into the form
   - bridge from the Xianyu space analysis flow back into the standard publish chooser
+  - run a deterministic `XianyuPrepareRunner` that prepares one publishable Bitable record into the form with media, merged title+description body, and price
 
 ### Required environment variables
 
@@ -371,6 +374,8 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 - On this Huawei tablet, tapping `发闲置` does not always enter the form directly; an unfinished
   draft can surface a blocking dialog with `放弃` and `继续`, and the deterministic path is to tap
   `继续`
+- After tapping `继续`, the dialog can linger for one or two snapshots; the flow now polls until
+  that tail clears instead of tapping `继续` twice
 - The description path now uses a dedicated editor state with a `完成` control
 - On this Huawei tablet, `input_text()` can already return from that editor back to `listing_form`;
   the flow now detects that and avoids stale `完成` taps that can accidentally open `价格设置`
@@ -409,6 +414,11 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   address or a region row
 - From that portrait form, tapping `添加图片` opens the album picker directly without going back
   through the older publish chooser path
+- On the current app build, image selection can continue through extra media-processing screens:
+  - `selected_media_preview` with `下一步 (1)`
+  - `media_edit_screen` with tools like `裁剪` and a `完成` button
+- On the Huawei tablet, tapping `完成` on that media edit screen can return directly to
+  `listing_form`, sometimes with auto-filled metadata rows like `分类` or `ISBN码`
 - On a fresh device session, the first FastInputIME text entry can trigger a one-time
   `com.github.uiautomator/.AdbKeyboard` installation and briefly switch foreground away from Xianyu;
   after that warm-up, subsequent text entry is stable
@@ -429,11 +439,37 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   automation a deterministic way to escape the space overlay back into the standard chooser
 - The older landscape space-analysis path is still useful for investigation, but it is no longer
   the preferred way to reach the publish form
+- The current app/device pair does not expose a separate title input on the portrait `发闲置` form,
+  so the prepare runner folds `ListingDraft.title` into the description body as the first line,
+  followed by a blank line and the original description text when needed
+
+### Current prepare-runner behavior
+
+- `XianyuPrepareRunner` currently orchestrates the deterministic business slice:
+  - pick the first publishable Bitable record
+  - resolve temporary download URLs for attachments
+  - download staged media into a record-scoped local directory
+  - push the staged files into `XIANYU_ANDROID_MEDIA_DIR/<record_id>`
+  - reach the portrait listing form
+  - reopen the album picker
+  - switch to `XianyuPublish`
+  - select the first prepared image
+  - if needed, bridge back from `photo_analysis` into the portrait form
+  - fill the merged title+description body
+  - fill the sale price
+- Real-device verification on `E2P6R22708000602` confirmed a full prepare-runner pass that ended
+  on `listing_form` with body text and price filled
+- The runner intentionally stops once the form is prepared and visible again; it does not yet claim:
+  - category selection
+  - stable location persistence
+  - shipping writeback from Bitable
+  - final publish submission
 
 ### Current boundary
 
 - The flow can now reach the portrait listing form, fill description text, set the sale price,
-  set the verified mail shipping mode, and reopen the album picker from `添加图片`
+  set the verified mail shipping mode, reopen the album picker from `添加图片`, and prepare one
+  publishable Bitable record into the form through `XianyuPrepareRunner`
 - Location, category, `买家自提`, and final publish submission are still the next layer
 
 ## 🔎 Agentic System Overview
