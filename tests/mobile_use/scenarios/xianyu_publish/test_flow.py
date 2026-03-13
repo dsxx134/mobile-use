@@ -255,6 +255,25 @@ def test_detects_photo_analysis_screen_while_price_is_still_computing():
     assert analysis.screen_name == "photo_analysis"
 
 
+def test_detects_space_items_empty_screen_after_switching_to_baobei_tab():
+    analyzer = XianyuFlowAnalyzer(settings=XianyuPublishSettings())
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {
+                "text": "南朝笑不可支的川谷\n发宝贝\n投缘优惠",
+                "bounds": "[1280,0][2560,1600]",
+            },
+            {"text": "宝贝", "bounds": "[1295,229][1453,324]", "clickable": "true"},
+            {"text": "这里空空如也～", "bounds": "[1789,881][2051,941]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "space_items_empty"
+
+
 def test_open_home_uses_explicit_main_activity_shell():
     android_service = FakeAndroidService(screens=[_make_screen(elements=[])])
     flow = XianyuPublishFlowService(
@@ -746,3 +765,173 @@ def test_select_cover_image_raises_when_post_confirm_flow_never_leaves_album_pic
         assert str(exc) == "Post-confirm flow did not leave album picker within 6 polls"
     else:
         raise AssertionError("Expected select_cover_image() to raise for a stuck album picker")
+
+
+def test_advance_photo_analysis_to_publish_chooser_dismisses_overlay_and_taps_space_publish():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "宝贝", "bounds": "[1295,229][1453,324]", "clickable": "true"},
+                    {"text": "宝贝价格是根据市场行情计算得出", "bounds": "[1320,541][1733,569]"},
+                    {"text": "2张照片", "bounds": "[1360,607][1460,635]"},
+                    {"text": "添加", "bounds": "[2268,537][2328,567]"},
+                    {
+                        "text": (
+                            "价格计算中 预计需要2分钟\n"
+                            "宝贝价格是根据市场行情计算得出，完成后通知你"
+                        ),
+                        "bounds": "[1280,681][2560,1600]",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "宝贝", "bounds": "[1295,229][1453,324]", "clickable": "true"},
+                    {"text": "宝贝价格是根据市场行情计算得出", "bounds": "[1320,541][1733,569]"},
+                    {"text": "2张照片", "bounds": "[1360,607][1460,635]"},
+                    {"text": "添加", "bounds": "[2268,537][2328,567]"},
+                    {"text": "¥40~60", "bounds": "[1280,681][2560,1600]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "text": "南朝笑不可支的川谷\n发宝贝\n投缘优惠",
+                        "bounds": "[1280,0][2560,1600]",
+                    },
+                    {"text": "宝贝", "bounds": "[1295,229][1453,324]", "clickable": "true"},
+                    {"text": "这里空空如也～", "bounds": "[1789,881][2051,941]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "content-desc": "发闲置\n自己拍图卖·啥都能换钱",
+                        "bounds": "[1280,650][2560,873]",
+                        "clickable": "true",
+                    },
+                    {
+                        "content-desc": "关闭",
+                        "bounds": "[1280,1470][2560,1600]",
+                        "clickable": "true",
+                    },
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(preferred_album_name="XianyuPublish"),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.advance_photo_analysis_to_publish_chooser("device-1")
+
+    assert result.screen_name == "publish_chooser"
+    assert android_service.tap_calls == [
+        ("device-1", 1920, 1510),
+        ("device-1", 1374, 276),
+        ("device-1", 1740, 1495),
+    ]
+
+
+def test_advance_photo_analysis_to_publish_chooser_returns_existing_publish_chooser():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "content-desc": "发闲置\n自己拍图卖·啥都能换钱",
+                        "bounds": "[1280,650][2560,873]",
+                        "clickable": "true",
+                    },
+                    {
+                        "content-desc": "关闭",
+                        "bounds": "[1280,1470][2560,1600]",
+                        "clickable": "true",
+                    },
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(preferred_album_name="XianyuPublish"),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.advance_photo_analysis_to_publish_chooser("device-1")
+
+    assert result.screen_name == "publish_chooser"
+    assert android_service.tap_calls == []
+
+
+def test_advance_photo_analysis_to_publish_chooser_can_start_from_unknown_xianyu_overlay():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "南朝笑不可支的川谷", "bounds": "[1280,0][2560,1600]"},
+                    {"text": "编辑", "bounds": "[2280,210][2380,280]"},
+                    {"text": "添加", "bounds": "[2268,537][2328,567]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "宝贝", "bounds": "[1295,229][1453,324]", "clickable": "true"},
+                    {"text": "宝贝价格是根据市场行情计算得出", "bounds": "[1320,541][1733,569]"},
+                    {"text": "2张照片", "bounds": "[1360,607][1460,635]"},
+                    {"text": "添加", "bounds": "[2268,537][2328,567]"},
+                    {"text": "¥40~60", "bounds": "[1280,681][2560,1600]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "text": "南朝笑不可支的川谷\n发宝贝\n投缘优惠",
+                        "bounds": "[1280,0][2560,1600]",
+                    },
+                    {"text": "宝贝", "bounds": "[1295,229][1453,324]", "clickable": "true"},
+                    {"text": "这里空空如也～", "bounds": "[1789,881][2051,941]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "content-desc": "发闲置\n自己拍图卖·啥都能换钱",
+                        "bounds": "[1280,650][2560,873]",
+                        "clickable": "true",
+                    },
+                    {
+                        "content-desc": "关闭",
+                        "bounds": "[1280,1470][2560,1600]",
+                        "clickable": "true",
+                    },
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(preferred_album_name="XianyuPublish"),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.advance_photo_analysis_to_publish_chooser("device-1")
+
+    assert result.screen_name == "publish_chooser"
+    assert android_service.tap_calls == [
+        ("device-1", 1920, 1510),
+        ("device-1", 1374, 276),
+        ("device-1", 1740, 1495),
+    ]

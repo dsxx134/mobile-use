@@ -17,6 +17,10 @@ class XianyuPublishSettings(BaseSettings):
     preferred_album_name: str = "XianyuPublish"
     album_select_text: str = "选择"
     album_confirm_text: str = "确定"
+    space_overlay_dismiss_x_ratio: float = 0.75
+    space_overlay_dismiss_y_ratio: float = 0.94375
+    space_publish_button_x_ratio: float = 0.6796875
+    space_publish_button_y_ratio: float = 0.934375
 
     title_field_name: str = Field(default="商品标题")
     description_field_name: str = Field(default="商品描述")

@@ -203,8 +203,24 @@ class XianyuFlowAnalyzer:
                 or any("价格计算中" in text for text in visible_texts)
             )
         ):
+            space_items_tab = self._find_target(elements, exact_text="宝贝")
+            if space_items_tab is not None:
+                targets["space_items_tab"] = space_items_tab
             return XianyuScreenAnalysis(
                 screen_name="photo_analysis",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
+        if (
+            current_package == self._settings.xianyu_package_name
+            and any("这里空空如也" in text for text in visible_texts)
+            and any("发宝贝" in text for text in visible_texts)
+        ):
+            return XianyuScreenAnalysis(
+                screen_name="space_items_empty",
                 current_package=current_package,
                 current_activity=current_activity,
                 visible_texts=visible_texts,
@@ -258,6 +274,12 @@ class XianyuPublishFlowService:
         if target is None:
             raise RuntimeError(f"Missing tap target for {target_name}")
         self._android.tap(serial, target.x, target.y)
+
+    def _tap_ratio(self, serial: str, x_ratio: float, y_ratio: float) -> None:
+        screen = self._android.get_screen_data(serial)
+        width = int(screen["width"])
+        height = int(screen["height"])
+        self._android.tap(serial, int(width * x_ratio), int(height * y_ratio))
 
     def _wait_for_non_loading_screen(
         self,
@@ -413,3 +435,48 @@ class XianyuPublishFlowService:
 
         self._tap_target(serial, confirm_target, "album_confirm")
         return self._wait_for_post_confirm_screen(serial)
+
+    def advance_photo_analysis_to_publish_chooser(
+        self,
+        serial: str,
+    ) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        if analysis.screen_name == "publish_chooser":
+            return analysis
+
+        if (
+            analysis.current_package == self._settings.xianyu_package_name
+            and analysis.screen_name in {"photo_analysis", "unknown"}
+        ):
+            self._tap_ratio(
+                serial,
+                self._settings.space_overlay_dismiss_x_ratio,
+                self._settings.space_overlay_dismiss_y_ratio,
+            )
+            analysis = self._analyze(serial)
+            if analysis.screen_name != "photo_analysis":
+                raise RuntimeError(
+                    "Expected photo_analysis after dismissing space overlay, "
+                    f"got {analysis.screen_name}"
+                )
+
+            space_items_tab = analysis.targets.get("space_items_tab")
+            if space_items_tab is None:
+                raise RuntimeError("Missing 宝贝 tab target on photo_analysis screen")
+            self._tap_target(serial, space_items_tab, "space_items_tab")
+            analysis = self._analyze(serial)
+
+        if analysis.screen_name == "space_items_empty":
+            self._tap_ratio(
+                serial,
+                self._settings.space_publish_button_x_ratio,
+                self._settings.space_publish_button_y_ratio,
+            )
+            analysis = self._analyze(serial)
+
+        if analysis.screen_name != "publish_chooser":
+            raise RuntimeError(
+                "Failed to reach publish chooser from photo_analysis: "
+                f"{analysis.screen_name}"
+            )
+        return analysis
