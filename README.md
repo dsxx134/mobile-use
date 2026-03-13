@@ -303,12 +303,14 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - album picker
   - album source menu
   - post-confirm photo analysis screen
+  - the `宝贝` empty-state page inside Xianyu space
 - Can:
   - tap `卖闲置`
   - tap `发闲置`
   - accept the media permission dialog
   - switch the album source to a dedicated folder like `XianyuPublish`
   - select one image and confirm it
+  - bridge from the Xianyu space analysis flow back into the standard publish chooser
 
 ### Required environment variables
 
@@ -351,11 +353,16 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 - On recognizable product images, that `photo_analysis` screen can surface a detected-item branch
   such as `1个宝贝` plus a computed price range, but the automation still does not advance into
   the final edit form yet
+- On the Huawei tablet, the Xianyu space flow is partly visual-only: dismissing the analysis
+  overlay and tapping the `发宝贝` button currently use normalized ratio taps rather than
+  accessibility targets
+- The flow can now bridge `photo_analysis -> 宝贝空态页 -> 发宝贝 -> 发布选择器`, which gives the
+  automation a deterministic way to escape the space overlay back into the standard chooser
 
 ### Current boundary
 
-- The flow currently stops after the `photo_analysis` screen
-- Title, description, price, category, and final publish submission are the next layer
+- The flow currently stops after reaching the standard publish chooser from the space-analysis path
+- Title, description, price, category, and final publish submission are still the next layer
 
 ## 🔎 Agentic System Overview
 

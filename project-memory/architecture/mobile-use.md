@@ -37,6 +37,7 @@ Updated: 2026-03-13
   - album picker
   - album source menu
   - photo analysis screen after media confirmation
+  - the Xianyu space `宝贝` empty-state page
 - On the Huawei tablet used for development, reliable home recovery requires:
   - `am start -n com.taobao.idlefish/com.taobao.idlefish.maincontainer.activity.MainActivity`
   - not just `app_start(package)`, which can reopen a non-home category page
@@ -45,5 +46,12 @@ Updated: 2026-03-13
 - The flow service now tolerates brief blank/loading snapshots after tapping `选择` and `确定` by polling until the next meaningful screen appears.
 - On the Huawei tablet, tapping `确定` can leave the app in a transient album-picker tail state that still shows `预览 (1)` and `确定`; `select_cover_image()` now treats that as transitional and waits until the flow leaves the picker.
 - `photo_analysis` is a stable downstream state, not just a loading gap. With recognizable product photos it can surface computed price ranges and a detected-item count such as `1个宝贝`, but the final listing form transition is still unresolved.
+- On the Huawei tablet, the space-analysis flow includes visual-only controls that are not exposed through the accessibility tree:
+  - dismissing the initial analysis overlay
+  - tapping the `发宝贝` button on the `宝贝` empty-state page
+- The flow service now contains a deterministic bridge from `photo_analysis` into the standard publish chooser by:
+  - dismissing the overlay with a ratio tap
+  - opening the `宝贝` tab via accessibility target
+  - tapping the visual `发宝贝` button with a ratio tap
 - `scripts/xianyu_publish_flow_smoke.py` is the quickest way to inspect the current Xianyu screen classification on a connected Android device.
 - The next layer should still consume `ListingDraft` directly and stay isolated from raw Feishu record payloads.
