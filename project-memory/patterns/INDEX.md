@@ -19,7 +19,8 @@
 | xianyu-listing-form-opens-album-picker | 2026-03-13 | xianyu-listing-form-opens-album-picker.md |
 | xianyu-description-editor-may-auto-return-to-listing-form | 2026-03-13 | xianyu-description-editor-may-auto-return-to-listing-form.md |
 | xianyu-price-panel-uses-keypad-taps | 2026-03-13 | xianyu-price-panel-uses-keypad-taps.md |
+| xianyu-shipping-panel-uses-bottom-sheet-options | 2026-03-13 | xianyu-shipping-panel-uses-bottom-sheet-options.md |
 | android-fastinput-first-use-may-switch-away | 2026-03-13 | android-fastinput-first-use-may-switch-away.md |
 | xianyu-space-empty-state-leads-to-publish-chooser | 2026-03-13 | xianyu-space-empty-state-leads-to-publish-chooser.md |
 
-Total: 19
+Total: 20

@@ -290,7 +290,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `media_sync`: downloads Feishu attachment assets into a local staging directory and pushes them
   onto an Android device directory through `adbutils`
 - `flow`: recognizes key Xianyu publish screens and can deterministically advance from the
-  Xianyu home tab into the portrait listing form, album picker, description editor, and sale-price panel
+  Xianyu home tab into the portrait listing form, album picker, description editor, sale-price panel, and shipping panel
 
 ### Deterministic flow coverage
 
@@ -302,6 +302,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - portrait listing form
   - description editor
   - sale-price keypad panel
+  - shipping bottom sheet
   - Android media permission dialog
   - album picker
   - album source menu
@@ -317,6 +318,8 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - open the sale-price bottom sheet from the portrait form
   - clear and enter a sale price through the on-screen keypad
   - confirm the price and return to the portrait form
+  - open the shipping bottom sheet from the portrait form
+  - switch between verified mail shipping modes and return to the portrait form
   - accept the media permission dialog
   - reopen the album picker directly from the portrait form by tapping `添加图片`
   - switch the album source to a dedicated folder like `XianyuPublish`
@@ -374,6 +377,19 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - wait until the portrait form is visible again
 - Real-device verification confirmed that entering `399.9` through the keypad returns to
   `listing_form` and renders the price row as `¥399.90`
+- The portrait form also exposes a `发货方式` row; on the Huawei tablet it opens a bottom-sheet
+  selector with a multiline `邮寄` block plus left-side radio icons for the mail modes
+- Shipping selection is now deterministic for the verified mail modes:
+  - `包邮`
+  - `不包邮-按距离付费`
+  - `不包邮-固定邮费`
+  - `无需邮寄`
+- On this Huawei tablet, tapping the multiline mail text is not enough; the actual selectable
+  targets are the left-side radio icons
+- After tapping `确定`, the shipping panel can briefly linger or collapse into a status-only
+  `unknown` overlay before the portrait form returns; the flow now polls through both transitions
+- `买家自提` is still outside the deterministic support set for now because its visible text target
+  did not prove reliably selectable during real-device probing
 - From that portrait form, tapping `添加图片` opens the album picker directly without going back
   through the older publish chooser path
 - On a fresh device session, the first FastInputIME text entry can trigger a one-time
@@ -400,8 +416,8 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 ### Current boundary
 
 - The flow can now reach the portrait listing form, fill description text, set the sale price,
-  and reopen the album picker from `添加图片`
-- Shipping, location, category, and final publish submission are still the next layer
+  set the verified mail shipping mode, and reopen the album picker from `添加图片`
+- Location, category, `买家自提`, and final publish submission are still the next layer
 
 ## 🔎 Agentic System Overview
 

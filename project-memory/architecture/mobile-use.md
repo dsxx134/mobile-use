@@ -36,6 +36,7 @@ Updated: 2026-03-13
   - portrait listing form
   - description editor
   - sale-price keypad panel
+  - shipping bottom sheet
   - Android media permission dialog
   - album picker
   - album source menu
@@ -69,6 +70,7 @@ Updated: 2026-03-13
   - `添加图片`
   - `描述, 描述一下宝贝的品牌型号、货品来源…`
   - `价格设置`
+  - `发货方式`
 - The flow service now has a direct bridge from the portrait listing form into the album picker by
   tapping `添加图片` and waiting through the short loading gap or permission dialog until the picker
   becomes stable.
@@ -89,6 +91,23 @@ Updated: 2026-03-13
 - On this Huawei tablet, sale-price entry is driven by the bottom-sheet keypad, not by IME text
   input. Real-device verification showed that tapping `399.9` through the keypad returns to the
   form and renders the row as `¥399.90`.
+- The flow service now also has a direct mail-shipping path from the portrait listing form:
+  - tap the `发货方式` row
+  - enter a dedicated `shipping_panel` bottom sheet
+  - select a verified mail mode through the left-side radio icons
+  - tap `确定`
+  - return to the portrait listing form
+- On this Huawei tablet, the multiline `邮寄` text block is descriptive but not the true tap target.
+  The actual deterministic targets are the radio-icon `ImageView` elements aligned with:
+  - `包邮`
+  - `不包邮-按距离付费`
+  - `不包邮-固定邮费`
+  - `无需邮寄`
+- After `shipping_confirm`, the app can briefly stay on `shipping_panel` or collapse into a
+  status-only `unknown` overlay that only exposes system texts like `正在充电...` before the form
+  returns. The flow now polls through both states.
+- `买家自提` is visible in the panel but is not yet treated as deterministic because the visible
+  target did not reliably change the selected mode during real-device probing.
 - On a fresh Android session, the first UIAutomator FastInputIME use can trigger one-time
   `com.github.uiautomator/.AdbKeyboard` installation and temporarily switch foreground away from
   Xianyu. After that warm-up, subsequent text entry stays in-app.
