@@ -33,6 +33,7 @@ Updated: 2026-03-13
 - The Xianyu flow currently recognizes:
   - home tab
   - publish chooser
+  - portrait listing form
   - Android media permission dialog
   - album picker
   - album source menu
@@ -53,5 +54,13 @@ Updated: 2026-03-13
   - dismissing the overlay with a ratio tap
   - opening the `宝贝` tab via accessibility target
   - tapping the visual `发宝贝` button with a ratio tap
+- The preferred publish path on the Huawei tablet is now portrait-first:
+  - disable auto-rotate
+  - set `user_rotation=0`
+  - open Xianyu home
+  - tap `卖闲置`
+  - tap `发闲置`
+  - land on the standard portrait listing form
+- The landscape space-analysis path remains supported for investigation and fallback, but it is no longer the default route for entering the form.
 - `scripts/xianyu_publish_flow_smoke.py` is the quickest way to inspect the current Xianyu screen classification on a connected Android device.
 - The next layer should still consume `ListingDraft` directly and stay isolated from raw Feishu record payloads.

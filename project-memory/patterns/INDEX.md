@@ -15,6 +15,7 @@
 | xianyu-post-confirm-needs-album-picker-tail-polling | 2026-03-13 | xianyu-post-confirm-needs-album-picker-tail-polling.md |
 | xianyu-post-confirm-screen-is-photo-analysis | 2026-03-13 | xianyu-post-confirm-screen-is-photo-analysis.md |
 | xianyu-photo-analysis-needs-recognizable-product-images | 2026-03-13 | xianyu-photo-analysis-needs-recognizable-product-images.md |
+| xianyu-publish-form-prefers-portrait | 2026-03-13 | xianyu-publish-form-prefers-portrait.md |
 | xianyu-space-empty-state-leads-to-publish-chooser | 2026-03-13 | xianyu-space-empty-state-leads-to-publish-chooser.md |
 
-Total: 14
+Total: 15

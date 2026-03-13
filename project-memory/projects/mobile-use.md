@@ -25,6 +25,7 @@ Status: Active
 - Xianyu publish flow batch 2 completed on `feat/android-debug-mcp`: deterministic album-source switching, `photo_analysis` screen recognition, and wait/retry handling for post-select and post-confirm loading gaps.
 - Xianyu publish flow batch 3 completed on `feat/android-debug-mcp`: post-confirm album-picker stabilization, real-device verification that `select_cover_image()` now reaches `photo_analysis`, and confirmation that recognizable product images can surface a detected-item branch like `1个宝贝`.
 - Xianyu publish flow batch 4 completed on `feat/android-debug-mcp`: `space_items_empty` recognition plus a real-device-verified bridge from `photo_analysis` back into the standard publish chooser through `宝贝 -> 发宝贝`.
+- Xianyu publish flow batch 5 completed on `feat/android-debug-mcp`: portrait-mode publish-form recognition, orientation enforcement on the Huawei tablet, and a real-device-verified `advance_to_listing_form()` path that lands directly on the standard Xianyu listing form after tapping `发闲置`.
 
 ## Operational Rule
 - Important milestones should be committed and pushed to GitHub instead of remaining only local.
