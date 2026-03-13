@@ -124,6 +124,26 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
+        submit_listing = self._find_target(elements, exact_text="发布")
+        add_image = self._find_target(elements, exact_text="添加图片")
+        if (
+            current_package == self._settings.xianyu_package_name
+            and any(text == "发闲置" for text in visible_texts)
+            and add_image is not None
+            and any("价格设置" in text for text in visible_texts)
+            and any("发货方式" in text for text in visible_texts)
+        ):
+            if submit_listing is not None:
+                targets["submit_listing"] = submit_listing
+            targets["add_image"] = add_image
+            return XianyuScreenAnalysis(
+                screen_name="listing_form",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
         publish_idle_item = self._find_target(
             elements, contains_text=self._settings.publish_option_text
         )
@@ -322,6 +342,11 @@ class XianyuPublishFlowService:
             f"{self._settings.xianyu_package_name}/{self._settings.xianyu_main_activity}"
         )
 
+    def ensure_portrait(self, serial: str) -> None:
+        device = self._android.get_device(serial)
+        device.shell("settings put system accelerometer_rotation 0")
+        device.shell("settings put system user_rotation 0")
+
     def advance_to_album_picker(
         self,
         serial: str,
@@ -480,3 +505,42 @@ class XianyuPublishFlowService:
                 f"{analysis.screen_name}"
             )
         return analysis
+
+    def advance_to_listing_form(
+        self,
+        serial: str,
+        max_steps: int = 6,
+    ) -> XianyuScreenAnalysis:
+        self.ensure_portrait(serial)
+
+        for _ in range(max_steps):
+            analysis = self._analyze(serial)
+            if analysis.screen_name == "listing_form":
+                return analysis
+
+            if analysis.current_package != self._settings.xianyu_package_name:
+                self.open_home(serial)
+                continue
+
+            if analysis.screen_name == "home":
+                target = analysis.targets.get("publish_entry")
+                if target is None:
+                    raise RuntimeError("Missing publish entry target on Xianyu home screen")
+                self._tap_target(serial, target, "publish_entry")
+                continue
+
+            if analysis.screen_name == "publish_chooser":
+                target = analysis.targets.get("publish_idle_item")
+                if target is None:
+                    raise RuntimeError("Missing publish option target on Xianyu chooser screen")
+                self._tap_target(serial, target, "publish_idle_item")
+                continue
+
+            self.open_home(serial)
+
+        final_analysis = self._analyze(serial)
+        if final_analysis.screen_name == "listing_form":
+            return final_analysis
+        raise RuntimeError(
+            f"Failed to reach listing form within {max_steps} steps: {final_analysis.screen_name}"
+        )

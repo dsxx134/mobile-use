@@ -1,4 +1,5 @@
 from unittest.mock import Mock
+from unittest.mock import call
 
 from minitap.mobile_use.scenarios.xianyu_publish.flow import (
     XianyuFlowAnalyzer,
@@ -107,6 +108,28 @@ def test_detects_publish_chooser_from_multiline_accessibility_text():
     assert analysis.screen_name == "publish_chooser"
     assert analysis.targets["publish_idle_item"].x == 1920
     assert analysis.targets["publish_idle_item"].y == 761
+
+
+def test_detects_portrait_listing_form_instead_of_publish_chooser():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "关闭", "bounds": "[20,100][80,160]"},
+            {"text": "发闲置", "bounds": "[120,100][260,160]"},
+            {"text": "发布", "bounds": "[1460,100][1560,160]", "clickable": "true"},
+            {"text": "添加图片", "bounds": "[80,420][240,480]", "clickable": "true"},
+            {"text": "价格设置", "bounds": "[40,2020][220,2080]"},
+            {"text": "发货方式\n包邮", "bounds": "[40,2240][260,2320]"},
+        ],
+        package="com.taobao.idlefish",
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "listing_form"
+    assert analysis.targets["submit_listing"].x == 1510
+    assert analysis.targets["add_image"].x == 160
 
 
 def test_detects_media_permission_dialog_and_album_picker():
@@ -385,6 +408,90 @@ def test_advance_to_album_picker_handles_media_permission_dialog():
         ("device-1", 1920, 761),
         ("device-1", 1600, 1046),
     ]
+
+
+def test_advance_to_listing_form_forces_portrait_then_taps_publish_entry_and_publish_idle_item():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                elements=[
+                    {"text": "闲鱼", "bounds": "[614,1566][665,1600]"},
+                    {"content-desc": "卖闲置", "bounds": "[537,1420][742,1600]"},
+                ]
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "content-desc": "发闲置\n自己拍图卖·啥都能换钱",
+                        "bounds": "[1280,650][2560,873]",
+                        "clickable": "true",
+                    },
+                    {
+                        "content-desc": "关闭",
+                        "bounds": "[1280,1470][2560,1600]",
+                        "clickable": "true",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "关闭", "bounds": "[20,100][80,160]"},
+                    {"text": "发闲置", "bounds": "[120,100][260,160]"},
+                    {"text": "发布", "bounds": "[1460,100][1560,160]", "clickable": "true"},
+                    {"text": "添加图片", "bounds": "[80,420][240,480]", "clickable": "true"},
+                    {"text": "价格设置", "bounds": "[40,2020][220,2080]"},
+                    {"text": "发货方式\n包邮", "bounds": "[40,2240][260,2320]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_to_listing_form("device-1")
+
+    assert result.screen_name == "listing_form"
+    assert android_service.tap_calls == [
+        ("device-1", 639, 1510),
+        ("device-1", 1920, 761),
+    ]
+    android_service.device.shell.assert_has_calls(
+        [
+            call("settings put system accelerometer_rotation 0"),
+            call("settings put system user_rotation 0"),
+        ]
+    )
+
+
+def test_advance_to_listing_form_returns_existing_listing_form_without_extra_taps():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "关闭", "bounds": "[20,100][80,160]"},
+                    {"text": "发闲置", "bounds": "[120,100][260,160]"},
+                    {"text": "发布", "bounds": "[1460,100][1560,160]", "clickable": "true"},
+                    {"text": "添加图片", "bounds": "[80,420][240,480]", "clickable": "true"},
+                    {"text": "价格设置", "bounds": "[40,2020][220,2080]"},
+                    {"text": "发货方式\n包邮", "bounds": "[40,2240][260,2320]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_to_listing_form("device-1")
+
+    assert result.screen_name == "listing_form"
+    assert android_service.tap_calls == []
 
 
 def test_select_cover_image_taps_first_select_then_confirm():
