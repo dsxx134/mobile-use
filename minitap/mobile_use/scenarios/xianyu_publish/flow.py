@@ -129,6 +129,27 @@ class XianyuFlowAnalyzer:
         )
         add_image = self._find_target(elements, exact_text="添加图片")
         description_entry = self._find_target(elements, contains_text="描述")
+        description_done = self._find_target(elements, exact_text="完成")
+        if (
+            current_package == self._settings.xianyu_package_name
+            and any(text == "发闲置" for text in visible_texts)
+            and description_entry is not None
+            and description_done is not None
+        ):
+            targets["description_entry"] = description_entry
+            targets["description_done"] = description_done
+            if submit_listing is not None:
+                targets["submit_listing"] = submit_listing
+            if add_image is not None:
+                targets["add_image"] = add_image
+            return XianyuScreenAnalysis(
+                screen_name="description_editor",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
         if (
             current_package == self._settings.xianyu_package_name
             and any(text == "发闲置" for text in visible_texts)
@@ -598,3 +619,63 @@ class XianyuPublishFlowService:
             "Failed to reach album picker from listing form within "
             f"{max_steps} steps: {final_analysis.screen_name}"
         )
+
+    def advance_listing_form_to_description_editor(
+        self,
+        serial: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        for _ in range(max_steps):
+            analysis = self._analyze(serial)
+            if analysis.screen_name == "description_editor":
+                return analysis
+
+            if analysis.screen_name == "listing_form":
+                target = analysis.targets.get("description_entry")
+                if target is None:
+                    raise RuntimeError("Missing description_entry target on listing form")
+                self._tap_target(serial, target, "description_entry")
+                analysis = self._wait_for_non_loading_screen(serial)
+                if analysis.screen_name in {"description_editor", "unknown"}:
+                    continue
+
+            raise RuntimeError(
+                "Cannot reach description editor from current screen: "
+                f"{analysis.screen_name}"
+            )
+
+        final_analysis = self._analyze(serial)
+        if final_analysis.screen_name == "description_editor":
+            return final_analysis
+        raise RuntimeError(
+            "Failed to reach description editor within "
+            f"{max_steps} steps: {final_analysis.screen_name}"
+        )
+
+    def fill_description(
+        self,
+        serial: str,
+        description: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        analysis = self.advance_listing_form_to_description_editor(serial, max_steps=max_steps)
+        self._android.input_text(serial, description)
+
+        post_input = self._wait_for_non_loading_screen(serial)
+        if post_input.screen_name == "listing_form":
+            return post_input
+
+        done_target = post_input.targets.get("description_done") or analysis.targets.get(
+            "description_done"
+        )
+        if done_target is None:
+            raise RuntimeError("Missing description_done target on description editor")
+        self._tap_target(serial, done_target, "description_done")
+
+        final_analysis = self._wait_for_non_loading_screen(serial)
+        if final_analysis.screen_name != "listing_form":
+            raise RuntimeError(
+                "Description flow did not return to listing form: "
+                f"{final_analysis.screen_name}"
+            )
+        return final_analysis
