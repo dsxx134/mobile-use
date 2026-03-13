@@ -98,6 +98,11 @@ def extract_listing_shipping_value(target: TapTarget | None) -> str | None:
     return None
 
 
+def _normalize_target_suffix(text: str) -> str:
+    normalized = re.sub(r"[^\w\u4e00-\u9fff]+", "_", text.strip())
+    return normalized.strip("_")
+
+
 class XianyuFlowAnalyzer:
     def __init__(self, settings: XianyuPublishSettings | None = None) -> None:
         self._settings = settings or XianyuPublishSettings()
@@ -206,6 +211,27 @@ class XianyuFlowAnalyzer:
             option_targets[target_name] = icon_target.model_copy(update={"text": label})
         return option_targets
 
+    def _find_location_region_option_targets(
+        self,
+        elements: Iterable[dict],
+    ) -> dict[str, TapTarget]:
+        excluded_labels = {"返回", "所在地", "获取当前位置", "当前定位"}
+        option_targets: dict[str, TapTarget] = {}
+        for element in elements:
+            text = _extract_text(element)
+            if text is None or text in excluded_labels:
+                continue
+            target = parse_android_bounds(element.get("bounds"))
+            if target is None or target.y < 300:
+                continue
+            suffix = _normalize_target_suffix(text)
+            if not suffix:
+                continue
+            option_targets[f"location_region_option_{suffix}"] = target.model_copy(
+                update={"text": text}
+            )
+        return option_targets
+
     def detect_screen(self, screen_data: dict) -> XianyuScreenAnalysis:
         current_app = screen_data.get("current_app", {})
         current_package = current_app.get("package")
@@ -247,6 +273,24 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
+        draft_resume_continue = self._find_target(elements, exact_text="继续")
+        draft_resume_discard = self._find_target(elements, exact_text="放弃")
+        if (
+            current_package == self._settings.xianyu_package_name
+            and draft_resume_continue is not None
+            and any("未编辑完成的宝贝" in text for text in visible_texts)
+        ):
+            targets["draft_resume_continue"] = draft_resume_continue
+            if draft_resume_discard is not None:
+                targets["draft_resume_discard"] = draft_resume_discard
+            return XianyuScreenAnalysis(
+                screen_name="draft_resume_dialog",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
         submit_listing = self._find_target(elements, exact_text="发布") or self._find_target(
             elements, contains_text="发布"
         )
@@ -254,6 +298,7 @@ class XianyuFlowAnalyzer:
         description_entry = self._find_target(elements, contains_text="描述")
         price_entry = self._find_target(elements, exact_text="价格设置")
         shipping_entry = self._find_target(elements, contains_text="发货方式")
+        location_entry = self._find_target(elements, exact_text="选择位置")
         description_done = self._find_target(elements, exact_text="完成")
         if (
             current_package == self._settings.xianyu_package_name
@@ -320,6 +365,48 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
+        location_back = self._find_target(elements, exact_text="返回")
+        location_search = self._find_target(elements, exact_text="搜索地址")
+        location_region_entry = self._find_target(elements, exact_text="请选择宝贝所在地")
+        if (
+            current_package == self._settings.xianyu_package_name
+            and location_back is not None
+            and location_search is not None
+            and location_region_entry is not None
+            and any(text == "宝贝所在地" for text in visible_texts)
+            and any(text == "常用地址" for text in visible_texts)
+        ):
+            targets["location_back"] = location_back
+            targets["location_search"] = location_search
+            targets["location_region_entry"] = location_region_entry
+            return XianyuScreenAnalysis(
+                screen_name="location_panel",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
+        location_region_back = self._find_target(elements, exact_text="返回")
+        location_region_get_current = self._find_target(elements, exact_text="获取当前位置")
+        if (
+            current_package == self._settings.xianyu_package_name
+            and location_region_back is not None
+            and location_region_get_current is not None
+            and any(text == "所在地" for text in visible_texts)
+            and not any(text == "宝贝所在地" for text in visible_texts)
+        ):
+            targets["location_region_back"] = location_region_back
+            targets["location_region_get_current"] = location_region_get_current
+            targets.update(self._find_location_region_option_targets(elements))
+            return XianyuScreenAnalysis(
+                screen_name="location_region_picker",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
         if (
             current_package == self._settings.xianyu_package_name
             and any(text == "发闲置" for text in visible_texts)
@@ -336,6 +423,8 @@ class XianyuFlowAnalyzer:
                 targets["price_entry"] = price_entry
             if shipping_entry is not None:
                 targets["shipping_entry"] = shipping_entry
+            if location_entry is not None:
+                targets["location_entry"] = location_entry
             return XianyuScreenAnalysis(
                 screen_name="listing_form",
                 current_package=current_package,
@@ -762,6 +851,13 @@ class XianyuPublishFlowService:
                 self._tap_target(serial, target, "publish_idle_item")
                 continue
 
+            if analysis.screen_name == "draft_resume_dialog":
+                target = analysis.targets.get("draft_resume_continue")
+                if target is None:
+                    raise RuntimeError("Missing continue target on draft resume dialog")
+                self._tap_target(serial, target, "draft_resume_continue")
+                continue
+
             self.open_home(serial)
 
         final_analysis = self._analyze(serial)
@@ -817,6 +913,76 @@ class XianyuPublishFlowService:
             return final_analysis
         raise RuntimeError(
             "Failed to reach album picker from listing form within "
+            f"{max_steps} steps: {final_analysis.screen_name}"
+        )
+
+    def advance_listing_form_to_location_panel(
+        self,
+        serial: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        for _ in range(max_steps):
+            analysis = self._analyze(serial)
+            if analysis.screen_name == "location_panel":
+                return analysis
+
+            if analysis.screen_name == "listing_form":
+                target = analysis.targets.get("location_entry")
+                if target is None:
+                    raise RuntimeError("Missing location_entry target on listing form")
+                self._tap_target(serial, target, "location_entry")
+                analysis = self._wait_for_non_loading_screen(serial)
+                if analysis.screen_name in {"location_panel", "unknown"}:
+                    continue
+
+            raise RuntimeError(
+                "Cannot reach location panel from current screen: "
+                f"{analysis.screen_name}"
+            )
+
+        final_analysis = self._analyze(serial)
+        if final_analysis.screen_name == "location_panel":
+            return final_analysis
+        raise RuntimeError(
+            "Failed to reach location panel within "
+            f"{max_steps} steps: {final_analysis.screen_name}"
+        )
+
+    def advance_listing_form_to_location_region_picker(
+        self,
+        serial: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        for _ in range(max_steps):
+            analysis = self._analyze(serial)
+            if analysis.screen_name == "location_region_picker":
+                return analysis
+
+            if analysis.screen_name == "listing_form":
+                analysis = self.advance_listing_form_to_location_panel(
+                    serial,
+                    max_steps=max_steps,
+                )
+
+            if analysis.screen_name == "location_panel":
+                target = analysis.targets.get("location_region_entry")
+                if target is None:
+                    raise RuntimeError("Missing location_region_entry target on location panel")
+                self._tap_target(serial, target, "location_region_entry")
+                analysis = self._wait_for_non_loading_screen(serial)
+                if analysis.screen_name in {"location_region_picker", "unknown"}:
+                    continue
+
+            raise RuntimeError(
+                "Cannot reach location region picker from current screen: "
+                f"{analysis.screen_name}"
+            )
+
+        final_analysis = self._analyze(serial)
+        if final_analysis.screen_name == "location_region_picker":
+            return final_analysis
+        raise RuntimeError(
+            "Failed to reach location region picker within "
             f"{max_steps} steps: {final_analysis.screen_name}"
         )
 

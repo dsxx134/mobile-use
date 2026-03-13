@@ -134,6 +134,25 @@ def test_detects_publish_chooser_from_multiline_accessibility_text():
     assert analysis.targets["publish_idle_item"].y == 761
 
 
+def test_detects_draft_resume_dialog_targets():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "你有未编辑完成的宝贝，是否继续？", "bounds": "[0,2025][1600,2560]"},
+            {"text": "放弃", "clickable": "true", "bounds": "[40,2355][785,2455]"},
+            {"text": "继续", "clickable": "true", "bounds": "[815,2355][1560,2455]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "draft_resume_dialog"
+    assert analysis.targets["draft_resume_discard"].x == 412
+    assert analysis.targets["draft_resume_continue"].x == 1187
+    assert analysis.targets["draft_resume_continue"].y == 2405
+
+
 def test_detects_portrait_listing_form_instead_of_publish_chooser():
     analyzer = XianyuFlowAnalyzer()
     screen = _make_screen(
@@ -244,6 +263,90 @@ def test_detects_listing_form_shipping_entry_target():
     assert analysis.targets["shipping_entry"].text == "发货方式\n包邮"
     assert analysis.targets["shipping_entry"].x == 800
     assert analysis.targets["shipping_entry"].y == 1845
+
+
+def test_detects_listing_form_location_entry_target():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+            {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+            {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+            {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+            {
+                "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                "bounds": "[30,737][1570,1264]",
+            },
+            {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+            {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+            {"content-desc": "选择位置", "bounds": "[70,1915][1530,2055]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "listing_form"
+    assert analysis.targets["location_entry"].text == "选择位置"
+    assert analysis.targets["location_entry"].x == 800
+    assert analysis.targets["location_entry"].y == 1985
+
+
+def test_detects_location_panel_targets():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "返回", "bounds": "[0,80][200,190]"},
+            {"text": "宝贝所在地", "bounds": "[694,110][906,160]"},
+            {"text": "搜索地址", "bounds": "[40,200][1560,290]"},
+            {"text": "常用地址", "bounds": "[0,420][1600,513]"},
+            {
+                "text": "EFC LIVE欧美广场商业A区\n景兴路896号",
+                "clickable": "true",
+                "bounds": "[0,513][1600,713]",
+            },
+            {"text": "城市区域", "bounds": "[0,1733][1600,1813]"},
+            {
+                "text": "请选择宝贝所在地",
+                "clickable": "true",
+                "bounds": "[0,1813][1600,1953]",
+            },
+            {"text": "去选择", "clickable": "true", "bounds": "[0,1965][1600,2005]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "location_panel"
+    assert analysis.targets["location_back"].x == 100
+    assert analysis.targets["location_search"].text == "搜索地址"
+    assert analysis.targets["location_region_entry"].text == "请选择宝贝所在地"
+    assert analysis.targets["location_region_entry"].y == 1883
+
+
+def test_detects_location_region_picker_targets():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "返回", "bounds": "[35,105][90,165]"},
+            {"text": "所在地", "bounds": "[735,106][864,164]"},
+            {"text": "获取当前位置", "bounds": "[30,228][240,275]"},
+            {"text": "当前定位", "bounds": "[270,231][390,272]"},
+            {"text": "北京", "clickable": "true", "bounds": "[0,315][1600,417]"},
+            {"text": "上海", "clickable": "true", "bounds": "[0,1147][1600,1249]"},
+            {"text": "浙江", "clickable": "true", "bounds": "[0,1355][1600,1457]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "location_region_picker"
+    assert analysis.targets["location_region_back"].x == 62
+    assert analysis.targets["location_region_get_current"].text == "获取当前位置"
+    assert analysis.targets["location_region_option_上海"].x == 800
+    assert analysis.targets["location_region_option_上海"].y == 1198
 
 
 def test_detects_description_editor_from_portrait_form():
@@ -700,6 +803,71 @@ def test_advance_to_listing_form_returns_existing_listing_form_without_extra_tap
     assert android_service.tap_calls == []
 
 
+def test_advance_to_listing_form_continues_existing_draft():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                elements=[
+                    {"text": "闲鱼", "bounds": "[614,1566][665,1600]"},
+                    {"content-desc": "卖闲置", "bounds": "[537,1420][742,1600]"},
+                ]
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "content-desc": "发闲置\n自己拍图卖·啥都能换钱",
+                        "bounds": "[1280,650][2560,873]",
+                        "clickable": "true",
+                    },
+                    {
+                        "content-desc": "关闭",
+                        "bounds": "[1280,1470][2560,1600]",
+                        "clickable": "true",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "你有未编辑完成的宝贝，是否继续？", "bounds": "[0,2025][1600,2560]"},
+                    {"text": "放弃", "clickable": "true", "bounds": "[40,2355][785,2455]"},
+                    {"text": "继续", "clickable": "true", "bounds": "[815,2355][1560,2455]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                    {"content-desc": "选择位置", "bounds": "[70,1915][1530,2055]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_to_listing_form("device-1")
+
+    assert result.screen_name == "listing_form"
+    assert android_service.tap_calls == [
+        ("device-1", 639, 1510),
+        ("device-1", 1920, 761),
+        ("device-1", 1187, 2405),
+    ]
+
+
 def test_advance_listing_form_to_album_picker_taps_add_image():
     android_service = FakeAndroidService(
         screens=[
@@ -737,6 +905,67 @@ def test_advance_listing_form_to_album_picker_taps_add_image():
 
     assert result.screen_name == "album_picker"
     assert android_service.tap_calls == [("device-1", 310, 490)]
+
+
+def test_advance_listing_form_to_location_region_picker_taps_choose_region():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                    {"content-desc": "选择位置", "bounds": "[70,1915][1530,2055]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "返回", "bounds": "[0,80][200,190]"},
+                    {"text": "宝贝所在地", "bounds": "[694,110][906,160]"},
+                    {"text": "搜索地址", "bounds": "[40,200][1560,290]"},
+                    {"text": "常用地址", "bounds": "[0,420][1600,513]"},
+                    {
+                        "text": "请选择宝贝所在地",
+                        "clickable": "true",
+                        "bounds": "[0,1813][1600,1953]",
+                    },
+                    {"text": "去选择", "clickable": "true", "bounds": "[0,1965][1600,2005]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "返回", "bounds": "[35,105][90,165]"},
+                    {"text": "所在地", "bounds": "[735,106][864,164]"},
+                    {"text": "获取当前位置", "bounds": "[30,228][240,275]"},
+                    {"text": "当前定位", "bounds": "[270,231][390,272]"},
+                    {"text": "上海", "clickable": "true", "bounds": "[0,1147][1600,1249]"},
+                    {"text": "浙江", "clickable": "true", "bounds": "[0,1355][1600,1457]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_listing_form_to_location_region_picker("device-1")
+
+    assert result.screen_name == "location_region_picker"
+    assert android_service.tap_calls == [
+        ("device-1", 800, 1985),
+        ("device-1", 800, 1883),
+    ]
 
 
 def test_advance_listing_form_to_album_picker_handles_media_permission_dialog():
