@@ -300,6 +300,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - Xianyu home tab
   - publish chooser
   - portrait listing form
+  - description editor
   - Android media permission dialog
   - album picker
   - album source menu
@@ -310,6 +311,8 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - tap `发闲置`
   - force the Huawei tablet into portrait mode before entering the real publish form
   - extract the portrait publish-form targets from real-device `content-desc` semantics
+  - enter the dedicated description editor from the portrait form
+  - fill description text and return to the portrait form
   - accept the media permission dialog
   - reopen the album picker directly from the portrait form by tapping `添加图片`
   - switch the album source to a dedicated folder like `XianyuPublish`
@@ -354,8 +357,14 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - land directly on the standard listing form
 - On the real portrait form, key controls such as `发布`, `添加图片`, and the large description tile
   are exposed through `content-desc` values like `发布, 发布` and `描述, 描述一下宝贝的品牌型号、货品来源…`
+- The description path now uses a dedicated editor state with a `完成` control
+- On this Huawei tablet, `input_text()` can already return from that editor back to `listing_form`;
+  the flow now detects that and avoids stale `完成` taps that can accidentally open `价格设置`
 - From that portrait form, tapping `添加图片` opens the album picker directly without going back
   through the older publish chooser path
+- On a fresh device session, the first FastInputIME text entry can trigger a one-time
+  `com.github.uiautomator/.AdbKeyboard` installation and briefly switch foreground away from Xianyu;
+  after that warm-up, subsequent text entry is stable
 - For deterministic selection, push listing images into a dedicated device folder such as
   `XIANYU_ANDROID_MEDIA_DIR=/sdcard/DCIM/XianyuPublish`
 - The flow can switch the picker from `所有文件` into `XianyuPublish` before tapping `选择`
@@ -376,9 +385,9 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 
 ### Current boundary
 
-- The flow can now reach the portrait listing form and reopen the album picker from `添加图片`
-- Filling description, price, shipping, location, category, and final publish submission are still
-  the next layer
+- The flow can now reach the portrait listing form, fill description text, and reopen the album
+  picker from `添加图片`
+- Price, shipping, location, category, and final publish submission are still the next layer
 
 ## 🔎 Agentic System Overview
 

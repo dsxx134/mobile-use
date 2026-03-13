@@ -34,6 +34,7 @@ Updated: 2026-03-13
   - home tab
   - publish chooser
   - portrait listing form
+  - description editor
   - Android media permission dialog
   - album picker
   - album source menu
@@ -69,6 +70,16 @@ Updated: 2026-03-13
 - The flow service now has a direct bridge from the portrait listing form into the album picker by
   tapping `添加图片` and waiting through the short loading gap or permission dialog until the picker
   becomes stable.
+- The flow service now also has a direct description path from the portrait listing form:
+  - tap the large description tile
+  - enter a dedicated `description_editor` state
+  - input text
+  - return to the portrait listing form
+- On the Huawei tablet, `input_text()` can already collapse the description editor back to
+  `listing_form`; the flow must check for that state before tapping any stale `完成` coordinates.
+- On a fresh Android session, the first UIAutomator FastInputIME use can trigger one-time
+  `com.github.uiautomator/.AdbKeyboard` installation and temporarily switch foreground away from
+  Xianyu. After that warm-up, subsequent text entry stays in-app.
 - The landscape space-analysis path remains supported for investigation and fallback, but it is no longer the default route for entering the form.
 - `scripts/xianyu_publish_flow_smoke.py` is the quickest way to inspect the current Xianyu screen classification on a connected Android device.
 - The next layer should still consume `ListingDraft` directly and stay isolated from raw Feishu record payloads.
