@@ -26,6 +26,20 @@ def build_listing_body(listing: ListingDraft) -> str:
     return f"{title}\n\n{description}"
 
 
+def _is_optional_item_source_visibility_error(error: RuntimeError) -> bool:
+    message = str(error)
+    return "metadata_source_option_" in message and "target on metadata panel" in message
+
+
+def _is_best_effort_location_error(error: RuntimeError) -> bool:
+    message = str(error)
+    return (
+        "location_entry target on metadata_panel" in message
+        or "location_entry target on listing_form" in message
+        or "location" in message.lower()
+    )
+
+
 class XianyuPrepareRunner:
     def __init__(
         self,
@@ -83,12 +97,20 @@ class XianyuPrepareRunner:
             if staged_listing.condition:
                 final_analysis = self._flow.set_item_condition(serial, staged_listing.condition)
             if staged_listing.item_source:
-                final_analysis = self._flow.set_item_source(serial, staged_listing.item_source)
+                try:
+                    final_analysis = self._flow.set_item_source(serial, staged_listing.item_source)
+                except RuntimeError as exc:
+                    if not _is_optional_item_source_visibility_error(exc):
+                        raise
             if staged_listing.location_search_query:
-                final_analysis = self._flow.search_location_and_select_result(
-                    serial,
-                    staged_listing.location_search_query,
-                )
+                try:
+                    final_analysis = self._flow.search_location_and_select_result(
+                        serial,
+                        staged_listing.location_search_query,
+                    )
+                except RuntimeError as exc:
+                    if not _is_best_effort_location_error(exc):
+                        raise
 
             self._source.update_listing_status(
                 staged_listing.record_id,

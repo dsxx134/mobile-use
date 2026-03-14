@@ -1566,10 +1566,12 @@ class XianyuPublishFlowService:
             if analysis.screen_name == "description_editor":
                 return analysis
 
-            if analysis.screen_name == "listing_form":
+            if analysis.screen_name in {"listing_form", "metadata_panel"}:
                 target = analysis.targets.get("description_entry")
                 if target is None:
-                    raise RuntimeError("Missing description_entry target on listing form")
+                    raise RuntimeError(
+                        f"Missing description_entry target on {analysis.screen_name}"
+                    )
                 self._tap_target(serial, target, "description_entry")
                 analysis = self._wait_for_non_loading_screen(serial)
                 if analysis.screen_name in {"description_editor", "unknown"}:
@@ -1716,9 +1718,9 @@ class XianyuPublishFlowService:
         self._tap_target(serial, done_target, "description_done")
 
         final_analysis = self._wait_for_non_loading_screen(serial)
-        if final_analysis.screen_name != "listing_form":
+        if final_analysis.screen_name not in {"listing_form", "metadata_panel"}:
             raise RuntimeError(
-                "Description flow did not return to listing form: "
+                "Description flow did not return to a supported editor screen: "
                 f"{final_analysis.screen_name}"
             )
         return final_analysis
@@ -1767,9 +1769,9 @@ class XianyuPublishFlowService:
         self._tap_target(serial, confirm_target, "price_confirm")
 
         final_analysis = self._wait_for_non_loading_screen(serial)
-        if final_analysis.screen_name != "listing_form":
+        if final_analysis.screen_name not in {"listing_form", "metadata_panel"}:
             raise RuntimeError(
-                "Price flow did not return to listing form: "
+                "Price flow did not return to a supported editor screen: "
                 f"{final_analysis.screen_name}"
             )
         return final_analysis

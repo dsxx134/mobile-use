@@ -248,6 +248,51 @@ def test_prepare_first_publishable_listing_applies_optional_metadata_fields(tmp_
     assert result.final_screen_name == "metadata_panel"
 
 
+def test_prepare_first_publishable_listing_treats_item_source_as_best_effort(tmp_path):
+    listing = _make_listing(item_source="闲置")
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    flow.set_item_source.side_effect = RuntimeError(
+        "Missing metadata_source_option_闲置 target on metadata panel"
+    )
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+    )
+
+    result = runner.prepare_first_publishable_listing(
+        serial="device-1",
+        staging_root=tmp_path,
+    )
+
+    flow.set_item_source.assert_called_once_with("device-1", "闲置")
+    source.update_listing_status.assert_has_calls(
+        [
+            call("recA", "准备中"),
+            call("recA", "已就绪", failure_reason=None),
+        ]
+    )
+    assert result.final_screen_name == "metadata_panel"
+
+
 def test_prepare_first_publishable_listing_applies_optional_location_search_query(tmp_path):
     listing = _make_listing(location_search_query="上海虹桥站")
     source = Mock()
@@ -306,6 +351,51 @@ def test_prepare_first_publishable_listing_applies_optional_location_search_quer
         call.source.update_listing_status("recA", "已就绪", failure_reason=None),
     ]
     assert result.final_screen_name == "listing_form"
+
+
+def test_prepare_first_publishable_listing_treats_location_search_as_best_effort(tmp_path):
+    listing = _make_listing(location_search_query="上海虹桥站")
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    flow.search_location_and_select_result.side_effect = RuntimeError(
+        "Missing location_entry target on metadata_panel"
+    )
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+    )
+
+    result = runner.prepare_first_publishable_listing(
+        serial="device-1",
+        staging_root=tmp_path,
+    )
+
+    flow.search_location_and_select_result.assert_called_once_with("device-1", "上海虹桥站")
+    source.update_listing_status.assert_has_calls(
+        [
+            call("recA", "准备中"),
+            call("recA", "已就绪", failure_reason=None),
+        ]
+    )
+    assert result.final_screen_name == "metadata_panel"
 
 
 def test_prepare_first_publishable_listing_marks_failure_and_reraises(tmp_path):

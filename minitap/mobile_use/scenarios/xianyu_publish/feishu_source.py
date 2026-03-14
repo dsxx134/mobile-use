@@ -1,4 +1,3 @@
-import json
 import time
 from collections.abc import Callable
 from typing import Any
@@ -84,6 +83,7 @@ class FeishuBitableSource:
                 {
                     "field_name": self.settings.attachment_field_name,
                     "operator": "isNotEmpty",
+                    "value": [],
                 },
             ],
         }
@@ -92,11 +92,11 @@ class FeishuBitableSource:
         app_token = self._require_setting("XIANYU_BITABLE_APP_TOKEN")
         table_id = self._require_setting("XIANYU_BITABLE_TABLE_ID")
         payload = self._request_json(
-            "GET",
-            f"/bitable/v1/apps/{app_token}/tables/{table_id}/records",
-            params={
+            "POST",
+            f"/bitable/v1/apps/{app_token}/tables/{table_id}/records/search",
+            json={
                 "page_size": 100,
-                "filter": json.dumps(self.build_pending_filter(), ensure_ascii=False),
+                "filter": self.build_pending_filter(),
             },
         )
         return payload.get("items", [])
@@ -119,25 +119,21 @@ class FeishuBitableSource:
         self,
         attachments: list[FeishuAttachment],
     ) -> dict[str, str]:
-        payload = self._request_json(
-            "POST",
-            "/drive/v1/medias/batch_get_tmp_download_url",
-            json={"file_tokens": [attachment.file_token for attachment in attachments]},
-        )
         ordered_urls: dict[str, str] = {}
-        tmp_download_urls = payload.get("tmp_download_urls", [])
         for attachment in attachments:
-            matched = next(
-                (
-                    item.get("tmp_download_url")
-                    for item in tmp_download_urls
-                    if item.get("file_token") == attachment.file_token
-                ),
-                None,
-            )
-            if matched:
-                ordered_urls[attachment.file_token] = matched
+            direct_url = attachment.url or attachment.tmp_url
+            if direct_url:
+                ordered_urls[attachment.file_token] = direct_url
         return ordered_urls
+
+    def download_attachment_file(self, url: str, destination: Any) -> None:
+        with self._http_client.stream(
+            "GET",
+            url,
+            headers={"Authorization": f"Bearer {self._token_provider()}"},
+        ) as response:
+            response.raise_for_status()
+            destination.write_bytes(response.read())
 
     def update_listing_status(
         self,
@@ -188,8 +184,8 @@ class FeishuBitableSource:
 
         return ListingDraft(
             record_id=record["record_id"],
-            title=str(fields[self.settings.title_field_name]).strip(),
-            description=str(fields[self.settings.description_field_name]).strip(),
+            title=self._get_required_text_field(fields, self.settings.title_field_name),
+            description=self._get_required_text_field(fields, self.settings.description_field_name),
             price=float(fields[self.settings.price_field_name]),
             attachments=attachments,
             category=self._get_optional_text_field(fields, self.settings.category_field_name),
@@ -222,5 +218,28 @@ class FeishuBitableSource:
         value = fields.get(field_name)
         if value is None:
             return None
-        text = str(value).strip()
+        text = self._extract_text_value(value)
         return text or None
+
+    def _get_required_text_field(self, fields: dict[str, Any], field_name: str) -> str:
+        value = fields.get(field_name)
+        text = self._extract_text_value(value)
+        if not text:
+            raise ValueError(f"Missing required text field: {field_name}")
+        return text
+
+    def _extract_text_value(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, list):
+            parts: list[str] = []
+            for item in value:
+                if isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str) and text.strip():
+                        parts.append(text.strip())
+                elif isinstance(item, str) and item.strip():
+                    parts.append(item.strip())
+            if parts:
+                return "".join(parts).strip()
+        return str(value).strip()
