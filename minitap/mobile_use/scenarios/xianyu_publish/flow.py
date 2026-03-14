@@ -857,6 +857,30 @@ class XianyuPublishFlowService:
             )
         return analysis
 
+    def _wait_for_post_location_region_selection_screen(
+        self,
+        serial: str,
+        *,
+        max_polls: int = 6,
+    ) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        for _ in range(max_polls):
+            if (
+                self._looks_like_loading_overlay(analysis)
+                or analysis.screen_name == "location_region_picker"
+            ):
+                self._sleep(1.0)
+                analysis = self._analyze(serial)
+                continue
+            return analysis
+
+        if analysis.screen_name == "location_region_picker":
+            raise RuntimeError(
+                "Location region selection did not leave location_region_picker within "
+                f"{max_polls} polls"
+            )
+        return analysis
+
     def _wait_for_screen_transition(
         self,
         serial: str,
@@ -1241,7 +1265,7 @@ class XianyuPublishFlowService:
             if analysis.screen_name == "location_region_picker":
                 return analysis
 
-            if analysis.screen_name == "listing_form":
+            if analysis.screen_name in {"listing_form", "metadata_panel"}:
                 analysis = self.advance_listing_form_to_location_panel(
                     serial,
                     max_steps=max_steps,
@@ -1268,6 +1292,81 @@ class XianyuPublishFlowService:
             "Failed to reach location region picker within "
             f"{max_steps} steps: {final_analysis.screen_name}"
         )
+
+    def set_location_region_path(
+        self,
+        serial: str,
+        path: list[str],
+        *,
+        max_steps: int = 4,
+        max_segment_retries: int = 3,
+    ) -> XianyuScreenAnalysis:
+        normalized_path = [segment.strip() for segment in path if segment.strip()]
+        if not normalized_path:
+            raise ValueError("Location path cannot be empty")
+
+        analysis = self.advance_listing_form_to_location_region_picker(
+            serial,
+            max_steps=max_steps,
+        )
+
+        for index, segment in enumerate(normalized_path):
+            segment_suffix = _normalize_target_suffix(segment)
+            if not segment_suffix:
+                raise ValueError(f"Unsupported location path segment: {segment!r}")
+            segment_target_name = f"location_region_option_{segment_suffix}"
+            final_segment = index == len(normalized_path) - 1
+            next_target_name = None
+            if not final_segment:
+                next_suffix = _normalize_target_suffix(normalized_path[index + 1])
+                next_target_name = f"location_region_option_{next_suffix}"
+
+            target = analysis.targets.get(segment_target_name)
+            if target is None:
+                raise RuntimeError(f"Location path segment not found: {segment!r}")
+            self._tap_target(serial, target, segment_target_name)
+            if final_segment:
+                analysis = self._wait_for_post_location_region_selection_screen(serial)
+            else:
+                analysis = self._wait_for_non_loading_screen(serial)
+
+            if final_segment:
+                if analysis.screen_name == "listing_form":
+                    return analysis
+                raise RuntimeError(
+                    "Location path did not return to listing form after final segment: "
+                    f"{analysis.screen_name}"
+                )
+
+            for _ in range(max_segment_retries):
+                if analysis.screen_name != "location_region_picker":
+                    raise RuntimeError(
+                        "Location path left region picker before the final segment: "
+                        f"{analysis.screen_name}"
+                    )
+                if (
+                    next_target_name is not None
+                    and analysis.targets.get(next_target_name) is not None
+                ):
+                    break
+
+                repeated_target = analysis.targets.get(segment_target_name)
+                if repeated_target is None:
+                    break
+                self._tap_target(serial, repeated_target, segment_target_name)
+                analysis = self._wait_for_non_loading_screen(serial)
+            else:
+                raise RuntimeError(
+                    "Location path segment not found after retrying current segment: "
+                    f"{normalized_path[index + 1]!r}"
+                )
+
+            if next_target_name is not None and analysis.targets.get(next_target_name) is None:
+                raise RuntimeError(
+                    f"Location path segment not found: {normalized_path[index + 1]!r}"
+                )
+
+        raise RuntimeError("Location path exhausted without returning to listing form")
 
     def advance_listing_form_to_metadata_panel(
         self,

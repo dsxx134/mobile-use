@@ -1,6 +1,8 @@
 from unittest.mock import Mock
 from unittest.mock import call
 
+import pytest
+
 from minitap.mobile_use.scenarios.xianyu_publish.flow import (
     XianyuFlowAnalyzer,
     XianyuPublishFlowService,
@@ -218,6 +220,28 @@ def _scrolled_metadata_panel_elements(*, selected_category: str | None = None) -
         {"content-desc": "发货方式\n包邮", "bounds": "[70,1725][1530,1865]"},
         {"content-desc": "选择位置", "bounds": "[70,1865][1530,2005]"},
     ]
+
+
+def _location_region_picker_elements(labels: list[str]) -> list[dict]:
+    elements: list[dict] = [
+        {"text": "返回", "bounds": "[35,105][90,165]"},
+        {"text": "所在地", "bounds": "[735,106][864,164]"},
+        {"text": "获取当前位置", "bounds": "[30,228][240,275]"},
+        {"text": "当前定位", "bounds": "[270,231][390,272]"},
+    ]
+    top = 315
+    row_height = 102
+    for index, label in enumerate(labels):
+        row_top = top + (index * row_height)
+        row_bottom = row_top + row_height
+        elements.append(
+            {
+                "text": label,
+                "clickable": "true",
+                "bounds": f"[0,{row_top}][1600,{row_bottom}]",
+            }
+        )
+    return elements
 
 
 def test_detects_xianyu_home_screen_and_publish_entry_target():
@@ -1407,6 +1431,195 @@ def test_advance_listing_form_to_location_panel_can_start_from_metadata_panel():
 
     assert result.screen_name == "location_panel"
     assert android_service.tap_calls == [("device-1", 800, 1935)]
+
+
+def test_set_location_region_path_taps_city_twice_then_district_and_returns_listing_form():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                    {"content-desc": "选择位置", "bounds": "[70,1915][1530,2055]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "返回", "bounds": "[0,80][200,190]"},
+                    {"text": "宝贝所在地", "bounds": "[694,110][906,160]"},
+                    {"text": "搜索地址", "bounds": "[40,200][1560,290]"},
+                    {"text": "常用地址", "bounds": "[0,420][1600,513]"},
+                    {
+                        "text": "请选择宝贝所在地",
+                        "clickable": "true",
+                        "bounds": "[0,1813][1600,1953]",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_region_picker_elements(
+                    ["北京", "天津", "河北", "上海", "江苏", "浙江"]
+                ),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_region_picker_elements(["上海"]),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_region_picker_elements(["黄浦区", "徐汇区", "长宁区"]),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                    {"content-desc": "选择位置", "bounds": "[70,1915][1530,2055]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.set_location_region_path("device-1", ["上海", "黄浦区"])
+
+    assert result.screen_name == "listing_form"
+    assert android_service.tap_calls == [
+        ("device-1", 800, 1985),
+        ("device-1", 800, 1883),
+        ("device-1", 800, 672),
+        ("device-1", 800, 366),
+        ("device-1", 800, 366),
+    ]
+
+
+def test_set_location_region_path_raises_when_next_segment_never_appears():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_region_picker_elements(["北京", "上海"]),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_region_picker_elements(["上海"]),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_region_picker_elements(["黄浦区", "徐汇区"]),
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    with pytest.raises(RuntimeError, match="Location path segment not found"):
+        flow.set_location_region_path("device-1", ["上海", "浦东新区"])
+
+
+def test_set_location_region_path_waits_for_final_picker_tail_to_leave():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                    {"content-desc": "选择位置", "bounds": "[70,1915][1530,2055]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "返回", "bounds": "[0,80][200,190]"},
+                    {"text": "宝贝所在地", "bounds": "[694,110][906,160]"},
+                    {"text": "搜索地址", "bounds": "[40,200][1560,290]"},
+                    {"text": "常用地址", "bounds": "[0,420][1600,513]"},
+                    {
+                        "text": "请选择宝贝所在地",
+                        "clickable": "true",
+                        "bounds": "[0,1813][1600,1953]",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_region_picker_elements(
+                    ["北京", "天津", "河北", "上海", "江苏", "浙江"]
+                ),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_region_picker_elements(["上海"]),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_region_picker_elements(["黄浦区", "徐汇区", "长宁区"]),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_region_picker_elements(["黄浦区", "徐汇区", "长宁区"]),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                    {"content-desc": "选择位置", "bounds": "[70,1915][1530,2055]"},
+                ],
+            ),
+        ],
+        advance_on_tap_calls={1, 2, 3, 4, 5},
+        advance_on_get_indices={5},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.set_location_region_path("device-1", ["上海", "黄浦区"])
+
+    assert result.screen_name == "listing_form"
 
 
 def test_advance_listing_form_to_metadata_panel_taps_metadata_entry():
