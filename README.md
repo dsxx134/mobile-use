@@ -347,6 +347,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `FEISHU_APP_SECRET`
 - `XIANYU_BITABLE_APP_TOKEN`
 - `XIANYU_BITABLE_TABLE_ID`
+- Optional: `XIANYU_ANDROID_SERIAL` (used by the live prepare script when multiple Android devices are attached)
 - Optional: `XIANYU_ANDROID_MEDIA_DIR` (defaults to `/sdcard/DCIM/XianyuPublish`)
 
 ### Default Bitable field mapping
@@ -375,6 +376,17 @@ uv run python scripts/xianyu_publish_foundation_smoke.py
 uv run python scripts/xianyu_publish_flow_smoke.py
 ```
 
+### Run the live Feishu-backed prepare runner
+
+```bash
+uv run python scripts/xianyu_prepare_runner_live.py
+```
+
+- The script reads credentials and table settings from `.env`
+- It uses `XIANYU_ANDROID_SERIAL` by default, or `--serial <device>` when you want to override it
+- It preheats Xianyu back to the portrait `发闲置` form before running the deterministic prepare slice
+- It prints the prepared record id, pushed media paths, merged body text, and final screen as JSON
+
 ### Current media-selection behavior
 
 - The preferred publish path on the Huawei tablet is now portrait mode:
@@ -390,9 +402,14 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   `继续`
 - After tapping `继续`, the dialog can linger for one or two snapshots; the flow now polls until
   that tail clears instead of tapping `继续` twice
+- The live prepare entrypoint now retries the initial form preheat once when that Huawei-tablet
+  start sequence flakes into a transient `unknown` state
 - The description path now uses a dedicated editor state with a `完成` control
 - On this Huawei tablet, `input_text()` can already return from that editor back to `listing_form`;
   the flow now detects that and avoids stale `完成` taps that can accidentally open `价格设置`
+- When the editor is opened from a scrolled `metadata_panel`, tapping the description tile can
+  leave one tail snapshot on `metadata_panel` before the app finally enters `description_editor`;
+  the flow now polls through that tail instead of failing early
 - The portrait form also exposes a tappable `价格设置` row; on the Huawei tablet it opens a
   dedicated bottom-sheet keypad with `删除`, `确定`, and digit targets rather than a text IME
 - Sale price entry is now deterministic:
@@ -518,6 +535,9 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - mark the record `准备失败` with `失败原因` if any step raises
 - For live Feishu-backed runs, callers should construct `XianyuMediaSyncService` with
   `download_file=source.download_attachment_file`
+- That live assembly is now codified in `scripts/xianyu_prepare_runner_live.py`, which resolves
+  the Android serial, preheats the tablet back to the portrait form, and prints the prepared
+  result as JSON
 - Real-device verification on `E2P6R22708000602` confirmed a full prepare-runner pass that ended
   on `listing_form` with body text and price filled
 - A fresh live Feishu-backed probe on `E2P6R22708000602` also confirmed an end-to-end prepare run

@@ -7,6 +7,7 @@ class XianyuPublishSettings(BaseSettings):
     FEISHU_APP_SECRET: SecretStr | None = None
     XIANYU_BITABLE_APP_TOKEN: str | None = None
     XIANYU_BITABLE_TABLE_ID: str | None = None
+    XIANYU_ANDROID_SERIAL: str | None = None
     XIANYU_ANDROID_MEDIA_DIR: str = "/sdcard/DCIM/XianyuPublish"
     xianyu_package_name: str = "com.taobao.idlefish"
     xianyu_main_activity: str = "com.taobao.idlefish.maincontainer.activity.MainActivity"

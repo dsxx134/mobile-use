@@ -954,6 +954,26 @@ class XianyuPublishFlowService:
             )
         return analysis
 
+    def _wait_for_post_description_entry_screen(
+        self,
+        serial: str,
+        *,
+        max_polls: int = 6,
+    ) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        for _ in range(max_polls):
+            if analysis.screen_name == "description_editor":
+                return analysis
+            if (
+                self._looks_like_loading_overlay(analysis)
+                or analysis.screen_name in {"listing_form", "metadata_panel", "unknown"}
+            ):
+                self._sleep(1.0)
+                analysis = self._analyze(serial)
+                continue
+            return analysis
+        return analysis
+
     def _wait_for_screen_transition(
         self,
         serial: str,
@@ -1573,8 +1593,13 @@ class XianyuPublishFlowService:
                         f"Missing description_entry target on {analysis.screen_name}"
                     )
                 self._tap_target(serial, target, "description_entry")
-                analysis = self._wait_for_non_loading_screen(serial)
-                if analysis.screen_name in {"description_editor", "unknown"}:
+                analysis = self._wait_for_post_description_entry_screen(serial)
+                if analysis.screen_name in {
+                    "description_editor",
+                    "listing_form",
+                    "metadata_panel",
+                    "unknown",
+                }:
                     continue
 
             raise RuntimeError(
