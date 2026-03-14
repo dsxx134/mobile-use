@@ -329,6 +329,8 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - open the dedicated location search screen from `宝贝所在地`
   - fill the focused address search field with direct `EditText.set_text()`
   - tap a visible location search result row and return to the next Xianyu screen
+  - scroll a top-slice `metadata_panel` to reveal lower rows like `选择位置` before opening the
+    location flow
   - expand the portrait form into the metadata/spec panel
   - set a currently visible category chip from the metadata/spec panel
   - set the verified `成色` chip options
@@ -414,6 +416,8 @@ uv run python scripts/xianyu_publish_auto_live.py
 - If the analyzer reaches the success screen, it writes back:
   - `发布状态=已发布`
   - `发布时间=<iso timestamp>`
+- Xianyu can also show a reward-style success page with `发布成功` and `再发一件`; the analyzer now
+  treats that variant as the same `publish_success` outcome
 - If the success screen does not appear, it writes back:
   - `发布状态=发布失败`
   - `失败原因=<raised error>`
@@ -471,6 +475,8 @@ uv run python scripts/xianyu_publish_auto_live.py
   `宝贝所在地` chooser and the hierarchical `所在地` region picker
 - The location bridge also works from a scrolled `metadata_panel` state when the lower
   `选择位置` row is visible on screen
+- When the editor is still at the upper `metadata_panel` slice and lower rows are off-screen, the
+  flow now performs one portrait-oriented upward swipe inside the editor before retrying
 - The root `宝贝所在地` chooser also exposes a dedicated `搜索地址` path
 - On this Huawei tablet, that search page does not reliably accept the existing FastInputIME
   `send_keys()` path even though the field is focused
@@ -613,8 +619,7 @@ uv run python scripts/xianyu_publish_auto_live.py
   form through `XianyuPrepareRunner`, tap the final `发布` button in controlled auto-publish
   mode, and write the resulting status back into Bitable
 - The analyzer now also has a basic `publish_success` screen shape for future auto-submit work,
-  but this branch still does not tap `发布` automatically or claim live-verified post-submit
-  navigation yet
+  including the reward-style `发布成功 + 再发一件` variant surfaced on the Huawei tablet
 - On the current Huawei tablet, both `fill_description()` and `fill_price()` can legitimately
   settle on `metadata_panel` instead of the upper `listing_form`; the runner now treats either
   editor state as a valid prepared outcome
@@ -623,9 +628,9 @@ uv run python scripts/xianyu_publish_auto_live.py
 - Stable location persistence and deeper category navigation are still the next layer
 - The location search helper can now drive the dedicated search UI and visible result rows, but it
   still returns to a form whose visible location row remains `选择位置`
-- Real-device auto-publish now reaches the post-submit phase, but the current Huawei tablet still
-  hits a blocking modal when Xianyu cannot determine the administrative region:
-  `无法发布宝贝 / 系统无法定位您所在的行政区...`
+- Real-device auto-publish has now reached and stayed on a live `publish_success` result page on
+  the Huawei tablet; the analyzer recognizes both the classic success page and the reward-style
+  `发布成功 + 再发一件` variant
 
 ## 🔎 Agentic System Overview
 

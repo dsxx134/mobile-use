@@ -23,6 +23,10 @@ class XianyuPublishSettings(BaseSettings):
     space_overlay_dismiss_y_ratio: float = 0.94375
     space_publish_button_x_ratio: float = 0.6796875
     space_publish_button_y_ratio: float = 0.934375
+    editor_scroll_x_ratio: float = 0.5
+    editor_scroll_start_y_ratio: float = 0.82
+    editor_scroll_end_y_ratio: float = 0.35
+    editor_scroll_duration_ms: int = 350
 
     title_field_name: str = Field(default="商品标题")
     description_field_name: str = Field(default="商品描述")

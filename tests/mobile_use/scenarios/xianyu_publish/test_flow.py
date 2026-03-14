@@ -43,6 +43,7 @@ class FakeAndroidService:
         advance_on_focused_text_indices: set[int] | None = None,
         advance_on_set_text_by_description_indices: set[int] | None = None,
         advance_on_tap_calls: set[int] | None = None,
+        advance_on_swipe_calls: set[int] | None = None,
     ):
         self._screens = screens
         self._index = 0
@@ -53,8 +54,10 @@ class FakeAndroidService:
             advance_on_set_text_by_description_indices or set()
         )
         self._advance_on_tap_calls = advance_on_tap_calls
+        self._advance_on_swipe_calls = advance_on_swipe_calls or set()
         self.device = Mock()
         self.tap_calls: list[tuple[str, int, int]] = []
+        self.swipe_calls: list[tuple[str, int, int, int, int, int]] = []
         self.long_press_calls: list[tuple[str, int, int]] = []
         self.input_text_calls: list[tuple[str, str]] = []
         self.set_clipboard_text_calls: list[tuple[str, str]] = []
@@ -62,6 +65,7 @@ class FakeAndroidService:
         self.set_text_by_description_calls: list[tuple[str, str, str]] = []
         self.set_text_on_description_child_calls: list[tuple[str, str, str]] = []
         self._tap_count = 0
+        self._swipe_count = 0
 
     def get_current_app(self, serial: str) -> dict:
         return self._screens[self._index]["current_app"]
@@ -104,6 +108,32 @@ class FakeAndroidService:
 
     def get_device(self, serial: str) -> Mock:
         return self.device
+
+    def swipe(
+        self,
+        serial: str,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
+        duration_ms: int = 400,
+    ) -> dict:
+        self.swipe_calls.append((serial, start_x, start_y, end_x, end_y, duration_ms))
+        self._swipe_count += 1
+        if (
+            self._swipe_count in self._advance_on_swipe_calls
+            and self._index < len(self._screens) - 1
+        ):
+            self._index += 1
+        return {
+            "serial": serial,
+            "start_x": start_x,
+            "start_y": start_y,
+            "end_x": end_x,
+            "end_y": end_y,
+            "duration_ms": duration_ms,
+            "success": True,
+        }
 
     def input_text(self, serial: str, text: str) -> dict:
         self.input_text_calls.append((serial, text))
@@ -786,6 +816,25 @@ def test_detects_publish_success_screen_targets():
     assert analysis.screen_name == "publish_success"
     assert analysis.targets["publish_success_view_listing"].text == "看看宝贝"
     assert analysis.targets["publish_success_continue"].text == "继续发布"
+
+
+def test_detects_publish_success_screen_with_reward_variant():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "发布成功", "bounds": "[698,1303][1000,1381]"},
+            {"text": "100闲鱼币", "bounds": "[763,1432][1048,1505]"},
+            {"text": "点击领取", "bounds": "[1159,1432][1399,1505]"},
+            {"text": "再发一件", "bounds": "[663,2340][938,2422]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "publish_success"
+    assert "publish_success_view_listing" not in analysis.targets
+    assert analysis.targets["publish_success_continue"].text == "再发一件"
 
 
 def test_detects_publish_location_required_dialog_targets():
@@ -1972,6 +2021,51 @@ def test_advance_listing_form_to_location_panel_can_start_from_metadata_panel():
     assert android_service.tap_calls == [("device-1", 800, 1935)]
 
 
+def test_location_panel_scrolls_metadata_until_location_row_is_visible():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(
+                    selected_category="显示器",
+                    selected_condition="几乎全新",
+                ),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_scrolled_metadata_panel_elements(selected_category="显示器"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "返回", "bounds": "[0,80][200,190]"},
+                    {"text": "宝贝所在地", "bounds": "[694,110][906,160]"},
+                    {"text": "搜索地址", "bounds": "[40,200][1560,290]"},
+                    {"text": "常用地址", "bounds": "[0,420][1600,513]"},
+                    {
+                        "text": "请选择宝贝所在地",
+                        "clickable": "true",
+                        "bounds": "[0,1813][1600,1953]",
+                    },
+                ],
+            ),
+        ],
+        advance_on_swipe_calls={1},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_listing_form_to_location_panel("device-1")
+
+    assert result.screen_name == "location_panel"
+    assert android_service.swipe_calls == [
+        ("device-1", 800, 2099, 800, 896, 350),
+    ]
+    assert android_service.tap_calls == [("device-1", 800, 1935)]
+
+
 def test_set_location_region_path_taps_city_twice_then_district_and_returns_listing_form():
     android_service = FakeAndroidService(
         screens=[
@@ -2287,6 +2381,71 @@ def test_search_location_and_select_result_waits_for_results_after_setting_text(
 
     assert result.screen_name == "listing_form"
     assert android_service.set_focused_text_calls == [("device-1", "上海虹桥站")]
+
+
+def test_location_search_can_scroll_metadata_panel_before_opening_search():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(
+                    selected_category="显示器",
+                    selected_condition="几乎全新",
+                ),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_scrolled_metadata_panel_elements(selected_category="显示器"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "返回", "bounds": "[0,80][200,190]"},
+                    {"text": "宝贝所在地", "bounds": "[694,110][906,160]"},
+                    {"text": "搜索地址", "bounds": "[40,200][1560,290]"},
+                    {"text": "常用地址", "bounds": "[0,420][1600,513]"},
+                    {
+                        "text": "请选择宝贝所在地",
+                        "clickable": "true",
+                        "bounds": "[0,1813][1600,1953]",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_search_screen_elements(),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_search_screen_elements(
+                    query="上海虹桥站",
+                    results=["上海虹桥站\n新虹街道申贵路1500号"],
+                ),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_scrolled_metadata_panel_elements(selected_category="显示器"),
+            ),
+        ],
+        advance_on_swipe_calls={1},
+        advance_on_focused_text_indices={3},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.search_location_and_select_result("device-1", "上海虹桥站")
+
+    assert result.screen_name == "metadata_panel"
+    assert android_service.swipe_calls == [
+        ("device-1", 800, 2099, 800, 896, 350),
+    ]
+    assert android_service.tap_calls == [
+        ("device-1", 800, 1935),
+        ("device-1", 800, 245),
+        ("device-1", 800, 315),
+    ]
 
 
 def test_advance_listing_form_to_metadata_panel_taps_metadata_entry():
@@ -5005,6 +5164,37 @@ def test_submit_listing_and_wait_for_result_taps_submit_and_returns_success_scre
     result = flow.submit_listing_and_wait_for_result("device-1")
 
     assert result.screen_name == "publish_success"
+    assert android_service.tap_calls == [("device-1", 1505, 135)]
+
+
+def test_submit_listing_and_wait_for_result_accepts_reward_success_variant():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="生活百科"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "发布成功", "bounds": "[698,1303][1000,1381]"},
+                    {"text": "100闲鱼币", "bounds": "[763,1432][1048,1505]"},
+                    {"text": "点击领取", "bounds": "[1159,1432][1399,1505]"},
+                    {"text": "再发一件", "bounds": "[663,2340][938,2422]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.submit_listing_and_wait_for_result("device-1")
+
+    assert result.screen_name == "publish_success"
+    assert result.targets["publish_success_continue"].text == "再发一件"
     assert android_service.tap_calls == [("device-1", 1505, 135)]
 
 

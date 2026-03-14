@@ -432,13 +432,15 @@ class XianyuFlowAnalyzer:
 
         publish_success_view_listing = self._find_target(elements, exact_text="看看宝贝")
         publish_success_continue = self._find_target(elements, exact_text="继续发布")
+        if publish_success_continue is None:
+            publish_success_continue = self._find_target(elements, exact_text="再发一件")
         if (
             current_package == self._settings.xianyu_package_name
             and any("发布成功" in text for text in visible_texts)
-            and publish_success_view_listing is not None
             and publish_success_continue is not None
         ):
-            targets["publish_success_view_listing"] = publish_success_view_listing
+            if publish_success_view_listing is not None:
+                targets["publish_success_view_listing"] = publish_success_view_listing
             targets["publish_success_continue"] = publish_success_continue
             return XianyuScreenAnalysis(
                 screen_name="publish_success",
@@ -944,6 +946,59 @@ class XianyuPublishFlowService:
         width = int(screen["width"])
         height = int(screen["height"])
         self._android.tap(serial, int(width * x_ratio), int(height * y_ratio))
+
+    def _swipe_portrait_ratio(
+        self,
+        serial: str,
+        *,
+        x_ratio: float,
+        start_y_ratio: float,
+        end_y_ratio: float,
+        duration_ms: int,
+    ) -> None:
+        screen = self._android.get_screen_data(serial)
+        portrait_width = min(int(screen["width"]), int(screen["height"]))
+        portrait_height = max(int(screen["width"]), int(screen["height"]))
+        x = int(portrait_width * x_ratio)
+        self._android.swipe(
+            serial,
+            x,
+            int(portrait_height * start_y_ratio),
+            x,
+            int(portrait_height * end_y_ratio),
+            duration_ms=duration_ms,
+        )
+
+    def _reveal_metadata_target(
+        self,
+        serial: str,
+        *,
+        target_name: str,
+        max_swipes: int = 2,
+    ) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        if (
+            analysis.screen_name != "metadata_panel"
+            or analysis.targets.get(target_name) is not None
+        ):
+            return analysis
+
+        for _ in range(max_swipes):
+            self._swipe_portrait_ratio(
+                serial,
+                x_ratio=self._settings.editor_scroll_x_ratio,
+                start_y_ratio=self._settings.editor_scroll_start_y_ratio,
+                end_y_ratio=self._settings.editor_scroll_end_y_ratio,
+                duration_ms=self._settings.editor_scroll_duration_ms,
+            )
+            analysis = self._wait_for_non_loading_screen(serial)
+            if (
+                analysis.screen_name != "metadata_panel"
+                or analysis.targets.get(target_name) is not None
+            ):
+                return analysis
+
+        return analysis
 
     def _wait_for_non_loading_screen(
         self,
@@ -1692,6 +1747,17 @@ class XianyuPublishFlowService:
             analysis = self._analyze(serial)
             if analysis.screen_name == "location_panel":
                 return analysis
+
+            if (
+                analysis.screen_name == "metadata_panel"
+                and analysis.targets.get("location_entry") is None
+            ):
+                analysis = self._reveal_metadata_target(
+                    serial,
+                    target_name="location_entry",
+                )
+                if analysis.screen_name == "location_panel":
+                    return analysis
 
             if analysis.screen_name in {"listing_form", "metadata_panel"}:
                 target = analysis.targets.get("location_entry")

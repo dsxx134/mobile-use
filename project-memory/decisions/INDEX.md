@@ -19,5 +19,6 @@
 | xianyu review mode stops at manual publish | 2026-03-14 | 2026-03-14-xianyu-review-mode-stops-at-manual-publish.md |
 | xianyu auto publish requires explicit row opt-in | 2026-03-14 | 2026-03-14-xianyu-auto-publish-requires-explicit-row-opt-in.md |
 | xianyu admin region remains the next auto publish blocker | 2026-03-14 | 2026-03-14-xianyu-admin-region-remains-the-next-auto-publish-blocker.md |
+| xianyu live success should be recovered without republish | 2026-03-14 | 2026-03-14-xianyu-live-success-should-be-recovered-without-republish.md |
 
-Total: 17
+Total: 18

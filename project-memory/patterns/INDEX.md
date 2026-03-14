@@ -40,5 +40,7 @@
 | xianyu-review-mode-checks-submit-target-on-supported-editor | 2026-03-14 | xianyu-review-mode-checks-submit-target-on-supported-editor.md |
 | xianyu-submit-waits-for-publish-success-screen | 2026-03-14 | xianyu-submit-waits-for-publish-success-screen.md |
 | xianyu-submit-can-fail-with-location-required-dialog | 2026-03-14 | xianyu-submit-can-fail-with-location-required-dialog.md |
+| xianyu-metadata-panel-may-need-scroll-to-reveal-lower-rows | 2026-03-14 | xianyu-metadata-panel-may-need-scroll-to-reveal-lower-rows.md |
+| xianyu-publish-success-has-reward-variant | 2026-03-14 | xianyu-publish-success-has-reward-variant.md |
 
-Total: 38
+Total: 40

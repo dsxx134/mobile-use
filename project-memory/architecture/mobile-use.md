@@ -164,6 +164,9 @@ Updated: 2026-03-14
   state as a valid editor continuation.
 - The current runner keeps `商品来源` and `预设地址` as best-effort operations when their controls
   are off-screen in the current editor slice, instead of failing the entire prepare run.
+- On the Huawei tablet, a top-slice `metadata_panel` can hide lower rows such as `选择位置` even
+  though the same editor continues below the fold. The flow now uses a portrait-oriented upward
+  swipe inside the editor to reveal those lower rows before opening the location flow.
 - The live prepare entrypoint now retries the initial `advance_to_listing_form()` preheat once
   before surfacing a startup failure, because the Huawei tablet can occasionally stop on a
   transient `unknown` state even though a second preheat attempt succeeds.
@@ -178,7 +181,9 @@ Updated: 2026-03-14
   - the row also has `允许自动发布=true`
   - the final editor slice still exposes a visible `发布` target
 - The analyzer also now has a basic `publish_success` screen shape for future post-submit work,
-  keyed off visible success text plus `看看宝贝` and `继续发布` actions.
+  keyed off visible success text plus either:
+  - the classic `看看宝贝` and `继续发布` actions
+  - or the Huawei-tablet reward variant with `再发一件`
 - The flow service now also has a hierarchical `set_location_region_path()` helper for the verified
   Huawei-tablet path `上海 -> 上海 -> 黄浦区`. The first `上海` tap narrows the picker, the second
   `上海` tap expands districts, and the final district tap can leave a transient
@@ -206,6 +211,10 @@ Updated: 2026-03-14
   `location_panel`. The flow can now survive the picker tail and drive the search UI, but the
   runner still does not treat location as a deterministic writeback even when driven from the new
   `预设地址` field.
+- A later live auto-publish pass proved that at least one previously observed submit failure was
+  actually a success-screen recognition gap rather than a location blocker: after the metadata
+  scroll fix, the live tablet stayed on a reward-style `publish_success` page that the analyzer now
+  classifies correctly.
 - Real-device probing also showed that selecting a top-level region like `上海` narrows the same
   hierarchical picker rather than completing location selection in one tap.
 - Because this portrait `发闲置` form does not currently expose a separate title field through the
