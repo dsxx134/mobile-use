@@ -1,8 +1,10 @@
 import json
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from adbutils import AdbClient, adb
 from pydantic import BaseModel, ConfigDict, Field
@@ -42,6 +44,8 @@ class XianyuLiveBatchPublishItem(BaseModel):
 class XianyuLiveBatchPublishResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    batch_run_id: str
+    batch_ran_at: str
     requested_count: int
     processed_count: int
     success_count: int
@@ -104,6 +108,8 @@ def prepare_first_publishable_listing_live(
     preheat_attempts: int = 2,
     review_after_prepare: bool = False,
     auto_publish_after_prepare: bool = False,
+    batch_run_id: str | None = None,
+    batch_ran_at: str | None = None,
     components: XianyuLivePrepareComponents | None = None,
 ) -> XianyuPrepareListingResult:
     resolved_settings = settings or XianyuPublishSettings()
@@ -144,6 +150,10 @@ def prepare_first_publishable_listing_live(
     }
     if auto_publish_after_prepare:
         runner_kwargs["auto_publish_after_prepare"] = True
+    if batch_run_id is not None:
+        runner_kwargs["batch_run_id"] = batch_run_id
+    if batch_ran_at is not None:
+        runner_kwargs["batch_ran_at"] = batch_ran_at
 
     return live_components.runner.prepare_first_publishable_listing(**runner_kwargs)
 
@@ -173,6 +183,16 @@ def _build_batch_item(
     )
 
 
+def _build_batch_run_id(batch_ran_at: str) -> str:
+    timestamp = (
+        batch_ran_at.replace(":", "")
+        .replace("-", "")
+        .replace("+", "p")
+        .replace(".", "")
+    )
+    return f"xianyu-batch-{timestamp}-{uuid4().hex[:8]}"
+
+
 def publish_listing_queue_live(
     *,
     settings: XianyuPublishSettings | None = None,
@@ -184,12 +204,18 @@ def publish_listing_queue_live(
     max_items: int = 1,
     cooldown_seconds: float = 0.0,
     stop_on_error: bool = False,
+    batch_run_id: str | None = None,
+    batch_ran_at: str | None = None,
+    now_fn: Any | None = None,
     sleep_fn: Any | None = None,
     components: XianyuLivePrepareComponents | None = None,
 ) -> XianyuLiveBatchPublishResult:
     if max_items < 1:
         raise ValueError("max_items must be at least 1")
 
+    resolved_now_fn = now_fn or (lambda: datetime.now(UTC))
+    resolved_batch_ran_at = batch_ran_at or resolved_now_fn().isoformat()
+    resolved_batch_run_id = batch_run_id or _build_batch_run_id(resolved_batch_ran_at)
     sleeper = sleep_fn or time.sleep
     items: list[XianyuLiveBatchPublishItem] = []
     stopped_reason = "limit_reached"
@@ -204,6 +230,8 @@ def publish_listing_queue_live(
                 preheat_max_steps=preheat_max_steps,
                 preheat_attempts=preheat_attempts,
                 auto_publish_after_prepare=True,
+                batch_run_id=resolved_batch_run_id,
+                batch_ran_at=resolved_batch_ran_at,
                 components=components,
             )
         except ValueError as exc:
@@ -231,6 +259,8 @@ def publish_listing_queue_live(
     success_count = sum(1 for item in items if item.success)
     failure_count = sum(1 for item in items if not item.success)
     return XianyuLiveBatchPublishResult(
+        batch_run_id=resolved_batch_run_id,
+        batch_ran_at=resolved_batch_ran_at,
         requested_count=max_items,
         processed_count=len(items),
         success_count=success_count,

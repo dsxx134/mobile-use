@@ -353,6 +353,41 @@ def test_update_listing_status_can_write_retry_count():
     }
 
 
+def test_update_listing_status_can_write_batch_run_fields():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"code": 0, "data": {"record": {"record_id": "recA"}}})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_listing_status(
+        "recA",
+        "准备中",
+        batch_run_id="batch-001",
+        batch_ran_at="2026-03-15T09:00:00+08:00",
+    )
+
+    assert captured["payload"] == {
+        "fields": {
+            "发布状态": "准备中",
+            "失败原因": None,
+            "最近批次运行ID": "batch-001",
+            "最近批次运行时间": "2026-03-15T09:00:00+08:00",
+            "最近批次运行结果": "准备中",
+        }
+    }
+
+
 def test_update_publish_result_can_write_published_at_and_optional_fields():
     captured: dict[str, object] = {}
 
@@ -424,5 +459,45 @@ def test_update_publish_result_can_write_retry_count():
             "闲鱼商品ID": None,
             "闲鱼商品链接": None,
             "失败重试次数": 3,
+        }
+    }
+
+
+def test_update_publish_result_can_write_batch_run_fields():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"code": 0, "data": {"record": {"record_id": "recA"}}})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_publish_result(
+        "recA",
+        status="已发布",
+        published_at="2026-03-15T09:05:00+08:00",
+        listing_id="xy123",
+        batch_run_id="batch-001",
+        batch_ran_at="2026-03-15T09:00:00+08:00",
+    )
+
+    assert captured["payload"] == {
+        "fields": {
+            "发布状态": "已发布",
+            "失败原因": None,
+            "发布时间": "2026-03-15T09:05:00+08:00",
+            "闲鱼商品ID": "xy123",
+            "闲鱼商品链接": None,
+            "最近批次运行ID": "batch-001",
+            "最近批次运行时间": "2026-03-15T09:00:00+08:00",
+            "最近批次运行结果": "已发布",
         }
     }

@@ -25,5 +25,6 @@
 | xianyu public url writeback uses detail share copy link | 2026-03-14 | 2026-03-14-xianyu-public-url-writeback-uses-detail-share-copy-link.md |
 | xianyu batch worker reuses single item publish path | 2026-03-14 | 2026-03-14-xianyu-batch-worker-reuses-single-item-publish-path.md |
 | xianyu retry budget is enforced before runner | 2026-03-14 | 2026-03-14-xianyu-retry-budget-is-enforced-before-runner.md |
+| xianyu batch logging stays on listing rows | 2026-03-15 | 2026-03-15-xianyu-batch-logging-stays-on-listing-rows.md |
 
-Total: 23
+Total: 24

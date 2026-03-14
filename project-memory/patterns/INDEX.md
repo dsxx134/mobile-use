@@ -50,5 +50,6 @@
 | feishu-url-fields-use-text-link-objects | 2026-03-14 | feishu-url-fields-use-text-link-objects.md |
 | xianyu-batch-worker-stops-on-limit-empty-queue-or-error | 2026-03-14 | xianyu-batch-worker-stops-on-limit-empty-queue-or-error.md |
 | xianyu-retry-budget-is-filtered-client-side | 2026-03-14 | xianyu-retry-budget-is-filtered-client-side.md |
+| xianyu-batch-log-reuses-row-writeback-fields | 2026-03-15 | xianyu-batch-log-reuses-row-writeback-fields.md |
 
-Total: 48
+Total: 49

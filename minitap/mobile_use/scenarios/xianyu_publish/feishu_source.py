@@ -144,6 +144,9 @@ class FeishuBitableSource:
         *,
         failure_reason: str | None = None,
         retry_count: int | None = None,
+        batch_run_id: str | None = None,
+        batch_ran_at: str | None = None,
+        batch_result: str | None = None,
     ) -> None:
         fields = {
             self.settings.status_field_name: status,
@@ -151,6 +154,13 @@ class FeishuBitableSource:
         }
         if retry_count is not None:
             fields[self.settings.retry_count_field_name] = retry_count
+        self._apply_batch_run_fields(
+            fields,
+            status=status,
+            batch_run_id=batch_run_id,
+            batch_ran_at=batch_ran_at,
+            batch_result=batch_result,
+        )
 
         self._update_record_fields(record_id, fields)
 
@@ -164,6 +174,9 @@ class FeishuBitableSource:
         listing_id: str | None = None,
         listing_url: str | None = None,
         retry_count: int | None = None,
+        batch_run_id: str | None = None,
+        batch_ran_at: str | None = None,
+        batch_result: str | None = None,
     ) -> None:
         fields = {
             self.settings.status_field_name: status,
@@ -174,6 +187,13 @@ class FeishuBitableSource:
         }
         if retry_count is not None:
             fields[self.settings.retry_count_field_name] = retry_count
+        self._apply_batch_run_fields(
+            fields,
+            status=status,
+            batch_run_id=batch_run_id,
+            batch_ran_at=batch_ran_at,
+            batch_result=batch_result,
+        )
 
         self._update_record_fields(record_id, fields)
 
@@ -327,3 +347,23 @@ class FeishuBitableSource:
             "text": text,
             "link": text,
         }
+
+    def _apply_batch_run_fields(
+        self,
+        fields: dict[str, Any],
+        *,
+        status: str,
+        batch_run_id: str | None,
+        batch_ran_at: str | None,
+        batch_result: str | None,
+    ) -> None:
+        if batch_run_id is None and batch_ran_at is None and batch_result is None:
+            return
+
+        if batch_run_id is not None:
+            fields[self.settings.batch_run_id_field_name] = batch_run_id
+        if batch_ran_at is not None:
+            fields[self.settings.batch_ran_at_field_name] = batch_ran_at
+
+        resolved_batch_result = batch_result or status
+        fields[self.settings.batch_result_field_name] = resolved_batch_result

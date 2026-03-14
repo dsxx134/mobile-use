@@ -245,6 +245,12 @@ Updated: 2026-03-14
   - skip exhausted rows in `FeishuBitableSource` before constructing `ListingDraft`
   - increment retry count when prepare/review/auto-publish fails
   - reset retry count to `0` only after a successful auto-publish writeback
+- Batch logging now reuses the same row-centric writeback channel instead of introducing a second
+  Feishu table:
+  - queue start generates one `batch_run_id` and `batch_ran_at`
+  - the queue passes both values through `prepare_first_publishable_listing_live()`
+  - `XianyuPrepareRunner` stamps them on every row status/result writeback
+  - the row keeps the latest `最近批次运行ID / 最近批次运行时间 / 最近批次运行结果`
 - Post-publish navigation is now split into two deterministic branches:
   - classic success page: tap `看看宝贝`
   - reward-style success page: press `Back` once

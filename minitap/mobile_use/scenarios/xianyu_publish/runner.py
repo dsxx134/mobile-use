@@ -85,6 +85,18 @@ class XianyuPrepareRunner:
         self._settings = settings or XianyuPublishSettings()
         self._now_fn = now_fn or (lambda: datetime.now(UTC))
 
+    def _build_batch_kwargs(
+        self,
+        batch_run_id: str | None,
+        batch_ran_at: str | None,
+    ) -> dict[str, str]:
+        batch_kwargs: dict[str, str] = {}
+        if batch_run_id is not None:
+            batch_kwargs["batch_run_id"] = batch_run_id
+        if batch_ran_at is not None:
+            batch_kwargs["batch_ran_at"] = batch_ran_at
+        return batch_kwargs
+
     def prepare_first_publishable_listing(
         self,
         *,
@@ -92,12 +104,19 @@ class XianyuPrepareRunner:
         staging_root: Path,
         review_after_prepare: bool = False,
         auto_publish_after_prepare: bool = False,
+        batch_run_id: str | None = None,
+        batch_ran_at: str | None = None,
     ) -> XianyuPrepareListingResult:
         listing = self._source.pick_first_publishable_record()
         if listing is None:
             raise ValueError("No publishable Xianyu listing found")
 
-        self._source.update_listing_status(listing.record_id, "准备中")
+        batch_kwargs = self._build_batch_kwargs(batch_run_id, batch_ran_at)
+        self._source.update_listing_status(
+            listing.record_id,
+            "准备中",
+            **batch_kwargs,
+        )
         review: XianyuPrepareReview | None = None
         publish: XianyuPublishResult | None = None
         try:
@@ -163,6 +182,7 @@ class XianyuPrepareRunner:
                 "准备失败",
                 failure_reason=str(exc),
                 retry_count=listing.retry_count + 1,
+                **batch_kwargs,
             )
             raise
 
@@ -175,6 +195,7 @@ class XianyuPrepareRunner:
                     staged_listing.record_id,
                     "发布中",
                     failure_reason=None,
+                    **batch_kwargs,
                 )
                 publish_analysis = self._flow.submit_listing_and_wait_for_result(serial)
                 detail_screen_name: str | None = None
@@ -209,6 +230,7 @@ class XianyuPrepareRunner:
                     listing_id=listing_id,
                     listing_url=listing_url,
                     retry_count=0,
+                    **batch_kwargs,
                 )
                 publish = XianyuPublishResult(
                     success=True,
@@ -232,6 +254,7 @@ class XianyuPrepareRunner:
                     listing_id=None,
                     listing_url=None,
                     retry_count=staged_listing.retry_count + 1,
+                    **batch_kwargs,
                 )
                 raise
         else:
@@ -243,6 +266,7 @@ class XianyuPrepareRunner:
                 staged_listing.record_id,
                 next_status,
                 failure_reason=None,
+                **batch_kwargs,
             )
 
         return XianyuPrepareListingResult(

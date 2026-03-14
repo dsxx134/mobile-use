@@ -238,6 +238,7 @@ def test_prepare_first_publishable_listing_live_can_request_auto_publish_mode(tm
 
 def test_publish_listing_queue_live_processes_multiple_items_with_cooldown(tmp_path, monkeypatch):
     settings = _make_settings(serial="tablet-1")
+    adb_client = Mock()
     first = XianyuPrepareListingResult(
         record_id="recA",
         serial="tablet-1",
@@ -278,14 +279,18 @@ def test_publish_listing_queue_live_processes_multiple_items_with_cooldown(tmp_p
 
     result = publish_listing_queue_live(
         settings=settings,
-        adb_client=Mock(),
+        adb_client=adb_client,
         staging_root=tmp_path,
         max_items=2,
         cooldown_seconds=3.5,
         sleep_fn=sleep_fn,
+        batch_run_id="batch-001",
+        batch_ran_at="2026-03-15T09:00:00+08:00",
     )
 
     assert isinstance(result, XianyuLiveBatchPublishResult)
+    assert result.batch_run_id == "batch-001"
+    assert result.batch_ran_at == "2026-03-15T09:00:00+08:00"
     assert result.processed_count == 2
     assert result.success_count == 2
     assert result.failure_count == 0
@@ -294,6 +299,32 @@ def test_publish_listing_queue_live_processes_multiple_items_with_cooldown(tmp_p
     assert [item.listing_url for item in result.items] == ["https://m.tb.cn/a", "https://m.tb.cn/b"]
     sleep_fn.assert_called_once_with(3.5)
     assert prepare_mock.call_count == 2
+    assert prepare_mock.call_args_list == [
+        call(
+            settings=settings,
+            adb_client=adb_client,
+            serial=None,
+            staging_root=tmp_path,
+            preheat_max_steps=10,
+            preheat_attempts=2,
+            auto_publish_after_prepare=True,
+            components=None,
+            batch_run_id="batch-001",
+            batch_ran_at="2026-03-15T09:00:00+08:00",
+        ),
+        call(
+            settings=settings,
+            adb_client=adb_client,
+            serial=None,
+            staging_root=tmp_path,
+            preheat_max_steps=10,
+            preheat_attempts=2,
+            auto_publish_after_prepare=True,
+            components=None,
+            batch_run_id="batch-001",
+            batch_ran_at="2026-03-15T09:00:00+08:00",
+        ),
+    ]
 
 
 def test_publish_listing_queue_live_stops_cleanly_when_no_candidates_exist(tmp_path, monkeypatch):

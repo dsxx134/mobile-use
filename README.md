@@ -366,6 +366,9 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `失败原因`
 - `失败重试次数`
 - `失败重试上限`
+- `最近批次运行ID`
+- `最近批次运行时间`
+- `最近批次运行结果`
 - `是否允许发布`
 - `允许自动发布`
 - `闲鱼商品ID`
@@ -463,6 +466,8 @@ uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seco
   - there are no more publishable rows
   - `--stop-on-error` is set and one listing fails
 - The JSON result summarizes:
+  - batch run id
+  - batch run timestamp
   - processed count
   - success count
   - failure count
@@ -471,6 +476,12 @@ uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seco
   - `--max-items 1`
   - `--cooldown-seconds 3`
   - `失败重试上限 3`
+- Every processed row now also receives lightweight batch-writeback fields:
+  - `最近批次运行ID`
+  - `最近批次运行时间`
+  - `最近批次运行结果`
+- The queue uses one shared batch id for the full run, so all processed rows can be grouped back to
+  the same worker execution in Feishu.
 
 ### Current media-selection behavior
 
@@ -659,6 +670,8 @@ uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seco
 - The current writeback statuses used by the runner are `准备中`, `已就绪`, `待人工发布`, and `准备失败`
 - Failure writeback now also increments `失败重试次数`
 - Successful auto-publish writeback resets `失败重试次数` to `0`
+- Queue-triggered row updates now also stamp the latest batch metadata so operators can see the
+  most recent worker run directly from the listing row
 
 ### Current boundary
 

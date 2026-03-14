@@ -516,12 +516,26 @@ def test_prepare_first_publishable_listing_marks_failure_and_reraises(tmp_path):
         runner.prepare_first_publishable_listing(
             serial="device-1",
             staging_root=tmp_path,
+            batch_run_id="batch-001",
+            batch_ran_at="2026-03-15T09:00:00+08:00",
         )
 
     source.update_listing_status.assert_has_calls(
         [
-            call("recA", "准备中"),
-            call("recA", "准备失败", failure_reason="price panel missing", retry_count=1),
+            call(
+                "recA",
+                "准备中",
+                batch_run_id="batch-001",
+                batch_ran_at="2026-03-15T09:00:00+08:00",
+            ),
+            call(
+                "recA",
+                "准备失败",
+                failure_reason="price panel missing",
+                retry_count=1,
+                batch_run_id="batch-001",
+                batch_ran_at="2026-03-15T09:00:00+08:00",
+            ),
         ]
     )
 
@@ -683,12 +697,25 @@ def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tm
         serial="device-1",
         staging_root=tmp_path,
         auto_publish_after_prepare=True,
+        batch_run_id="batch-001",
+        batch_ran_at="2026-03-15T09:00:00+08:00",
     )
 
     source.update_listing_status.assert_has_calls(
         [
-            call("recA", "准备中"),
-            call("recA", "发布中", failure_reason=None),
+            call(
+                "recA",
+                "准备中",
+                batch_run_id="batch-001",
+                batch_ran_at="2026-03-15T09:00:00+08:00",
+            ),
+            call(
+                "recA",
+                "发布中",
+                failure_reason=None,
+                batch_run_id="batch-001",
+                batch_ran_at="2026-03-15T09:00:00+08:00",
+            ),
         ]
     )
     source.update_publish_result.assert_called_once_with(
@@ -699,6 +726,8 @@ def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tm
         listing_id="1022496357535",
         listing_url="https://m.tb.cn/h.ifJqS57?tk=9y8uUxYazY4",
         retry_count=0,
+        batch_run_id="batch-001",
+        batch_ran_at="2026-03-15T09:00:00+08:00",
     )
     flow.submit_listing_and_wait_for_result.assert_called_once_with("device-1")
     flow.advance_publish_success_to_listing_detail.assert_called_once_with("device-1")
