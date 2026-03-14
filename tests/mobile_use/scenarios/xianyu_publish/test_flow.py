@@ -182,6 +182,44 @@ def _metadata_panel_elements(
     ]
 
 
+def _scrolled_metadata_panel_elements(*, selected_category: str | None = None) -> list[dict]:
+    category_novel = (
+        "已选中文学/小说, 文学/小说"
+        if selected_category == "文学/小说"
+        else "可选文学/小说, 文学/小说"
+    )
+    return [
+        {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+        {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+        {"content-desc": "存草稿", "bounds": "[1265,115][1410,155]"},
+        {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]", "clickable": "true"},
+        {"content-desc": "AI生成仅供参考，查看须知", "bounds": "[30,725][510,780]"},
+        {
+            "content-desc": "AI帮你写, AI帮你写",
+            "bounds": "[1280,725][1560,840]",
+            "clickable": "true",
+        },
+        {"content-desc": "ISBN码", "bounds": "[40,920][180,980]"},
+        {"content-desc": "分类/ISBN码/成色\uFFFC", "bounds": "[0,1010][1600,1610]"},
+        {"content-desc": "分类, 分类", "bounds": "[40,1105][215,1145]"},
+        {"content-desc": category_novel, "bounds": "[245,1055][435,1195]", "clickable": "true"},
+        {
+            "content-desc": "可选家居摆件, 家居摆件",
+            "bounds": "[455,1055][645,1195]",
+            "clickable": "true",
+        },
+        {"content-desc": "成色, 成色", "bounds": "[40,1265][215,1305]"},
+        {"content-desc": "可选全新, 全新", "bounds": "[245,1355][375,1495]", "clickable": "true"},
+        {
+            "content-desc": "商品规格\n非必填，设置多个颜色、尺码等",
+            "bounds": "[40,1495][1530,1585]",
+        },
+        {"content-desc": "价格设置", "bounds": "[70,1585][1530,1725]"},
+        {"content-desc": "发货方式\n包邮", "bounds": "[70,1725][1530,1865]"},
+        {"content-desc": "选择位置", "bounds": "[70,1865][1530,2005]"},
+    ]
+
+
 def test_detects_xianyu_home_screen_and_publish_entry_target():
     analyzer = XianyuFlowAnalyzer()
     screen = _make_screen(
@@ -436,6 +474,23 @@ def test_detects_metadata_panel_instead_of_publish_chooser():
     assert analysis.targets["metadata_condition_option_几乎全新"].y == 2105
     assert analysis.targets["metadata_source_option_闲置"].x == 940
     assert analysis.targets["metadata_source_option_闲置"].y == 2245
+
+
+def test_detects_scrolled_metadata_panel_and_keeps_lower_rows():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=_scrolled_metadata_panel_elements(selected_category="文学/小说"),
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "metadata_panel"
+    assert analysis.targets["metadata_category_selected_文学_小说"].x == 340
+    assert analysis.targets["price_entry"].text == "价格设置"
+    assert analysis.targets["price_entry"].y == 1655
+    assert analysis.targets["shipping_entry"].text == "发货方式\n包邮"
+    assert analysis.targets["location_entry"].text == "选择位置"
 
 
 def test_detects_location_panel_targets():
@@ -1320,6 +1375,40 @@ def test_advance_listing_form_to_location_region_picker_taps_choose_region():
     ]
 
 
+def test_advance_listing_form_to_location_panel_can_start_from_metadata_panel():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_scrolled_metadata_panel_elements(selected_category="文学/小说"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "返回", "bounds": "[0,80][200,190]"},
+                    {"text": "宝贝所在地", "bounds": "[694,110][906,160]"},
+                    {"text": "搜索地址", "bounds": "[40,200][1560,290]"},
+                    {"text": "常用地址", "bounds": "[0,420][1600,513]"},
+                    {
+                        "text": "请选择宝贝所在地",
+                        "clickable": "true",
+                        "bounds": "[0,1813][1600,1953]",
+                    },
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_listing_form_to_location_panel("device-1")
+
+    assert result.screen_name == "location_panel"
+    assert android_service.tap_calls == [("device-1", 800, 1935)]
+
+
 def test_advance_listing_form_to_metadata_panel_taps_metadata_entry():
     android_service = FakeAndroidService(
         screens=[
@@ -1781,6 +1870,36 @@ def test_advance_listing_form_to_price_panel_taps_price_entry():
     assert android_service.tap_calls == [("device-1", 800, 1705)]
 
 
+def test_advance_listing_form_to_price_panel_can_start_from_metadata_panel():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_scrolled_metadata_panel_elements(selected_category="文学/小说"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "价格设置", "bounds": "[40,1258][1560,1378]"},
+                    {"text": "原价设置", "bounds": "[40,1503][1560,1623]"},
+                    {"text": "库存设置", "bounds": "[40,1628][1560,1748]"},
+                    {"text": "删除", "bounds": "[1320,2035][1480,2185]"},
+                    {"text": "确定", "bounds": "[1320,2335][1480,2485]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_listing_form_to_price_panel("device-1")
+
+    assert result.screen_name == "price_panel"
+    assert android_service.tap_calls == [("device-1", 800, 1655)]
+
+
 def test_fill_price_clears_existing_digits_taps_keypad_and_confirms():
     android_service = FakeAndroidService(
         screens=[
@@ -1896,6 +2015,41 @@ def test_advance_listing_form_to_shipping_panel_taps_shipping_entry():
 
     assert result.screen_name == "shipping_panel"
     assert android_service.tap_calls == [("device-1", 800, 1845)]
+
+
+def test_advance_listing_form_to_shipping_panel_can_start_from_metadata_panel():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_scrolled_metadata_panel_elements(selected_category="文学/小说"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "发货方式", "bounds": "[721,1161][879,1209]"},
+                    {
+                        "text": "邮寄\n包邮\n不包邮-按距离付费\n不包邮-固定邮费\n无需邮寄",
+                        "bounds": "[30,1255][1570,1893]",
+                    },
+                    {"class": "android.widget.ImageView", "bounds": "[83,1436][108,1456]"},
+                    {"class": "android.widget.ImageView", "bounds": "[70,1549][120,1599]"},
+                    {"class": "android.widget.ImageView", "bounds": "[70,1676][120,1726]"},
+                    {"class": "android.widget.ImageView", "bounds": "[70,1804][120,1854]"},
+                    {"text": "确定", "bounds": "[760,2381][840,2429]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_listing_form_to_shipping_panel("device-1")
+
+    assert result.screen_name == "shipping_panel"
+    assert android_service.tap_calls == [("device-1", 800, 1795)]
 
 
 def test_set_shipping_method_selects_no_mail_and_confirms():

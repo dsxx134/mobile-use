@@ -528,19 +528,25 @@ class XianyuFlowAnalyzer:
         if (
             current_package == self._settings.xianyu_package_name
             and any(text == "发闲置" for text in visible_texts)
-            and add_image is not None
-            and description_entry is not None
             and metadata_entry is not None
             and (metadata_category_targets or metadata_condition_targets or metadata_source_targets)
         ):
             if submit_listing is not None:
                 targets["submit_listing"] = submit_listing
-            targets["add_image"] = add_image
-            targets["description_entry"] = description_entry
+            if add_image is not None:
+                targets["add_image"] = add_image
+            if description_entry is not None:
+                targets["description_entry"] = description_entry
             targets["metadata_entry"] = metadata_entry
             targets.update(metadata_category_targets)
             targets.update(metadata_condition_targets)
             targets.update(metadata_source_targets)
+            if price_entry is not None:
+                targets["price_entry"] = price_entry
+            if shipping_entry is not None:
+                targets["shipping_entry"] = shipping_entry
+            if location_entry is not None:
+                targets["location_entry"] = location_entry
             return XianyuScreenAnalysis(
                 screen_name="metadata_panel",
                 current_package=current_package,
@@ -1201,10 +1207,12 @@ class XianyuPublishFlowService:
             if analysis.screen_name == "location_panel":
                 return analysis
 
-            if analysis.screen_name == "listing_form":
+            if analysis.screen_name in {"listing_form", "metadata_panel"}:
                 target = analysis.targets.get("location_entry")
                 if target is None:
-                    raise RuntimeError("Missing location_entry target on listing form")
+                    raise RuntimeError(
+                        f"Missing location_entry target on {analysis.screen_name}"
+                    )
                 self._tap_target(serial, target, "location_entry")
                 analysis = self._wait_for_non_loading_screen(serial)
                 if analysis.screen_name in {"location_panel", "unknown"}:
@@ -1378,10 +1386,10 @@ class XianyuPublishFlowService:
             if analysis.screen_name == "price_panel":
                 return analysis
 
-            if analysis.screen_name == "listing_form":
+            if analysis.screen_name in {"listing_form", "metadata_panel"}:
                 target = analysis.targets.get("price_entry")
                 if target is None:
-                    raise RuntimeError("Missing price_entry target on listing form")
+                    raise RuntimeError(f"Missing price_entry target on {analysis.screen_name}")
                 self._tap_target(serial, target, "price_entry")
                 analysis = self._wait_for_non_loading_screen(serial)
                 if analysis.screen_name in {"price_panel", "unknown"}:
@@ -1409,10 +1417,12 @@ class XianyuPublishFlowService:
             if analysis.screen_name == "shipping_panel":
                 return analysis
 
-            if analysis.screen_name == "listing_form":
+            if analysis.screen_name in {"listing_form", "metadata_panel"}:
                 target = analysis.targets.get("shipping_entry")
                 if target is None:
-                    raise RuntimeError("Missing shipping_entry target on listing form")
+                    raise RuntimeError(
+                        f"Missing shipping_entry target on {analysis.screen_name}"
+                    )
                 self._tap_target(serial, target, "shipping_entry")
                 analysis = self._wait_for_non_loading_screen(serial)
                 if analysis.screen_name in {"shipping_panel", "unknown"}:
