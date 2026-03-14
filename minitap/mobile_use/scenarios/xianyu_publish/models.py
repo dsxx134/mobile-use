@@ -22,6 +22,8 @@ class ListingDraft(BaseModel):
     description: str = Field(..., min_length=1)
     price: float = Field(..., ge=0)
     attachments: list[FeishuAttachment]
+    condition: str | None = None
+    item_source: str | None = None
     local_image_paths: list[Path] = Field(default_factory=list)
 
     @field_validator("attachments")

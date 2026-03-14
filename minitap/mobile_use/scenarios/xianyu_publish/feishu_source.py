@@ -172,6 +172,10 @@ class FeishuBitableSource:
             description=str(fields[self.settings.description_field_name]).strip(),
             price=float(fields[self.settings.price_field_name]),
             attachments=attachments,
+            condition=self._get_optional_text_field(fields, self.settings.condition_field_name),
+            item_source=self._get_optional_text_field(
+                fields, self.settings.item_source_field_name
+            ),
         )
 
     def _parse_attachment(self, attachment: dict[str, Any]) -> FeishuAttachment:
@@ -189,3 +193,10 @@ class FeishuBitableSource:
         if not value:
             raise ValueError(f"Missing required Xianyu publish setting: {field_name}")
         return value
+
+    def _get_optional_text_field(self, fields: dict[str, Any], field_name: str) -> str | None:
+        value = fields.get(field_name)
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None

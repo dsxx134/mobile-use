@@ -25,6 +25,8 @@ class XianyuPublishSettings(BaseSettings):
     title_field_name: str = Field(default="商品标题")
     description_field_name: str = Field(default="商品描述")
     price_field_name: str = Field(default="售价")
+    condition_field_name: str = Field(default="成色")
+    item_source_field_name: str = Field(default="商品来源")
     attachment_field_name: str = Field(default="商品图片")
     status_field_name: str = Field(default="发布状态")
     allow_publish_field_name: str = Field(default="是否允许发布")

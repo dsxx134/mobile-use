@@ -18,6 +18,8 @@ def _make_listing(
     *,
     title: str = "二手显示器",
     description: str = "成色很好，支持验货",
+    condition: str | None = None,
+    item_source: str | None = None,
 ) -> ListingDraft:
     return ListingDraft(
         record_id="recA",
@@ -25,6 +27,8 @@ def _make_listing(
         description=description,
         price=199.0,
         attachments=[FeishuAttachment(file_token="ft-1", name="1.jpg")],
+        condition=condition,
+        item_source=item_source,
     )
 
 
@@ -167,3 +171,61 @@ def test_prepare_first_publishable_listing_skips_bridge_when_image_flow_returns_
     flow.advance_photo_analysis_to_publish_chooser.assert_not_called()
     assert flow.advance_to_listing_form.call_count == 1
     assert result.final_screen_name == "listing_form"
+
+
+def test_prepare_first_publishable_listing_applies_optional_metadata_fields(tmp_path):
+    listing = _make_listing(condition="几乎全新", item_source="闲置")
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.set_item_condition.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    flow.set_item_source.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    timeline = Mock()
+    timeline.attach_mock(source, "source")
+    timeline.attach_mock(media_sync, "media_sync")
+    timeline.attach_mock(flow, "flow")
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+    )
+
+    result = runner.prepare_first_publishable_listing(
+        serial="device-1",
+        staging_root=tmp_path,
+    )
+
+    assert timeline.mock_calls == [
+        call.source.pick_first_publishable_record(),
+        call.source.get_attachment_download_urls(listing.attachments),
+        call.media_sync.download_listing_media(
+            listing,
+            {"ft-1": "https://files.example/1.jpg"},
+            tmp_path,
+        ),
+        call.media_sync.push_listing_media(listing, serial="device-1"),
+        call.flow.advance_to_listing_form("device-1"),
+        call.flow.advance_listing_form_to_album_picker("device-1"),
+        call.flow.select_cover_image("device-1", preferred_album_name="XianyuPublish"),
+        call.flow.fill_description("device-1", "二手显示器\n\n成色很好，支持验货"),
+        call.flow.fill_price("device-1", 199.0),
+        call.flow.set_item_condition("device-1", "几乎全新"),
+        call.flow.set_item_source("device-1", "闲置"),
+    ]
+    assert result.final_screen_name == "metadata_panel"

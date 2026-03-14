@@ -76,6 +76,10 @@ class XianyuPrepareRunner:
         body_text = build_listing_body(staged_listing)
         self._flow.fill_description(serial, body_text)
         final_analysis = self._flow.fill_price(serial, staged_listing.price)
+        if staged_listing.condition:
+            final_analysis = self._flow.set_item_condition(serial, staged_listing.condition)
+        if staged_listing.item_source:
+            final_analysis = self._flow.set_item_source(serial, staged_listing.item_source)
 
         return XianyuPrepareListingResult(
             record_id=staged_listing.record_id,

@@ -98,6 +98,40 @@ def extract_listing_shipping_value(target: TapTarget | None) -> str | None:
     return None
 
 
+def normalize_item_condition(condition: str) -> str:
+    raw = str(condition).strip()
+    if not raw:
+        raise ValueError("Item condition cannot be empty")
+
+    aliases = {
+        "全新": "全新",
+        "几乎全新": "几乎全新",
+        "轻微使用痕迹": "轻微使用痕迹",
+        "明显使用痕迹": "明显使用痕迹",
+    }
+    normalized = aliases.get(raw)
+    if normalized is None:
+        raise ValueError(f"Unsupported item condition: {condition!r}")
+    return normalized
+
+
+def normalize_item_source(source: str) -> str:
+    raw = str(source).strip()
+    if not raw:
+        raise ValueError("Item source cannot be empty")
+
+    aliases = {
+        "盒机转赠": "盒机转赠",
+        "盒机直发": "盒机直发",
+        "淘宝转卖": "淘宝转卖",
+        "闲置": "闲置",
+    }
+    normalized = aliases.get(raw)
+    if normalized is None:
+        raise ValueError(f"Unsupported item source: {source!r}")
+    return normalized
+
+
 def _normalize_target_suffix(text: str) -> str:
     normalized = re.sub(r"[^\w\u4e00-\u9fff]+", "_", text.strip())
     return normalized.strip("_")
@@ -232,6 +266,27 @@ class XianyuFlowAnalyzer:
             )
         return option_targets
 
+    def _find_metadata_choice_targets(
+        self,
+        elements: Iterable[dict],
+        *,
+        prefix: str,
+        options: Iterable[str],
+    ) -> dict[str, TapTarget]:
+        targets: dict[str, TapTarget] = {}
+        for option in options:
+            selected = self._find_target(elements, exact_text=f"已选中{option}, {option}")
+            available = self._find_target(elements, exact_text=f"可选{option}, {option}")
+            resolved = selected or available
+            if resolved is None:
+                continue
+            targets[f"{prefix}_option_{option}"] = resolved.model_copy(update={"text": option})
+            if selected is not None:
+                targets[f"{prefix}_selected_{option}"] = selected.model_copy(
+                    update={"text": option}
+                )
+        return targets
+
     def detect_screen(self, screen_data: dict) -> XianyuScreenAnalysis:
         current_app = screen_data.get("current_app", {})
         current_package = current_app.get("package")
@@ -296,10 +351,21 @@ class XianyuFlowAnalyzer:
         )
         add_image = self._find_target(elements, exact_text="添加图片")
         description_entry = self._find_target(elements, contains_text="描述")
+        metadata_entry = self._find_target(elements, contains_text="分类/")
         price_entry = self._find_target(elements, exact_text="价格设置")
         shipping_entry = self._find_target(elements, contains_text="发货方式")
         location_entry = self._find_target(elements, exact_text="选择位置")
         description_done = self._find_target(elements, exact_text="完成")
+        metadata_condition_targets = self._find_metadata_choice_targets(
+            elements,
+            prefix="metadata_condition",
+            options=("全新", "几乎全新", "轻微使用痕迹", "明显使用痕迹"),
+        )
+        metadata_source_targets = self._find_metadata_choice_targets(
+            elements,
+            prefix="metadata_source",
+            options=("盒机转赠", "盒机直发", "淘宝转卖", "闲置"),
+        )
         if (
             current_package == self._settings.xianyu_package_name
             and any(text == "发闲置" for text in visible_texts)
@@ -411,6 +477,29 @@ class XianyuFlowAnalyzer:
             current_package == self._settings.xianyu_package_name
             and any(text == "发闲置" for text in visible_texts)
             and add_image is not None
+            and description_entry is not None
+            and metadata_entry is not None
+            and (metadata_condition_targets or metadata_source_targets)
+        ):
+            if submit_listing is not None:
+                targets["submit_listing"] = submit_listing
+            targets["add_image"] = add_image
+            targets["description_entry"] = description_entry
+            targets["metadata_entry"] = metadata_entry
+            targets.update(metadata_condition_targets)
+            targets.update(metadata_source_targets)
+            return XianyuScreenAnalysis(
+                screen_name="metadata_panel",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
+        if (
+            current_package == self._settings.xianyu_package_name
+            and any(text == "发闲置" for text in visible_texts)
+            and add_image is not None
             and any("价格设置" in text for text in visible_texts)
             and any("发货方式" in text for text in visible_texts)
         ):
@@ -419,6 +508,8 @@ class XianyuFlowAnalyzer:
             targets["add_image"] = add_image
             if description_entry is not None:
                 targets["description_entry"] = description_entry
+            if metadata_entry is not None:
+                targets["metadata_entry"] = metadata_entry
             if price_entry is not None:
                 targets["price_entry"] = price_entry
             if shipping_entry is not None:
@@ -1117,6 +1208,38 @@ class XianyuPublishFlowService:
             f"{max_steps} steps: {final_analysis.screen_name}"
         )
 
+    def advance_listing_form_to_metadata_panel(
+        self,
+        serial: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        for _ in range(max_steps):
+            analysis = self._analyze(serial)
+            if analysis.screen_name == "metadata_panel":
+                return analysis
+
+            if analysis.screen_name == "listing_form":
+                target = analysis.targets.get("metadata_entry")
+                if target is None:
+                    raise RuntimeError("Missing metadata_entry target on listing form")
+                self._tap_target(serial, target, "metadata_entry")
+                analysis = self._wait_for_non_loading_screen(serial)
+                if analysis.screen_name in {"metadata_panel", "unknown"}:
+                    continue
+
+            raise RuntimeError(
+                "Cannot reach metadata panel from current screen: "
+                f"{analysis.screen_name}"
+            )
+
+        final_analysis = self._analyze(serial)
+        if final_analysis.screen_name == "metadata_panel":
+            return final_analysis
+        raise RuntimeError(
+            "Failed to reach metadata panel within "
+            f"{max_steps} steps: {final_analysis.screen_name}"
+        )
+
     def advance_listing_form_to_description_editor(
         self,
         serial: str,
@@ -1148,6 +1271,48 @@ class XianyuPublishFlowService:
             "Failed to reach description editor within "
             f"{max_steps} steps: {final_analysis.screen_name}"
         )
+
+    def _set_metadata_choice(
+        self,
+        serial: str,
+        *,
+        desired_value: str,
+        target_prefix: str,
+        option_kind: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        current_analysis = self._analyze(serial)
+        selected_target_name = f"{target_prefix}_selected_{desired_value}"
+        option_target_name = f"{target_prefix}_option_{desired_value}"
+        if (
+            current_analysis.screen_name == "metadata_panel"
+            and current_analysis.targets.get(selected_target_name) is not None
+        ):
+            return current_analysis
+
+        analysis = current_analysis
+        if analysis.screen_name != "metadata_panel":
+            analysis = self.advance_listing_form_to_metadata_panel(serial, max_steps=max_steps)
+
+        if analysis.targets.get(selected_target_name) is not None:
+            return analysis
+
+        option_target = analysis.targets.get(option_target_name)
+        if option_target is None:
+            raise RuntimeError(f"Missing {option_target_name} target on metadata panel")
+        self._tap_target(serial, option_target, option_target_name)
+
+        final_analysis = self._wait_for_non_loading_screen(serial)
+        if final_analysis.screen_name != "metadata_panel":
+            raise RuntimeError(
+                f"{option_kind} flow did not remain on metadata panel: "
+                f"{final_analysis.screen_name}"
+            )
+        if final_analysis.targets.get(selected_target_name) is None:
+            raise RuntimeError(
+                f"{option_kind} flow did not end on selected value {desired_value!r}"
+            )
+        return final_analysis
 
     def advance_listing_form_to_price_panel(
         self,
@@ -1341,3 +1506,33 @@ class XianyuPublishFlowService:
                 f"Shipping flow ended on {final_method!r} instead of {desired_method!r}"
             )
         return final_analysis
+
+    def set_item_condition(
+        self,
+        serial: str,
+        condition: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        desired_condition = normalize_item_condition(condition)
+        return self._set_metadata_choice(
+            serial,
+            desired_value=desired_condition,
+            target_prefix="metadata_condition",
+            option_kind="Condition",
+            max_steps=max_steps,
+        )
+
+    def set_item_source(
+        self,
+        serial: str,
+        source: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        desired_source = normalize_item_source(source)
+        return self._set_metadata_choice(
+            serial,
+            desired_value=desired_source,
+            target_prefix="metadata_source",
+            option_kind="Source",
+            max_steps=max_steps,
+        )
