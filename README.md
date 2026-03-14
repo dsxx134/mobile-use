@@ -363,6 +363,10 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `发布状态`
 - `失败原因`
 - `是否允许发布`
+- `允许自动发布`
+- `闲鱼商品ID`
+- `闲鱼商品链接`
+- `发布时间`
 
 ### Smoke test the foundation settings
 
@@ -386,6 +390,17 @@ uv run python scripts/xianyu_prepare_runner_live.py
 - It uses `XIANYU_ANDROID_SERIAL` by default, or `--serial <device>` when you want to override it
 - It preheats Xianyu back to the portrait `发闲置` form before running the deterministic prepare slice
 - It prints the prepared record id, pushed media paths, merged body text, and final screen as JSON
+
+### Run the live review runner without submitting
+
+```bash
+uv run python scripts/xianyu_publish_review_live.py
+```
+
+- This script runs the same deterministic prepare slice, then checks that the editor is still in a
+  supported pre-submit state and that the visible `发布` target is present
+- When that review passes, the Bitable row is written back as `待人工发布`
+- The script does not tap the final `发布` button
 
 ### Current media-selection behavior
 
@@ -533,16 +548,24 @@ uv run python scripts/xianyu_prepare_runner_live.py
   - best-effort apply a preset Bitable location search query such as `上海虹桥站`
   - mark the record `已就绪` when the prepared form is reached again
   - mark the record `准备失败` with `失败原因` if any step raises
+- The same runner now also supports a review mode that:
+  - keeps the final action non-submitting
+  - verifies the final editor state is still `listing_form` or `metadata_panel`
+  - verifies the visible `submit_listing` target still exists
+  - writes the row back as `待人工发布` when that pre-submit review passes
 - For live Feishu-backed runs, callers should construct `XianyuMediaSyncService` with
   `download_file=source.download_attachment_file`
 - That live assembly is now codified in `scripts/xianyu_prepare_runner_live.py`, which resolves
   the Android serial, preheats the tablet back to the portrait form, and prints the prepared
   result as JSON
+- The non-submitting review assembly is now codified in `scripts/xianyu_publish_review_live.py`
 - Real-device verification on `E2P6R22708000602` confirmed a full prepare-runner pass that ended
   on `listing_form` with body text and price filled
 - A fresh live Feishu-backed probe on `E2P6R22708000602` also confirmed an end-to-end prepare run
   that reached `metadata_panel`, pushed `/sdcard/DCIM/XianyuPublish/recvdOzzR38eVi/01_image.png`,
   and wrote the row back as `已就绪`
+- A fresh live review probe on `E2P6R22708000602` also confirmed the same row can now be prepared,
+  reviewed with a visible `发布` target on `metadata_panel`, and written back as `待人工发布`
 - Real-device verification also confirmed that the current metadata page is recognized as
   `metadata_panel`, and that `set_item_condition('几乎全新')` and `set_item_source('闲置')`
   both end on visible selected-chip states
@@ -553,7 +576,7 @@ uv run python scripts/xianyu_prepare_runner_live.py
   - stable location persistence
   - final publish submission
 - The default optional Bitable field for that best-effort search path is `预设地址`
-- The current writeback statuses used by the runner are `准备中`, `已就绪`, and `准备失败`
+- The current writeback statuses used by the runner are `准备中`, `已就绪`, `待人工发布`, and `准备失败`
 
 ### Current boundary
 
@@ -563,6 +586,9 @@ uv run python scripts/xianyu_prepare_runner_live.py
   drive a best-effort preset `预设地址 -> 搜索地址`,
   reopen the album picker from `添加图片`, prepare one publishable Bitable record into the
   form through `XianyuPrepareRunner`, and write the prepare status back into Bitable
+- The analyzer now also has a basic `publish_success` screen shape for future auto-submit work,
+  but this branch still does not tap `发布` automatically or claim live-verified post-submit
+  navigation yet
 - On the current Huawei tablet, both `fill_description()` and `fill_price()` can legitimately
   settle on `metadata_panel` instead of the upper `listing_form`; the runner now treats either
   editor state as a valid prepared outcome

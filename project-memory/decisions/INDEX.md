@@ -16,5 +16,6 @@
 | xianyu runner can apply best effort location search query | 2026-03-14 | 2026-03-14-xianyu-runner-can-apply-best-effort-location-search-query.md |
 | xianyu prepare runner writes preparation status to bitable | 2026-03-14 | 2026-03-14-xianyu-prepare-runner-writes-preparation-status-to-bitable.md |
 | xianyu live prepare entrypoint is scripted | 2026-03-14 | 2026-03-14-xianyu-live-prepare-entrypoint-is-scripted.md |
+| xianyu review mode stops at manual publish | 2026-03-14 | 2026-03-14-xianyu-review-mode-stops-at-manual-publish.md |
 
-Total: 14
+Total: 15

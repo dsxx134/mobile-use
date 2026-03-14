@@ -37,5 +37,6 @@
 | xianyu-editor-steps-may-return-metadata-panel | 2026-03-14 | xianyu-editor-steps-may-return-metadata-panel.md |
 | xianyu-description-entry-needs-tail-polling | 2026-03-14 | xianyu-description-entry-needs-tail-polling.md |
 | xianyu-prepare-runner-writes-bitable-status-around-device-work | 2026-03-14 | xianyu-prepare-runner-writes-bitable-status-around-device-work.md |
+| xianyu-review-mode-checks-submit-target-on-supported-editor | 2026-03-14 | xianyu-review-mode-checks-submit-target-on-supported-editor.md |
 
-Total: 35
+Total: 36

@@ -30,10 +30,12 @@ Updated: 2026-03-14
   - `XianyuMediaSyncService` for local staging and Android media push
   - `XianyuFlowAnalyzer` for pure screen classification and tap-target extraction
   - `XianyuPublishFlowService` for deterministic Xianyu navigation built on `AndroidDebugService`
-  - `XianyuPrepareRunner` for business orchestration across Feishu source, media sync, and the deterministic flow layer
-  - `live_prepare.py` for the live-device orchestration glue that resolves the Android serial,
-    wires authenticated Feishu downloads into media sync, preheats the Huawei tablet back to the
-    portrait form, and then delegates to `XianyuPrepareRunner`
+- `XianyuPrepareRunner` for business orchestration across Feishu source, media sync, and the deterministic flow layer
+- `live_prepare.py` for the live-device orchestration glue that resolves the Android serial,
+  wires authenticated Feishu downloads into media sync, preheats the Huawei tablet back to the
+  portrait form, and then delegates to `XianyuPrepareRunner`
+- The same runner now has an opt-in review mode that turns a successful prepare slice into a
+  guarded manual-publish checkpoint instead of automatic submission.
 - The Xianyu flow currently recognizes:
   - home tab
   - publish chooser
@@ -165,6 +167,11 @@ Updated: 2026-03-14
 - Opening the description editor from a scrolled `metadata_panel` is also a two-phase transition on
   this tablet: the first post-tap frame can still look like `metadata_panel`, so the flow now uses
   a dedicated post-description-entry poll instead of treating that tail frame as a hard failure.
+- Review mode is intentionally narrow: it only accepts `listing_form` or `metadata_panel` as the
+  final editor state and requires the visible `submit_listing` target before the row can be marked
+  `待人工发布`.
+- The analyzer also now has a basic `publish_success` screen shape for future post-submit work,
+  keyed off visible success text plus `看看宝贝` and `继续发布` actions.
 - The flow service now also has a hierarchical `set_location_region_path()` helper for the verified
   Huawei-tablet path `上海 -> 上海 -> 黄浦区`. The first `上海` tap narrows the picker, the second
   `上海` tap expands districts, and the final district tap can leave a transient
@@ -220,4 +227,6 @@ Updated: 2026-03-14
 - `scripts/xianyu_publish_flow_smoke.py` is the quickest way to inspect the current Xianyu screen classification on a connected Android device.
 - `scripts/xianyu_prepare_runner_live.py` is now the canonical way to run the verified live
   Feishu-backed prepare slice end-to-end against the Huawei tablet.
+- `scripts/xianyu_publish_review_live.py` is now the canonical way to run the same slice in
+  non-submitting review mode and write the row back as `待人工发布`.
 - The next layer should still consume `ListingDraft` directly and stay isolated from raw Feishu record payloads.
