@@ -127,17 +127,24 @@ Updated: 2026-03-14
   or richer variants like `分类/盒袋状态/盒卡状态/等\n款式`.
 - On the Huawei tablet, tapping that row does not reopen the old publish chooser; it expands into
   a stable `metadata_panel` that still shows the main `发闲置` header plus chip-like choice rows.
+- A scrolled editor state can still be the same `metadata_panel` even when upper-form controls
+  like `添加图片` or the large description tile are out of view, as long as metadata chips plus
+  lower rows such as `价格设置`, `发货方式`, or `选择位置` remain visible.
 - The flow service now supports deterministic metadata selection from that page for:
   - currently visible `分类` chips on the panel, such as `家居摆件` or `生活百科`
   - `成色`: `全新`, `几乎全新`, `轻微使用痕迹`, `明显使用痕迹`
   - `商品来源`: `盒机转赠`, `盒机直发`, `淘宝转卖`, `闲置`
 - These metadata selections do not currently require a confirm button; real-device probing showed
   the page stays on `metadata_panel` and the chip text flips from `可选...` to `已选中...`.
+- When those lower rows are visible inside `metadata_panel`, the existing bridges for
+  `价格设置`, `发货方式`, and `选择位置` can now start from that state directly.
 - Category support is intentionally scoped to the chips already visible on the metadata panel.
   This branch does not yet traverse a deeper category tree or category search flow.
 - Final location persistence is still unresolved on this app/device pair. Real-device probes showed
   that tapping a common address or a district row can return to the listing form without a stable,
   visible location confirmation, so the flow stops at entering the picker for now.
+- Real-device probing also showed that selecting a top-level region like `上海` narrows the same
+  hierarchical picker rather than completing location selection in one tap.
 - Because this portrait `发闲置` form does not currently expose a separate title field through the
   accessibility tree, the business runner treats `ListingDraft.title` as the first line of the
   body text and appends `ListingDraft.description` below it when needed.

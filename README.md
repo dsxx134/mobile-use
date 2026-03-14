@@ -413,11 +413,15 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   did not prove reliably selectable during real-device probing
 - The portrait form also exposes a `选择位置` row; the flow now recognizes both the root
   `宝贝所在地` chooser and the hierarchical `所在地` region picker
+- The location bridge also works from a scrolled `metadata_panel` state when the lower
+  `选择位置` row is visible on screen
 - The stable path into region selection is:
   - tap `选择位置`
   - wait for `宝贝所在地`
   - tap the full `请选择宝贝所在地` row
   - enter the `所在地` region picker
+- Real-device probing also showed that selecting a top-level region such as `上海` does not yet
+  finish location selection; it narrows the same hierarchical picker and still needs another step
 - Final location writeback is still not treated as deterministic yet; real-device probing did not
   produce a stable, visible confirmation on the listing form after selecting either a common
   address or a region row
@@ -427,6 +431,9 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   stable metadata/spec page that still shows the main `发闲置` header plus chip-style options
 - The flow now treats that state as `metadata_panel` instead of misclassifying it as
   `publish_chooser`
+- A scrolled editor state can still belong to the same `metadata_panel` even when upper-form
+  controls like `添加图片` are no longer visible, as long as metadata chips plus lower rows such as
+  `价格设置`, `发货方式`, or `选择位置` remain on screen
 - Real-device verification confirmed that tapping a chip such as `几乎全新` changes the visible
   text from `可选几乎全新, 几乎全新` to `已选中几乎全新, 几乎全新`
 - The currently verified deterministic metadata fields are:
@@ -503,6 +510,8 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   `分类/成色/商品来源`,
   reopen the album picker from `添加图片`, and prepare one publishable Bitable record into the
   form through `XianyuPrepareRunner`
+- When the editor is scrolled into the metadata section, the flow now keeps that state classified
+  as `metadata_panel` and can still open `价格设置`, `发货方式`, and `选择位置` from it
 - Stable location persistence, deeper category navigation, `买家自提`, and final publish
   submission are still the next layer
 

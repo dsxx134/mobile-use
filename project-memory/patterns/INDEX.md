@@ -29,5 +29,6 @@
 | xianyu-image-selection-can-return-directly-to-listing-form | 2026-03-13 | xianyu-image-selection-can-return-directly-to-listing-form.md |
 | xianyu-metadata-panel-uses-chip-selection | 2026-03-14 | xianyu-metadata-panel-uses-chip-selection.md |
 | xianyu-category-selection-uses-visible-chips | 2026-03-14 | xianyu-category-selection-uses-visible-chips.md |
+| xianyu-scrolled-metadata-still-belongs-to-editor | 2026-03-14 | xianyu-scrolled-metadata-still-belongs-to-editor.md |
 
-Total: 27
+Total: 28
