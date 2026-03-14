@@ -9,6 +9,7 @@ from minitap.mobile_use.scenarios.xianyu_publish.models import (
     FeishuAttachment,
     ListingDraft,
     TapTarget,
+    XianyuListingReceipt,
     XianyuScreenAnalysis,
 )
 from minitap.mobile_use.scenarios.xianyu_publish.runner import (
@@ -662,6 +663,10 @@ def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tm
     flow.advance_publish_success_to_listing_detail.return_value = XianyuScreenAnalysis(
         screen_name="listing_detail"
     )
+    flow.extract_listing_receipt_from_current_detail.return_value = XianyuListingReceipt(
+        item_id="1022496357535",
+        deep_link="fleamarket://awesome_detail?itemId=1022496357535&hitNativeDetail=true",
+    )
     fixed_now = datetime(2026, 3, 14, 20, 30, 0, tzinfo=UTC)
     runner = XianyuPrepareRunner(
         source=source,
@@ -687,16 +692,26 @@ def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tm
         status="已发布",
         failure_reason=None,
         published_at="2026-03-14T20:30:00+00:00",
-        listing_id=None,
+        listing_id="1022496357535",
         listing_url=None,
     )
     flow.submit_listing_and_wait_for_result.assert_called_once_with("device-1")
     flow.advance_publish_success_to_listing_detail.assert_called_once_with("device-1")
+    flow.extract_listing_receipt_from_current_detail.assert_called_once_with("device-1")
     assert result.publish is not None
     assert result.publish.success is True
     assert result.publish.screen_name == "publish_success"
     assert result.publish.detail_screen_name == "listing_detail"
     assert result.publish.published_at == "2026-03-14T20:30:00+00:00"
+    assert result.publish.listing_id == "1022496357535"
+    assert (
+        result.publish.detail_deep_link
+        == "fleamarket://awesome_detail?itemId=1022496357535&hitNativeDetail=true"
+    )
+    assert (
+        result.publish.listing_url
+        is None
+    )
 
 
 def test_prepare_first_publishable_listing_auto_publish_requires_listing_opt_in(tmp_path):

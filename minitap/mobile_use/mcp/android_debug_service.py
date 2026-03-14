@@ -86,6 +86,13 @@ class AndroidDebugService:
             "hierarchy_xml": self.get_ui_client(serial).get_hierarchy(),
         }
 
+    def dump_activity_activities(self, serial: str) -> dict[str, Any]:
+        device = self.get_device(serial)
+        return {
+            "serial": serial,
+            "raw_output": str(device.shell("dumpsys activity activities")),
+        }
+
     def tap(
         self,
         serial: str,

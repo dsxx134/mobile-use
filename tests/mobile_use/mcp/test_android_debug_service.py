@@ -133,3 +133,24 @@ def test_set_text_on_description_child_uses_ui_client_helper():
         "text": "34寸显示器 成色很好 北京自提",
         "success": True,
     }
+
+
+def test_dump_activity_activities_returns_raw_output():
+    adb_client = Mock()
+    adb_client.list.return_value = [_make_device_info()]
+    device = Mock()
+    activity_dump = (
+        "mResumedActivity: ActivityRecord{abc u0 "
+        "com.taobao.idlefish/.detail.DetailActivity t1}"
+    )
+    device.shell.return_value = activity_dump
+    adb_client.device.return_value = device
+    service = AndroidDebugService(adb_client=adb_client, ui_client_factory=Mock())
+
+    result = service.dump_activity_activities("device-1")
+
+    device.shell.assert_called_once_with("dumpsys activity activities")
+    assert result == {
+        "serial": "device-1",
+        "raw_output": activity_dump,
+    }

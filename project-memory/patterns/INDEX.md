@@ -44,5 +44,7 @@
 | xianyu-publish-success-has-reward-variant | 2026-03-14 | xianyu-publish-success-has-reward-variant.md |
 | xianyu-publish-success-can-bridge-to-detail | 2026-03-14 | xianyu-publish-success-can-bridge-to-detail.md |
 | xianyu-detail-detection-uses-header-controls | 2026-03-14 | xianyu-detail-detection-uses-header-controls.md |
+| xianyu-detail-receipt-can-be-read-from-activity-dump | 2026-03-14 | xianyu-detail-receipt-can-be-read-from-activity-dump.md |
+| feishu-url-fields-reject-app-deep-links | 2026-03-14 | feishu-url-fields-reject-app-deep-links.md |
 
-Total: 42
+Total: 44

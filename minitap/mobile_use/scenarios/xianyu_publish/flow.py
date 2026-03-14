@@ -6,11 +6,20 @@ from decimal import Decimal
 from decimal import InvalidOperation
 
 from minitap.mobile_use.mcp.android_debug_service import AndroidDebugService
-from minitap.mobile_use.scenarios.xianyu_publish.models import TapTarget, XianyuScreenAnalysis
+from minitap.mobile_use.scenarios.xianyu_publish.models import (
+    TapTarget,
+    XianyuListingReceipt,
+    XianyuScreenAnalysis,
+)
 from minitap.mobile_use.scenarios.xianyu_publish.settings import XianyuPublishSettings
 
 _BOUNDS_RE = re.compile(r"\[(?P<left>\d+),(?P<top>\d+)\]\[(?P<right>\d+),(?P<bottom>\d+)\]")
 _METADATA_CHOICE_RE = re.compile(r"^(?P<state>已选中|可选)(?P<label>.+), (?P=label)$")
+_DETAIL_INTENT_DEEPLINK_RE = re.compile(
+    r"Intent \{ dat=(?P<deep_link>fleamarket://awesome_detail\?[^\s}]*)"
+    r" [^}]*(?:cmp=com\.taobao\.idlefish/\.detail\.DetailActivity)[^}]*\}"
+)
+_ITEM_ID_RE = re.compile(r"(?:^|[?&])itemId=(?P<item_id>\d+)(?:&|$)")
 
 
 def _extract_text(element: dict) -> str | None:
@@ -143,6 +152,24 @@ def normalize_item_source(source: str) -> str:
 def _normalize_target_suffix(text: str) -> str:
     normalized = re.sub(r"[^\w\u4e00-\u9fff]+", "_", text.strip())
     return normalized.strip("_")
+
+
+def extract_listing_receipt_from_activity_dump(
+    raw_output: str,
+) -> XianyuListingReceipt | None:
+    match = _DETAIL_INTENT_DEEPLINK_RE.search(raw_output)
+    if match is None:
+        return None
+
+    deep_link = match.group("deep_link")
+    item_id_match = _ITEM_ID_RE.search(deep_link)
+    if item_id_match is None:
+        return None
+
+    return XianyuListingReceipt(
+        item_id=item_id_match.group("item_id"),
+        deep_link=deep_link,
+    )
 
 
 class XianyuFlowAnalyzer:
@@ -2459,3 +2486,18 @@ class XianyuPublishFlowService:
             "Failed to reach listing detail after publish success within "
             f"{max_steps} steps: {final_analysis.screen_name}"
         )
+
+    def extract_listing_receipt_from_current_detail(
+        self,
+        serial: str,
+    ) -> XianyuListingReceipt | None:
+        analysis = self._analyze(serial)
+        if analysis.screen_name != "listing_detail":
+            raise RuntimeError(
+                "Cannot extract listing receipt outside listing detail: "
+                f"{analysis.screen_name}"
+            )
+
+        dump = self._android.dump_activity_activities(serial)
+        raw_output = str(dump.get("raw_output", ""))
+        return extract_listing_receipt_from_activity_dump(raw_output)

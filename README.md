@@ -416,16 +416,24 @@ uv run python scripts/xianyu_publish_auto_live.py
 - If the analyzer reaches the success screen, it writes back:
   - `发布状态=已发布`
   - `发布时间=<iso timestamp>`
+  - `闲鱼商品ID=<itemId>` when `DetailActivity` receipt extraction succeeds
 - Xianyu can also show a reward-style success page with `发布成功` and `再发一件`; the analyzer now
   treats that variant as the same `publish_success` outcome
 - After a successful submit, the flow now also has a best-effort bridge into the published item
   detail page:
   - tap `看看宝贝` on the classic success page
   - or press `Back` once from the reward-style success page
+- On the Huawei tablet, the current receipt extraction source is
+  `adb shell dumpsys activity activities`, where the resumed `DetailActivity` exposes an
+  `Intent { dat=fleamarket://awesome_detail?...itemId=... }` line
+- The live script result can now include:
+  - `publish.listing_id`
+  - `publish.detail_deep_link`
 - If the success screen does not appear, it writes back:
   - `发布状态=发布失败`
   - `失败原因=<raised error>`
-- `闲鱼商品ID` and `闲鱼商品链接` are reserved in the table schema but are not populated yet by the current deterministic flow
+- `闲鱼商品链接` still stays empty for now because the current receipt source is an app deep link
+  (`fleamarket://...`), and the Feishu hyperlink field rejects that value
 
 ### Current media-selection behavior
 

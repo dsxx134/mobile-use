@@ -65,6 +65,7 @@ class FakeAndroidService:
         self.set_focused_text_calls: list[tuple[str, str]] = []
         self.set_text_by_description_calls: list[tuple[str, str, str]] = []
         self.set_text_on_description_child_calls: list[tuple[str, str, str]] = []
+        self.activity_dump = ""
         self._tap_count = 0
         self._swipe_count = 0
 
@@ -188,6 +189,9 @@ class FakeAndroidService:
             "text": text,
             "success": True,
         }
+
+    def dump_activity_activities(self, serial: str) -> dict:
+        return {"serial": serial, "raw_output": self.activity_dump}
 
 
 def _metadata_panel_elements(
@@ -5356,3 +5360,58 @@ def test_advance_publish_success_to_listing_detail_presses_back_for_reward_varia
     assert result.screen_name == "listing_detail"
     assert android_service.tap_calls == []
     assert android_service.back_calls == ["device-1"]
+
+
+def test_extract_listing_receipt_from_current_detail_parses_item_id_and_deep_link():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.taobao.idlefish.detail.DetailActivity",
+                elements=_listing_detail_elements(),
+            ),
+        ]
+    )
+    android_service.activity_dump = (
+        "mResumedActivity: ActivityRecord{719588d u0 "
+        "com.taobao.idlefish/.detail.DetailActivity t1303}\n"
+        "Intent { dat=fleamarket://awesome_detail?itemId=1022496357535&hitNativeDetail=true "
+        "flg=0x10000000 cmp=com.taobao.idlefish/.detail.DetailActivity }"
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    receipt = flow.extract_listing_receipt_from_current_detail("device-1")
+
+    assert receipt is not None
+    assert receipt.item_id == "1022496357535"
+    assert (
+        receipt.deep_link
+        == "fleamarket://awesome_detail?itemId=1022496357535&hitNativeDetail=true"
+    )
+
+
+def test_extract_listing_receipt_from_current_detail_returns_none_when_dump_has_no_detail_link():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.taobao.idlefish.detail.DetailActivity",
+                elements=_listing_detail_elements(),
+            ),
+        ]
+    )
+    android_service.activity_dump = (
+        "mResumedActivity: ActivityRecord{719588d u0 "
+        "com.taobao.idlefish/.detail.DetailActivity t1303}"
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    receipt = flow.extract_listing_receipt_from_current_detail("device-1")
+
+    assert receipt is None

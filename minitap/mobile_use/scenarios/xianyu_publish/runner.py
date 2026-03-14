@@ -23,6 +23,7 @@ class XianyuPublishResult(BaseModel):
     success: bool
     screen_name: str
     detail_screen_name: str | None = None
+    detail_deep_link: str | None = None
     published_at: str | None = None
     listing_id: str | None = None
     listing_url: str | None = None
@@ -176,9 +177,16 @@ class XianyuPrepareRunner:
                 )
                 publish_analysis = self._flow.submit_listing_and_wait_for_result(serial)
                 detail_screen_name: str | None = None
+                detail_deep_link: str | None = None
+                listing_id: str | None = None
+                listing_url: str | None = None
                 try:
                     detail_analysis = self._flow.advance_publish_success_to_listing_detail(serial)
                     detail_screen_name = detail_analysis.screen_name
+                    receipt = self._flow.extract_listing_receipt_from_current_detail(serial)
+                    if receipt is not None:
+                        detail_deep_link = receipt.deep_link
+                        listing_id = receipt.item_id
                 except RuntimeError:
                     detail_screen_name = None
                 published_at = self._now_fn().isoformat()
@@ -187,16 +195,17 @@ class XianyuPrepareRunner:
                     status="已发布",
                     failure_reason=None,
                     published_at=published_at,
-                    listing_id=None,
-                    listing_url=None,
+                    listing_id=listing_id,
+                    listing_url=listing_url,
                 )
                 publish = XianyuPublishResult(
                     success=True,
                     screen_name=publish_analysis.screen_name,
                     detail_screen_name=detail_screen_name,
+                    detail_deep_link=detail_deep_link,
                     published_at=published_at,
-                    listing_id=None,
-                    listing_url=None,
+                    listing_id=listing_id,
+                    listing_url=listing_url,
                 )
                 if detail_screen_name is not None:
                     final_analysis = detail_analysis

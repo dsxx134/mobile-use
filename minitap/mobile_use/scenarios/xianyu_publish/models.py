@@ -61,3 +61,10 @@ class XianyuScreenAnalysis(BaseModel):
     current_activity: str | None = None
     visible_texts: list[str] = Field(default_factory=list)
     targets: dict[str, TapTarget] = Field(default_factory=dict)
+
+
+class XianyuListingReceipt(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item_id: str = Field(..., min_length=1)
+    deep_link: str = Field(..., min_length=1)

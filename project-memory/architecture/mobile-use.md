@@ -218,6 +218,13 @@ Updated: 2026-03-14
   actually a success-screen recognition gap rather than a location blocker: after the metadata
   scroll fix, the live tablet stayed on a reward-style `publish_success` page that the analyzer now
   classifies correctly.
+- Post-publish receipt extraction now uses Android system state rather than UI text:
+  - while the app is on `com.taobao.idlefish.detail.DetailActivity`
+  - call `adb shell dumpsys activity activities`
+  - parse the resumed detail `Intent { dat=fleamarket://awesome_detail?...itemId=... }`
+- This source is good enough to recover `闲鱼商品ID` and the raw app deep link after a successful
+  publish, but it does not yet produce a Feishu-compatible public `https://...` URL. The current
+  Bitable hyperlink field rejects `fleamarket://...`, so only `闲鱼商品ID` is written back today.
 - Post-publish navigation is now split into two deterministic branches:
   - classic success page: tap `看看宝贝`
   - reward-style success page: press `Back` once
