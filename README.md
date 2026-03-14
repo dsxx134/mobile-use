@@ -327,6 +327,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - open the root location chooser from the portrait form
   - enter the hierarchical location region picker by tapping `请选择宝贝所在地`
   - expand the portrait form into the metadata/spec panel
+  - set a currently visible category chip from the metadata/spec panel
   - set the verified `成色` chip options
   - set the verified `商品来源` chip options
   - accept the media permission dialog
@@ -350,6 +351,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `商品标题`
 - `商品描述`
 - `售价`
+- `分类`
 - `成色`
 - `商品来源`
 - `商品图片`
@@ -428,8 +430,11 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 - Real-device verification confirmed that tapping a chip such as `几乎全新` changes the visible
   text from `可选几乎全新, 几乎全新` to `已选中几乎全新, 几乎全新`
 - The currently verified deterministic metadata fields are:
+  - visible `分类` chips on the current metadata panel, such as `家居摆件` and `生活百科`
   - `成色`: `全新`, `几乎全新`, `轻微使用痕迹`, `明显使用痕迹`
   - `商品来源`: `盒机转赠`, `盒机直发`, `淘宝转卖`, `闲置`
+- Category support in this branch is intentionally limited to the chips already visible on the
+  expanded metadata panel; it does not yet drive a deeper category tree or search flow
 - From that portrait form, tapping `添加图片` opens the album picker directly without going back
   through the older publish chooser path
 - On the current app build, image selection can continue through extra media-processing screens:
@@ -475,6 +480,7 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - if needed, bridge back from `photo_analysis` into the portrait form
   - fill the merged title+description body
   - fill the sale price
+  - optionally apply a visible category chip
   - optionally apply `成色`
   - optionally apply `商品来源`
 - Real-device verification on `E2P6R22708000602` confirmed a full prepare-runner pass that ended
@@ -482,6 +488,8 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 - Real-device verification also confirmed that the current metadata page is recognized as
   `metadata_panel`, and that `set_item_condition('几乎全新')` and `set_item_source('闲置')`
   both end on visible selected-chip states
+- A fresh real-device probe also confirmed that `set_item_category('生活百科')` stays on
+  `metadata_panel` and flips the selected category target from `家居摆件` to `生活百科`
 - The runner intentionally stops once the form is prepared and visible again; it does not yet claim:
   - category selection
   - stable location persistence
@@ -491,11 +499,12 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 ### Current boundary
 
 - The flow can now reach the portrait listing form, fill description text, set the sale price,
-  set the verified mail shipping mode, set verified metadata chips for `成色/商品来源`,
+  set the verified mail shipping mode, set verified metadata chips for
+  `分类/成色/商品来源`,
   reopen the album picker from `添加图片`, and prepare one publishable Bitable record into the
   form through `XianyuPrepareRunner`
-- Category, stable location persistence, `买家自提`, and final publish submission are still the
-  next layer
+- Stable location persistence, deeper category navigation, `买家自提`, and final publish
+  submission are still the next layer
 
 ## 🔎 Agentic System Overview
 

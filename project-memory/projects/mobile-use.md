@@ -34,6 +34,7 @@ Status: Active
 - Xianyu publish flow batch 11 completed on `feat/android-debug-mcp`: post-`继续` draft-resume polling, a deterministic `XianyuPrepareRunner`, and a business-layer decision to fold `ListingDraft.title` into the description body because the portrait form does not expose a separate title field on this Huawei tablet.
 - Xianyu publish flow batch 12 completed on `feat/android-debug-mcp`: stale home/chooser wait handling, selected-media preview and media-edit recognition, and real-device verification that the prepare runner can now return to `listing_form` after image selection on the Huawei tablet.
 - Xianyu publish flow batch 13 completed on `feat/android-debug-mcp`: metadata/spec-panel recognition, deterministic `成色` and `商品来源` chip selection, optional Feishu mapping for those fields, and real-device verification that the metadata page is distinct from `publish_chooser`.
+- Xianyu publish flow batch 14 completed on `feat/android-debug-mcp`: visible metadata-panel category chip extraction, optional Feishu `分类` mapping, prepare-runner category application, and real-device verification that `set_item_category('生活百科')` flips the selected category chip while staying on `metadata_panel`.
 
 ## Operational Rule
 - Important milestones should be committed and pushed to GitHub instead of remaining only local.

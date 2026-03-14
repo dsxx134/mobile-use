@@ -28,5 +28,6 @@
 | xianyu-draft-resume-continue-needs-post-tap-polling | 2026-03-13 | xianyu-draft-resume-continue-needs-post-tap-polling.md |
 | xianyu-image-selection-can-return-directly-to-listing-form | 2026-03-13 | xianyu-image-selection-can-return-directly-to-listing-form.md |
 | xianyu-metadata-panel-uses-chip-selection | 2026-03-14 | xianyu-metadata-panel-uses-chip-selection.md |
+| xianyu-category-selection-uses-visible-chips | 2026-03-14 | xianyu-category-selection-uses-visible-chips.md |
 
-Total: 26
+Total: 27

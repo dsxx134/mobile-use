@@ -11,5 +11,6 @@
 | xianyu default path is portrait form | 2026-03-13 | 2026-03-13-xianyu-default-path-is-portrait-form.md |
 | xianyu space bridge uses ratio taps for visual controls | 2026-03-13 | 2026-03-13-xianyu-space-bridge-uses-ratio-taps-for-visual-controls.md |
 | xianyu metadata panel is distinct from publish chooser | 2026-03-14 | 2026-03-14-xianyu-metadata-panel-is-distinct-from-publish-chooser.md |
+| xianyu category support stays on visible metadata chips | 2026-03-14 | 2026-03-14-xianyu-category-support-stays-on-visible-metadata-chips.md |
 
-Total: 9
+Total: 10

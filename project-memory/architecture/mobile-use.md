@@ -128,10 +128,13 @@ Updated: 2026-03-14
 - On the Huawei tablet, tapping that row does not reopen the old publish chooser; it expands into
   a stable `metadata_panel` that still shows the main `发闲置` header plus chip-like choice rows.
 - The flow service now supports deterministic metadata selection from that page for:
+  - currently visible `分类` chips on the panel, such as `家居摆件` or `生活百科`
   - `成色`: `全新`, `几乎全新`, `轻微使用痕迹`, `明显使用痕迹`
   - `商品来源`: `盒机转赠`, `盒机直发`, `淘宝转卖`, `闲置`
 - These metadata selections do not currently require a confirm button; real-device probing showed
   the page stays on `metadata_panel` and the chip text flips from `可选...` to `已选中...`.
+- Category support is intentionally scoped to the chips already visible on the metadata panel.
+  This branch does not yet traverse a deeper category tree or category search flow.
 - Final location persistence is still unresolved on this app/device pair. Real-device probes showed
   that tapping a common address or a district row can return to the listing form without a stable,
   visible location confirmation, so the flow stops at entering the picker for now.
@@ -148,6 +151,7 @@ Updated: 2026-03-14
   - if the app returns `photo_analysis`, bridge back into the form
   - fill the merged body text
   - fill the sale price
+  - optionally apply a visible category chip
   - optionally apply `成色`
   - optionally apply `商品来源`
 - The runner intentionally stops at a prepared portrait listing form or metadata panel and does not
