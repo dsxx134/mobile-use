@@ -671,6 +671,25 @@ def test_detects_location_search_screen_targets():
     )
 
 
+def test_detects_publish_success_screen_targets():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "宝贝发布成功", "bounds": "[520,410][1080,490]"},
+            {"text": "分享给更多人", "bounds": "[600,560][1000,620]"},
+            {"text": "看看宝贝", "clickable": "true", "bounds": "[220,1960][760,2090]"},
+            {"text": "继续发布", "clickable": "true", "bounds": "[840,1960][1380,2090]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "publish_success"
+    assert analysis.targets["publish_success_view_listing"].text == "看看宝贝"
+    assert analysis.targets["publish_success_continue"].text == "继续发布"
+
+
 def test_detects_description_editor_from_portrait_form():
     analyzer = XianyuFlowAnalyzer()
     screen = _make_screen(

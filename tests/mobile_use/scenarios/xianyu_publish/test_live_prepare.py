@@ -112,6 +112,7 @@ def test_prepare_first_publishable_listing_live_preheats_before_runner(tmp_path)
     runner.prepare_first_publishable_listing.assert_called_once_with(
         serial="tablet-1",
         staging_root=tmp_path,
+        review_after_prepare=False,
     )
     assert result.final_screen_name == "metadata_panel"
 
@@ -152,5 +153,40 @@ def test_prepare_first_publishable_listing_live_retries_preheat_once(tmp_path):
     runner.prepare_first_publishable_listing.assert_called_once_with(
         serial="tablet-1",
         staging_root=tmp_path,
+        review_after_prepare=False,
     )
     assert result.final_screen_name == "listing_form"
+
+
+def test_prepare_first_publishable_listing_live_can_request_review_mode(tmp_path):
+    settings = _make_settings(serial="tablet-1")
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = Mock(screen_name="listing_form")
+    runner = Mock()
+    runner.prepare_first_publishable_listing.return_value = XianyuPrepareListingResult(
+        record_id="recA",
+        serial="tablet-1",
+        remote_media_paths=["/sdcard/DCIM/XianyuPublish/recA/01_image.png"],
+        body_text="34寸显示器\n\n成色很好，北京自提。",
+        final_screen_name="metadata_panel",
+    )
+    components = XianyuLivePrepareComponents(
+        source=Mock(),
+        media_sync=Mock(),
+        flow=flow,
+        runner=runner,
+    )
+
+    prepare_first_publishable_listing_live(
+        settings=settings,
+        adb_client=Mock(),
+        staging_root=tmp_path,
+        components=components,
+        review_after_prepare=True,
+    )
+
+    runner.prepare_first_publishable_listing.assert_called_once_with(
+        serial="tablet-1",
+        staging_root=tmp_path,
+        review_after_prepare=True,
+    )

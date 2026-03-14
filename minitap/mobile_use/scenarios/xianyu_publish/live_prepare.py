@@ -75,6 +75,7 @@ def prepare_first_publishable_listing_live(
     staging_root: Path | None = None,
     preheat_max_steps: int = 10,
     preheat_attempts: int = 2,
+    review_after_prepare: bool = False,
     components: XianyuLivePrepareComponents | None = None,
 ) -> XianyuPrepareListingResult:
     resolved_settings = settings or XianyuPublishSettings()
@@ -110,6 +111,7 @@ def prepare_first_publishable_listing_live(
     return live_components.runner.prepare_first_publishable_listing(
         serial=resolved_serial,
         staging_root=resolved_staging_root,
+        review_after_prepare=review_after_prepare,
     )
 
 

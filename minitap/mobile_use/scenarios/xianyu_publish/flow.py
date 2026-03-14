@@ -415,6 +415,24 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
+        publish_success_view_listing = self._find_target(elements, exact_text="看看宝贝")
+        publish_success_continue = self._find_target(elements, exact_text="继续发布")
+        if (
+            current_package == self._settings.xianyu_package_name
+            and any("发布成功" in text for text in visible_texts)
+            and publish_success_view_listing is not None
+            and publish_success_continue is not None
+        ):
+            targets["publish_success_view_listing"] = publish_success_view_listing
+            targets["publish_success_continue"] = publish_success_continue
+            return XianyuScreenAnalysis(
+                screen_name="publish_success",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
         publish_entry = self._find_target(elements, exact_text=self._settings.publish_entry_text)
         if (
             current_package == self._settings.xianyu_package_name

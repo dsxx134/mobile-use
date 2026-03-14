@@ -6,6 +6,7 @@ from minitap.mobile_use.scenarios.xianyu_publish.media_sync import ListingMediaS
 from minitap.mobile_use.scenarios.xianyu_publish.models import (
     FeishuAttachment,
     ListingDraft,
+    TapTarget,
     XianyuScreenAnalysis,
 )
 from minitap.mobile_use.scenarios.xianyu_publish.runner import (
@@ -435,5 +436,104 @@ def test_prepare_first_publishable_listing_marks_failure_and_reraises(tmp_path):
         [
             call("recA", "准备中"),
             call("recA", "准备失败", failure_reason="price panel missing"),
+        ]
+    )
+
+
+def test_prepare_first_publishable_listing_review_mode_marks_manual_publish_ready(tmp_path):
+    listing = _make_listing(category="家居摆件", condition="几乎全新")
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.set_item_category.return_value = XianyuScreenAnalysis(
+        screen_name="metadata_panel",
+        targets={"submit_listing": TapTarget(x=1500, y=140, text="发布, 发布")},
+    )
+    flow.set_item_condition.return_value = XianyuScreenAnalysis(
+        screen_name="metadata_panel",
+        targets={"submit_listing": TapTarget(x=1500, y=140, text="发布, 发布")},
+    )
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+    )
+
+    result = runner.prepare_first_publishable_listing(
+        serial="device-1",
+        staging_root=tmp_path,
+        review_after_prepare=True,
+    )
+
+    source.update_listing_status.assert_has_calls(
+        [
+            call("recA", "准备中"),
+            call("recA", "待人工发布", failure_reason=None),
+        ]
+    )
+    assert result.review is not None
+    assert result.review.ready_for_manual_publish is True
+    assert result.review.submit_button_visible is True
+    assert result.review.screen_name == "metadata_panel"
+
+
+def test_prepare_first_publishable_listing_review_mode_fails_without_submit_button(tmp_path):
+    listing = _make_listing()
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+    )
+
+    with pytest.raises(RuntimeError, match="Publish submit button is not visible after prepare"):
+        runner.prepare_first_publishable_listing(
+            serial="device-1",
+            staging_root=tmp_path,
+            review_after_prepare=True,
+        )
+
+    source.update_listing_status.assert_has_calls(
+        [
+            call("recA", "准备中"),
+            call(
+                "recA",
+                "准备失败",
+                failure_reason="Publish submit button is not visible after prepare",
+            ),
         ]
     )

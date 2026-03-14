@@ -7,6 +7,14 @@ from minitap.mobile_use.scenarios.xianyu_publish.models import ListingDraft
 from minitap.mobile_use.scenarios.xianyu_publish.settings import XianyuPublishSettings
 
 
+class XianyuPrepareReview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    screen_name: str
+    submit_button_visible: bool
+    ready_for_manual_publish: bool
+
+
 class XianyuPrepareListingResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -15,6 +23,7 @@ class XianyuPrepareListingResult(BaseModel):
     remote_media_paths: list[str]
     body_text: str
     final_screen_name: str
+    review: XianyuPrepareReview | None = None
 
 
 def build_listing_body(listing: ListingDraft) -> str:
@@ -59,6 +68,7 @@ class XianyuPrepareRunner:
         *,
         serial: str,
         staging_root: Path,
+        review_after_prepare: bool = False,
     ) -> XianyuPrepareListingResult:
         listing = self._source.pick_first_publishable_record()
         if listing is None:
@@ -112,9 +122,15 @@ class XianyuPrepareRunner:
                     if not _is_best_effort_location_error(exc):
                         raise
 
+            review: XianyuPrepareReview | None = None
+            next_status = "已就绪"
+            if review_after_prepare:
+                review = self._build_prepare_review(final_analysis)
+                next_status = self._settings.manual_review_status
+
             self._source.update_listing_status(
                 staged_listing.record_id,
-                "已就绪",
+                next_status,
                 failure_reason=None,
             )
         except Exception as exc:
@@ -131,4 +147,23 @@ class XianyuPrepareRunner:
             remote_media_paths=media_result.remote_paths,
             body_text=body_text,
             final_screen_name=final_analysis.screen_name,
+            review=review,
+        )
+
+    def _build_prepare_review(self, final_analysis: Any) -> XianyuPrepareReview:
+        screen_name = final_analysis.screen_name
+        if screen_name not in {"listing_form", "metadata_panel"}:
+            raise RuntimeError(
+                "Prepare review requires a supported editor screen, got "
+                f"{screen_name}"
+            )
+
+        submit_button_visible = final_analysis.targets.get("submit_listing") is not None
+        if not submit_button_visible:
+            raise RuntimeError("Publish submit button is not visible after prepare")
+
+        return XianyuPrepareReview(
+            screen_name=screen_name,
+            submit_button_visible=submit_button_visible,
+            ready_for_manual_publish=True,
         )

@@ -34,5 +34,10 @@ class XianyuPublishSettings(BaseSettings):
     status_field_name: str = Field(default="发布状态")
     failure_reason_field_name: str = Field(default="失败原因")
     allow_publish_field_name: str = Field(default="是否允许发布")
+    auto_publish_field_name: str = Field(default="允许自动发布")
+    listing_id_field_name: str = Field(default="闲鱼商品ID")
+    listing_url_field_name: str = Field(default="闲鱼商品链接")
+    published_at_field_name: str = Field(default="发布时间")
+    manual_review_status: str = "待人工发布"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
