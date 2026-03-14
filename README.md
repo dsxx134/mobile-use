@@ -422,6 +422,9 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - enter the `所在地` region picker
 - Real-device probing also showed that selecting a top-level region such as `上海` does not yet
   finish location selection; it narrows the same hierarchical picker and still needs another step
+- After the final district tap, the app can briefly keep the `location_region_picker` overlay
+  visible on top of the listing form before it settles. The flow now polls through that tail
+  instead of treating the first post-tap frame as a hard failure.
 - Final location writeback is still not treated as deterministic yet; real-device probing did not
   produce a stable, visible confirmation on the listing form after selecting either a common
   address or a region row

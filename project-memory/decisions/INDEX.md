@@ -12,5 +12,6 @@
 | xianyu space bridge uses ratio taps for visual controls | 2026-03-13 | 2026-03-13-xianyu-space-bridge-uses-ratio-taps-for-visual-controls.md |
 | xianyu metadata panel is distinct from publish chooser | 2026-03-14 | 2026-03-14-xianyu-metadata-panel-is-distinct-from-publish-chooser.md |
 | xianyu category support stays on visible metadata chips | 2026-03-14 | 2026-03-14-xianyu-category-support-stays-on-visible-metadata-chips.md |
+| xianyu location stays out of runner until writeback is visible | 2026-03-14 | 2026-03-14-xianyu-location-stays-out-of-runner-until-writeback-is-visible.md |
 
-Total: 10
+Total: 11

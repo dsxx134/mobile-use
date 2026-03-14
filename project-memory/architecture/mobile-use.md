@@ -123,6 +123,10 @@ Updated: 2026-03-14
   - enter the root `location_panel`
   - tap the full `请选择宝贝所在地` row
   - enter the hierarchical `location_region_picker`
+- The flow service now also has a hierarchical `set_location_region_path()` helper for the verified
+  Huawei-tablet path `上海 -> 上海 -> 黄浦区`. The first `上海` tap narrows the picker, the second
+  `上海` tap expands districts, and the final district tap can leave a transient
+  `location_region_picker` tail over the editor before the UI settles.
 - The portrait listing form also exposes a metadata/spec entry row such as `分类/ISBN码/成色`
   or richer variants like `分类/盒袋状态/盒卡状态/等\n款式`.
 - On the Huawei tablet, tapping that row does not reopen the old publish chooser; it expands into
@@ -142,7 +146,9 @@ Updated: 2026-03-14
   This branch does not yet traverse a deeper category tree or category search flow.
 - Final location persistence is still unresolved on this app/device pair. Real-device probes showed
   that tapping a common address or a district row can return to the listing form without a stable,
-  visible location confirmation, so the flow stops at entering the picker for now.
+  visible location confirmation in either the form row or the reopened `location_panel`. The flow
+  can now survive the picker tail, but the runner still does not treat location as a deterministic
+  writeback.
 - Real-device probing also showed that selecting a top-level region like `上海` narrows the same
   hierarchical picker rather than completing location selection in one tap.
 - Because this portrait `发闲置` form does not currently expose a separate title field through the

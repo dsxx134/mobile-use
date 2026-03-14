@@ -36,6 +36,7 @@ Status: Active
 - Xianyu publish flow batch 13 completed on `feat/android-debug-mcp`: metadata/spec-panel recognition, deterministic `成色` and `商品来源` chip selection, optional Feishu mapping for those fields, and real-device verification that the metadata page is distinct from `publish_chooser`.
 - Xianyu publish flow batch 14 completed on `feat/android-debug-mcp`: visible metadata-panel category chip extraction, optional Feishu `分类` mapping, prepare-runner category application, and real-device verification that `set_item_category('生活百科')` flips the selected category chip while staying on `metadata_panel`.
 - Xianyu publish flow batch 15 completed on `feat/android-debug-mcp`: scrolled metadata-editor recovery, lower-row target extraction inside `metadata_panel`, and real-device verification that `选择位置` still opens `location_panel` from that state while top-level region selection remains hierarchical.
+- Xianyu publish flow batch 16 completed on `feat/android-debug-mcp`: hierarchical location-region path helper, post-district tail polling for `location_region_picker`, and real-device verification that `上海 -> 上海 -> 黄浦区` returns through a transient picker tail before settling back to the editor.
 
 ## Operational Rule
 - Important milestones should be committed and pushed to GitHub instead of remaining only local.

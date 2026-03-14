@@ -30,5 +30,6 @@
 | xianyu-metadata-panel-uses-chip-selection | 2026-03-14 | xianyu-metadata-panel-uses-chip-selection.md |
 | xianyu-category-selection-uses-visible-chips | 2026-03-14 | xianyu-category-selection-uses-visible-chips.md |
 | xianyu-scrolled-metadata-still-belongs-to-editor | 2026-03-14 | xianyu-scrolled-metadata-still-belongs-to-editor.md |
+| xianyu-location-region-final-selection-needs-tail-polling | 2026-03-14 | xianyu-location-region-final-selection-needs-tail-polling.md |
 
-Total: 28
+Total: 29
