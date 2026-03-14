@@ -274,6 +274,57 @@ class XianyuFlowAnalyzer:
             )
         return option_targets
 
+    def _find_focused_edit_text_target(
+        self,
+        elements: Iterable[dict],
+        *,
+        hint: str | None = None,
+    ) -> TapTarget | None:
+        for element in elements:
+            element_class = element.get("class") or element.get("className")
+            if element_class != "android.widget.EditText":
+                continue
+            if str(element.get("focused", "")).lower() != "true":
+                continue
+            element_hint = element.get("hint")
+            if hint is not None and element_hint != hint:
+                continue
+            target = parse_android_bounds(element.get("bounds"))
+            if target is None:
+                continue
+            text = _extract_text(element) or element_hint or ""
+            return target.model_copy(update={"text": text})
+        return None
+
+    def _find_location_search_result_targets(
+        self,
+        elements: Iterable[dict],
+        *,
+        current_package: str | None,
+    ) -> dict[str, TapTarget]:
+        result_targets: list[TapTarget] = []
+        for element in elements:
+            if element.get("package") != current_package:
+                continue
+            element_class = element.get("class") or element.get("className")
+            if element_class == "android.widget.EditText":
+                continue
+            if str(element.get("clickable", "")).lower() != "true":
+                continue
+            text = _extract_text(element)
+            if text is None or text == "取消":
+                continue
+            target = parse_android_bounds(element.get("bounds"))
+            if target is None or target.y < 180:
+                continue
+            result_targets.append(target.model_copy(update={"text": text}))
+
+        result_targets.sort(key=lambda target: target.y)
+        return {
+            f"location_search_result_{index}": target
+            for index, target in enumerate(result_targets)
+        }
+
     def _find_metadata_choice_targets(
         self,
         elements: Iterable[dict],
@@ -519,6 +570,28 @@ class XianyuFlowAnalyzer:
             targets.update(self._find_location_region_option_targets(elements))
             return XianyuScreenAnalysis(
                 screen_name="location_region_picker",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
+        location_search_input = self._find_focused_edit_text_target(elements, hint="搜索地址")
+        location_search_cancel = self._find_target(elements, exact_text="取消")
+        location_search_result_targets = self._find_location_search_result_targets(
+            elements,
+            current_package=current_package,
+        )
+        if (
+            current_package == self._settings.xianyu_package_name
+            and location_search_input is not None
+            and location_search_cancel is not None
+        ):
+            targets["location_search_input"] = location_search_input
+            targets["location_search_cancel"] = location_search_cancel
+            targets.update(location_search_result_targets)
+            return XianyuScreenAnalysis(
+                screen_name="location_search_screen",
                 current_package=current_package,
                 current_activity=current_activity,
                 visible_texts=visible_texts,
@@ -1293,6 +1366,44 @@ class XianyuPublishFlowService:
             f"{max_steps} steps: {final_analysis.screen_name}"
         )
 
+    def advance_listing_form_to_location_search_screen(
+        self,
+        serial: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        for _ in range(max_steps):
+            analysis = self._analyze(serial)
+            if analysis.screen_name == "location_search_screen":
+                return analysis
+
+            if analysis.screen_name in {"listing_form", "metadata_panel"}:
+                analysis = self.advance_listing_form_to_location_panel(
+                    serial,
+                    max_steps=max_steps,
+                )
+
+            if analysis.screen_name == "location_panel":
+                target = analysis.targets.get("location_search")
+                if target is None:
+                    raise RuntimeError("Missing location_search target on location panel")
+                self._tap_target(serial, target, "location_search")
+                analysis = self._wait_for_non_loading_screen(serial)
+                if analysis.screen_name in {"location_search_screen", "unknown"}:
+                    continue
+
+            raise RuntimeError(
+                "Cannot reach location search screen from current screen: "
+                f"{analysis.screen_name}"
+            )
+
+        final_analysis = self._analyze(serial)
+        if final_analysis.screen_name == "location_search_screen":
+            return final_analysis
+        raise RuntimeError(
+            "Failed to reach location search screen within "
+            f"{max_steps} steps: {final_analysis.screen_name}"
+        )
+
     def set_location_region_path(
         self,
         serial: str,
@@ -1367,6 +1478,39 @@ class XianyuPublishFlowService:
                 )
 
         raise RuntimeError("Location path exhausted without returning to listing form")
+
+    def search_location_and_select_result(
+        self,
+        serial: str,
+        query: str,
+        *,
+        result_index: int = 0,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        normalized_query = query.strip()
+        if not normalized_query:
+            raise ValueError("Location search query cannot be empty")
+        if result_index < 0:
+            raise ValueError("Location search result index cannot be negative")
+
+        self.advance_listing_form_to_location_search_screen(
+            serial,
+            max_steps=max_steps,
+        )
+        self._android.set_focused_text(serial, normalized_query)
+        analysis = self._wait_for_non_loading_screen(serial)
+        if analysis.screen_name != "location_search_screen":
+            raise RuntimeError(
+                "Location search left the search screen before results became available: "
+                f"{analysis.screen_name}"
+            )
+
+        target_name = f"location_search_result_{result_index}"
+        result_target = analysis.targets.get(target_name)
+        if result_target is None:
+            raise RuntimeError(f"Missing location search result target: {target_name}")
+        self._tap_target(serial, result_target, target_name)
+        return self._wait_for_non_loading_screen(serial)
 
     def advance_listing_form_to_metadata_panel(
         self,

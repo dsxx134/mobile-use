@@ -251,6 +251,14 @@ class UIAutomatorClient:
         finally:
             device.set_fastinput_ime(False)
 
+    def set_focused_text(self, text: str) -> None:
+        """Set text on the currently focused EditText without switching IMEs."""
+        device = self._ensure_connected()
+        focused_edit_text = device(className="android.widget.EditText", focused=True)
+        if not focused_edit_text.exists:
+            raise RuntimeError("No focused EditText found on the current screen")
+        focused_edit_text.set_text(text)
+
     def get_hierarchy(self) -> str:
         """
         Get the UI hierarchy XML from the device.

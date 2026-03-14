@@ -133,6 +133,10 @@ class AndroidDebugService:
         self.get_ui_client(serial).send_text(text)
         return {"serial": serial, "text": text, "success": True}
 
+    def set_focused_text(self, serial: str, text: str) -> dict[str, Any]:
+        self.get_ui_client(serial).set_focused_text(text)
+        return {"serial": serial, "text": text, "success": True}
+
     def launch_app(self, serial: str, package_name: str) -> dict[str, Any]:
         device = self.get_device(serial)
         device.app_start(package_name)

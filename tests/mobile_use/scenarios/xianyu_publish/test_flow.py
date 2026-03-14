@@ -40,16 +40,19 @@ class FakeAndroidService:
         screens: list[dict],
         advance_on_get_indices: set[int] | None = None,
         advance_on_input_indices: set[int] | None = None,
+        advance_on_focused_text_indices: set[int] | None = None,
         advance_on_tap_calls: set[int] | None = None,
     ):
         self._screens = screens
         self._index = 0
         self._advance_on_get_indices = advance_on_get_indices or set()
         self._advance_on_input_indices = advance_on_input_indices or set()
+        self._advance_on_focused_text_indices = advance_on_focused_text_indices or set()
         self._advance_on_tap_calls = advance_on_tap_calls
         self.device = Mock()
         self.tap_calls: list[tuple[str, int, int]] = []
         self.input_text_calls: list[tuple[str, str]] = []
+        self.set_focused_text_calls: list[tuple[str, str]] = []
         self._tap_count = 0
 
     def get_current_app(self, serial: str) -> dict:
@@ -81,6 +84,15 @@ class FakeAndroidService:
     def input_text(self, serial: str, text: str) -> dict:
         self.input_text_calls.append((serial, text))
         if self._index in self._advance_on_input_indices and self._index < len(self._screens) - 1:
+            self._index += 1
+        return {"serial": serial, "text": text, "success": True}
+
+    def set_focused_text(self, serial: str, text: str) -> dict:
+        self.set_focused_text_calls.append((serial, text))
+        if (
+            self._index in self._advance_on_focused_text_indices
+            and self._index < len(self._screens) - 1
+        ):
             self._index += 1
         return {"serial": serial, "text": text, "success": True}
 
@@ -241,6 +253,63 @@ def _location_region_picker_elements(labels: list[str]) -> list[dict]:
                 "bounds": f"[0,{row_top}][1600,{row_bottom}]",
             }
         )
+    return elements
+
+
+def _location_search_screen_elements(
+    *,
+    query: str = "",
+    results: list[str] | None = None,
+) -> list[dict]:
+    elements: list[dict] = [
+        {
+            "class": "android.widget.EditText",
+            "package": "com.taobao.idlefish",
+            "hint": "搜索地址",
+            "text": query,
+            "clickable": "true",
+            "focused": "true",
+            "bounds": "[130,91][1420,179]",
+        },
+        {
+            "text": "取消",
+            "package": "com.taobao.idlefish",
+            "clickable": "true",
+            "bounds": "[1480,111][1560,159]",
+        },
+    ]
+    top = 215
+    row_height = 200
+    for index, result in enumerate(results or []):
+        row_top = top + (index * row_height)
+        row_bottom = row_top + row_height
+        elements.append(
+            {
+                "text": result,
+                "package": "com.taobao.idlefish",
+                "class": "android.view.View",
+                "clickable": "true",
+                "bounds": f"[0,{row_top}][1600,{row_bottom}]",
+            }
+        )
+    elements.extend(
+        [
+            {
+                "text": "菜单",
+                "package": "com.huawei.ohos.inputmethod",
+                "class": "android.view.View",
+                "clickable": "true",
+                "bounds": "[0,1753][266,1895]",
+            },
+            {
+                "text": "隐藏键盘",
+                "package": "com.huawei.ohos.inputmethod",
+                "class": "android.view.View",
+                "clickable": "false",
+                "bounds": "[1334,1753][1600,1895]",
+            },
+        ]
+    )
     return elements
 
 
@@ -572,6 +641,34 @@ def test_detects_location_region_picker_targets():
     assert analysis.targets["location_region_get_current"].text == "获取当前位置"
     assert analysis.targets["location_region_option_上海"].x == 800
     assert analysis.targets["location_region_option_上海"].y == 1198
+
+
+def test_detects_location_search_screen_targets():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=_location_search_screen_elements(
+            query="上海虹桥站",
+            results=[
+                "上海虹桥站\n新虹街道申贵路1500号",
+                "上海虹桥站P9地下停车场\n华漕镇申虹路",
+            ],
+        ),
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "location_search_screen"
+    assert analysis.targets["location_search_input"].text == "上海虹桥站"
+    assert analysis.targets["location_search_cancel"].text == "取消"
+    assert (
+        analysis.targets["location_search_result_0"].text
+        == "上海虹桥站\n新虹街道申贵路1500号"
+    )
+    assert (
+        analysis.targets["location_search_result_1"].text
+        == "上海虹桥站P9地下停车场\n华漕镇申虹路"
+    )
 
 
 def test_detects_description_editor_from_portrait_form():
@@ -1620,6 +1717,71 @@ def test_set_location_region_path_waits_for_final_picker_tail_to_leave():
     result = flow.set_location_region_path("device-1", ["上海", "黄浦区"])
 
     assert result.screen_name == "listing_form"
+
+
+def test_search_location_and_select_result_uses_focused_text_and_taps_first_result():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "返回", "bounds": "[0,80][200,190]"},
+                    {"text": "宝贝所在地", "bounds": "[694,110][906,160]"},
+                    {"text": "搜索地址", "bounds": "[40,200][1560,290]"},
+                    {"text": "常用地址", "bounds": "[0,420][1600,513]"},
+                    {
+                        "text": "请选择宝贝所在地",
+                        "clickable": "true",
+                        "bounds": "[0,1813][1600,1953]",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_search_screen_elements(),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_location_search_screen_elements(
+                    query="上海虹桥站",
+                    results=[
+                        "上海虹桥站\n新虹街道申贵路1500号",
+                        "上海虹桥站P9地下停车场\n华漕镇申虹路",
+                    ],
+                ),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                    {"content-desc": "选择位置", "bounds": "[70,1915][1530,2055]"},
+                ],
+            ),
+        ],
+        advance_on_focused_text_indices={1},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.search_location_and_select_result("device-1", "上海虹桥站")
+
+    assert result.screen_name == "listing_form"
+    assert android_service.tap_calls == [
+        ("device-1", 800, 245),
+        ("device-1", 800, 315),
+    ]
+    assert android_service.set_focused_text_calls == [("device-1", "上海虹桥站")]
 
 
 def test_advance_listing_form_to_metadata_panel_taps_metadata_entry():
