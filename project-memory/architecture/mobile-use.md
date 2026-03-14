@@ -133,6 +133,15 @@ Updated: 2026-03-14
   defaulted to the Bitable column name `预设地址`.
 - `XianyuPrepareRunner` can call the existing location-search helper when that optional field is
   present, but this is still treated as best-effort rather than proven persisted state.
+- The current user-side Feishu integration now has a dedicated Bitable app for Xianyu debug use,
+  named `闲鱼自动发布联调`, with a single `商品发布` table that mirrors the scenario field names.
+- The worktree-local `.env` now stores that dedicated app token and table id so local scripts can
+  resolve the correct Bitable target without committing tokens into git.
+- `XianyuPrepareRunner` now closes the loop into Feishu Bitable by writing:
+  - `准备中` immediately after a record is selected
+  - `已就绪` when the portrait form is prepared again
+  - `准备失败` plus `失败原因` if any downstream device step raises
+- This writeback currently describes prepare-runner state, not final Xianyu publish state.
 - The flow service now also has a hierarchical `set_location_region_path()` helper for the verified
   Huawei-tablet path `上海 -> 上海 -> 黄浦区`. The first `上海` tap narrows the picker, the second
   `上海` tap expands districts, and the final district tap can leave a transient

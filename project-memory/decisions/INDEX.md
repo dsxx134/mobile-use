@@ -14,5 +14,6 @@
 | xianyu category support stays on visible metadata chips | 2026-03-14 | 2026-03-14-xianyu-category-support-stays-on-visible-metadata-chips.md |
 | xianyu location stays out of runner until writeback is visible | 2026-03-14 | 2026-03-14-xianyu-location-stays-out-of-runner-until-writeback-is-visible.md |
 | xianyu runner can apply best effort location search query | 2026-03-14 | 2026-03-14-xianyu-runner-can-apply-best-effort-location-search-query.md |
+| xianyu prepare runner writes preparation status to bitable | 2026-03-14 | 2026-03-14-xianyu-prepare-runner-writes-preparation-status-to-bitable.md |
 
-Total: 12
+Total: 13

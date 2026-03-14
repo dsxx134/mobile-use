@@ -360,6 +360,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `预设地址`
 - `商品图片`
 - `发布状态`
+- `失败原因`
 - `是否允许发布`
 
 ### Smoke test the foundation settings
@@ -497,6 +498,7 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 
 - `XianyuPrepareRunner` currently orchestrates the deterministic business slice:
   - pick the first publishable Bitable record
+  - mark the record `准备中`
   - resolve temporary download URLs for attachments
   - download staged media into a record-scoped local directory
   - push the staged files into `XIANYU_ANDROID_MEDIA_DIR/<record_id>`
@@ -511,6 +513,8 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - optionally apply `成色`
   - optionally apply `商品来源`
   - optionally apply a preset Bitable location search query such as `上海虹桥站`
+  - mark the record `已就绪` when the prepared form is reached again
+  - mark the record `准备失败` with `失败原因` if any step raises
 - Real-device verification on `E2P6R22708000602` confirmed a full prepare-runner pass that ended
   on `listing_form` with body text and price filled
 - Real-device verification also confirmed that the current metadata page is recognized as
@@ -521,9 +525,9 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 - The runner intentionally stops once the form is prepared and visible again; it does not yet claim:
   - category selection
   - stable location persistence
-  - shipping writeback from Bitable
   - final publish submission
 - The default optional Bitable field for that best-effort search path is `预设地址`
+- The current writeback statuses used by the runner are `准备中`, `已就绪`, and `准备失败`
 
 ### Current boundary
 
@@ -531,8 +535,8 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   set the verified mail shipping mode, set verified metadata chips for
   `分类/成色/商品来源`,
   drive a best-effort preset `预设地址 -> 搜索地址`,
-  reopen the album picker from `添加图片`, and prepare one publishable Bitable record into the
-  form through `XianyuPrepareRunner`
+  reopen the album picker from `添加图片`, prepare one publishable Bitable record into the
+  form through `XianyuPrepareRunner`, and write the prepare status back into Bitable
 - When the editor is scrolled into the metadata section, the flow now keeps that state classified
   as `metadata_panel` and can still open `价格设置`, `发货方式`, and `选择位置` from it
 - Stable location persistence, deeper category navigation, `买家自提`, and final publish
