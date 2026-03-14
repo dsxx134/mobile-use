@@ -41,6 +41,7 @@ class FakeAndroidService:
         advance_on_get_indices: set[int] | None = None,
         advance_on_input_indices: set[int] | None = None,
         advance_on_focused_text_indices: set[int] | None = None,
+        advance_on_set_text_by_description_indices: set[int] | None = None,
         advance_on_tap_calls: set[int] | None = None,
     ):
         self._screens = screens
@@ -48,11 +49,18 @@ class FakeAndroidService:
         self._advance_on_get_indices = advance_on_get_indices or set()
         self._advance_on_input_indices = advance_on_input_indices or set()
         self._advance_on_focused_text_indices = advance_on_focused_text_indices or set()
+        self._advance_on_set_text_by_description_indices = (
+            advance_on_set_text_by_description_indices or set()
+        )
         self._advance_on_tap_calls = advance_on_tap_calls
         self.device = Mock()
         self.tap_calls: list[tuple[str, int, int]] = []
+        self.long_press_calls: list[tuple[str, int, int]] = []
         self.input_text_calls: list[tuple[str, str]] = []
+        self.set_clipboard_text_calls: list[tuple[str, str]] = []
         self.set_focused_text_calls: list[tuple[str, str]] = []
+        self.set_text_by_description_calls: list[tuple[str, str, str]] = []
+        self.set_text_on_description_child_calls: list[tuple[str, str, str]] = []
         self._tap_count = 0
 
     def get_current_app(self, serial: str) -> dict:
@@ -64,8 +72,17 @@ class FakeAndroidService:
             self._index += 1
         return screen
 
-    def tap(self, serial: str, x: int, y: int, long_press: bool = False) -> dict:
+    def tap(
+        self,
+        serial: str,
+        x: int,
+        y: int,
+        long_press: bool = False,
+        long_press_duration_ms: int = 1000,
+    ) -> dict:
         self.tap_calls.append((serial, x, y))
+        if long_press:
+            self.long_press_calls.append((serial, x, y))
         self._tap_count += 1
         should_advance = (
             self._index < len(self._screens) - 1
@@ -76,7 +93,14 @@ class FakeAndroidService:
         )
         if should_advance:
             self._index += 1
-        return {"serial": serial, "x": x, "y": y, "success": True, "long_press": long_press}
+        return {
+            "serial": serial,
+            "x": x,
+            "y": y,
+            "success": True,
+            "long_press": long_press,
+            "long_press_duration_ms": long_press_duration_ms,
+        }
 
     def get_device(self, serial: str) -> Mock:
         return self.device
@@ -87,6 +111,10 @@ class FakeAndroidService:
             self._index += 1
         return {"serial": serial, "text": text, "success": True}
 
+    def set_clipboard_text(self, serial: str, text: str) -> dict:
+        self.set_clipboard_text_calls.append((serial, text))
+        return {"serial": serial, "text": text, "success": True}
+
     def set_focused_text(self, serial: str, text: str) -> dict:
         self.set_focused_text_calls.append((serial, text))
         if (
@@ -95,6 +123,34 @@ class FakeAndroidService:
         ):
             self._index += 1
         return {"serial": serial, "text": text, "success": True}
+
+    def set_text_by_description(self, serial: str, description: str, text: str) -> dict:
+        self.set_text_by_description_calls.append((serial, description, text))
+        if (
+            self._index in self._advance_on_set_text_by_description_indices
+            and self._index < len(self._screens) - 1
+        ):
+            self._index += 1
+        return {
+            "serial": serial,
+            "description": description,
+            "text": text,
+            "success": True,
+        }
+
+    def set_text_on_description_child(self, serial: str, description: str, text: str) -> dict:
+        self.set_text_on_description_child_calls.append((serial, description, text))
+        if (
+            self._index in self._advance_on_set_text_by_description_indices
+            and self._index < len(self._screens) - 1
+        ):
+            self._index += 1
+        return {
+            "serial": serial,
+            "description": description,
+            "text": text,
+            "success": True,
+        }
 
 
 def _metadata_panel_elements(
@@ -443,6 +499,48 @@ def test_detects_portrait_listing_form_targets_from_content_desc():
     assert analysis.targets["description_entry"].y == 1000
 
 
+def test_detects_description_entry_and_ignores_description_hint_container():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+            {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+            {"content-desc": "存草稿", "bounds": "[1265,115][1410,155]"},
+            {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+            {
+                "content-desc": "..描述有点少哦，添加品类、品牌等更多商品信息，卖得更快哦",
+                "bounds": "[0,190][1600,1693]",
+            },
+            {"content-desc": "添加图片", "bounds": "[70,645][354,929]"},
+            {
+                "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                "bounds": "[30,935][1570,1463]",
+                "clickable": "true",
+            },
+            {
+                "content-desc": "AI帮你写, AI帮你润色",
+                "bounds": "[70,1570][1530,1620]",
+                "clickable": "true",
+            },
+            {"content-desc": "分类, 分类", "bounds": "[40,1765][215,1805]"},
+            {
+                "content-desc": "已选中生活百科, 生活百科",
+                "bounds": "[245,1715][435,1855]",
+                "clickable": "true",
+            },
+            {"content-desc": "分类/游戏名称/客户端", "bounds": "[0,1693][1600,2294]"},
+            {"content-desc": "价格设置", "bounds": "[70,2294][1530,2434]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.targets["description_entry"].text == "描述, 描述一下宝贝的品牌型号、货品来源…"
+    assert analysis.targets["description_entry"].bounds == "[30,935][1570,1463]"
+    assert analysis.targets["description_entry"].y == 1199
+
+
 def test_detects_listing_form_price_entry_target():
     analyzer = XianyuFlowAnalyzer()
     screen = _make_screen(
@@ -690,6 +788,30 @@ def test_detects_publish_success_screen_targets():
     assert analysis.targets["publish_success_continue"].text == "继续发布"
 
 
+def test_detects_publish_location_required_dialog_targets():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {
+                "text": (
+                    "无法发布宝贝\n"
+                    "系统无法定位您所在的行政区，请点击宝贝图片下方位置图标，手动选择行政区。"
+                ),
+                "bounds": "[250,980][1350,1380]",
+            },
+            {"text": "取消", "clickable": "true", "bounds": "[300,1510][700,1610]"},
+            {"text": "我知道了", "clickable": "true", "bounds": "[900,1510][1300,1610]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "publish_location_required_dialog"
+    assert analysis.targets["publish_location_required_cancel"].text == "取消"
+    assert analysis.targets["publish_location_required_ack"].text == "我知道了"
+
+
 def test_detects_description_editor_from_portrait_form():
     analyzer = XianyuFlowAnalyzer()
     screen = _make_screen(
@@ -834,6 +956,28 @@ def test_detects_media_permission_dialog_and_album_picker():
     assert album_analysis.targets["album_select"].y == 260
     assert album_analysis.targets["album_confirm"].x == 1920
     assert album_analysis.targets["album_confirm"].y == 1415
+
+
+def test_detects_media_source_picker_with_album_tab_target():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"text": "拍更多细节照", "bounds": "[580,240][1080,320]"},
+            {"content-desc": "拍摄, 拍摄", "bounds": "[690,1960][910,2140]"},
+            {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+            {"content-desc": "相册\nTab 1 of 3", "bounds": "[525,2440][695,2560]"},
+            {"content-desc": "拍照\nTab 2 of 3", "bounds": "[715,2440][885,2560]"},
+            {"content-desc": "拍视频\nTab 3 of 3", "bounds": "[905,2440][1075,2560]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "media_source_picker"
+    assert analysis.targets["media_picker_album_tab"].text == "相册\nTab 1 of 3"
+    assert analysis.targets["media_picker_album_tab"].x == 610
+    assert analysis.targets["media_picker_album_tab"].y == 2500
 
 
 def test_detects_album_source_menu_and_preferred_source_target():
@@ -1185,7 +1329,27 @@ def test_advance_to_listing_form_returns_existing_listing_form_without_extra_tap
     assert android_service.tap_calls == []
 
 
-def test_advance_to_listing_form_continues_existing_draft():
+def test_advance_to_listing_form_returns_existing_metadata_panel_without_extra_taps():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="生活百科"),
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_to_listing_form("device-1")
+
+    assert result.screen_name == "metadata_panel"
+    assert android_service.tap_calls == []
+
+
+def test_advance_to_listing_form_discards_existing_draft_by_default():
     android_service = FakeAndroidService(
         screens=[
             _make_screen(
@@ -1246,11 +1410,105 @@ def test_advance_to_listing_form_continues_existing_draft():
     assert android_service.tap_calls == [
         ("device-1", 639, 1510),
         ("device-1", 1920, 761),
+        ("device-1", 412, 2405),
+    ]
+
+
+def test_advance_to_listing_form_can_continue_existing_draft_when_configured():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                elements=[
+                    {"text": "闲鱼", "bounds": "[614,1566][665,1600]"},
+                    {"content-desc": "卖闲置", "bounds": "[537,1420][742,1600]"},
+                ]
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "content-desc": "发闲置\n自己拍图卖·啥都能换钱",
+                        "bounds": "[1280,650][2560,873]",
+                        "clickable": "true",
+                    },
+                    {
+                        "content-desc": "关闭",
+                        "bounds": "[1280,1470][2560,1600]",
+                        "clickable": "true",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "你有未编辑完成的宝贝，是否继续？", "bounds": "[0,2025][1600,2560]"},
+                    {"text": "放弃", "clickable": "true", "bounds": "[40,2355][785,2455]"},
+                    {"text": "继续", "clickable": "true", "bounds": "[815,2355][1560,2455]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                    {"content-desc": "选择位置", "bounds": "[70,1915][1530,2055]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(draft_resume_action="continue"),
+        android_service=android_service,
+    )
+
+    result = flow.advance_to_listing_form("device-1")
+
+    assert result.screen_name == "listing_form"
+    assert android_service.tap_calls == [
+        ("device-1", 639, 1510),
+        ("device-1", 1920, 761),
         ("device-1", 1187, 2405),
     ]
 
 
-def test_advance_to_listing_form_waits_for_listing_form_after_tapping_draft_resume_continue():
+def test_advance_to_listing_form_accepts_metadata_panel_after_draft_resume_discard():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "你有未编辑完成的宝贝，是否继续？", "bounds": "[0,2025][1600,2560]"},
+                    {"text": "放弃", "clickable": "true", "bounds": "[40,2355][785,2455]"},
+                    {"text": "继续", "clickable": "true", "bounds": "[815,2355][1560,2455]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="生活百科"),
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.advance_to_listing_form("device-1")
+
+    assert result.screen_name == "metadata_panel"
+    assert android_service.tap_calls == [("device-1", 412, 2405)]
+
+
+def test_advance_to_listing_form_waits_for_listing_form_after_tapping_draft_resume_discard():
     android_service = FakeAndroidService(
         screens=[
             _make_screen(
@@ -1322,7 +1580,7 @@ def test_advance_to_listing_form_waits_for_listing_form_after_tapping_draft_resu
     assert android_service.tap_calls == [
         ("device-1", 639, 1510),
         ("device-1", 1920, 761),
-        ("device-1", 1187, 2405),
+        ("device-1", 412, 2405),
     ]
 
 
@@ -1411,7 +1669,7 @@ def test_advance_to_listing_form_waits_through_stale_home_and_publish_chooser_sn
     assert android_service.tap_calls == [
         ("device-1", 639, 1510),
         ("device-1", 1920, 761),
-        ("device-1", 1187, 2405),
+        ("device-1", 412, 2405),
     ]
 
 
@@ -1498,6 +1756,104 @@ def test_advance_listing_form_to_album_picker_taps_add_image():
                     },
                     {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
                     {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "所有文件", "bounds": "[690,85][910,185]"},
+                    {"content-desc": "选择", "bounds": "[698,210][798,310]"},
+                    {"content-desc": "相册\nTab 1 of 3", "bounds": "[525,2440][695,2560]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_listing_form_to_album_picker("device-1")
+
+    assert result.screen_name == "album_picker"
+    assert android_service.tap_calls == [("device-1", 310, 490)]
+
+
+def test_advance_listing_form_to_album_picker_switches_camera_picker_to_album_tab():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "拍更多细节照", "bounds": "[580,240][1080,320]"},
+                    {"content-desc": "拍摄, 拍摄", "bounds": "[690,1960][910,2140]"},
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "相册\nTab 1 of 3", "bounds": "[525,2440][695,2560]"},
+                    {"content-desc": "拍照\nTab 2 of 3", "bounds": "[715,2440][885,2560]"},
+                    {"content-desc": "拍视频\nTab 3 of 3", "bounds": "[905,2440][1075,2560]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "所有文件", "bounds": "[690,85][910,185]"},
+                    {"content-desc": "选择", "bounds": "[698,210][798,310]"},
+                    {"content-desc": "相册\nTab 1 of 3", "bounds": "[525,2440][695,2560]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_listing_form_to_album_picker("device-1")
+
+    assert result.screen_name == "album_picker"
+    assert android_service.tap_calls == [
+        ("device-1", 310, 490),
+        ("device-1", 610, 2500),
+    ]
+
+
+def test_advance_listing_form_to_album_picker_can_start_from_metadata_panel():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "分类/ISBN码/成色￼", "bounds": "[70,1529][408,1582]"},
+                    {"content-desc": "分类, 分类", "bounds": "[70,1600][220,1650]"},
+                    {"content-desc": "已选中生活百科, 生活百科", "bounds": "[245,1615][435,1755]"},
+                    {"content-desc": "成色, 成色", "bounds": "[70,1800][220,1850]"},
+                    {"content-desc": "可选几乎全新, 几乎全新", "bounds": "[395,1895][585,2035]"},
+                    {"content-desc": "价格设置", "bounds": "[70,2237][1530,2377]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,2517][1530,2560]"},
                 ],
             ),
             _make_screen(
@@ -2404,6 +2760,72 @@ def test_fill_description_inputs_text_and_taps_done():
 
 
 def test_fill_description_returns_immediately_when_input_text_already_restores_listing_form():
+    description = "自动回表单描述"
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                        "clickable": "true",
+                    },
+                    {"text": description, "bounds": "[120,900][900,980]"},
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+        ],
+        advance_on_input_indices={1},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.fill_description("device-1", description)
+
+    assert result.screen_name == "listing_form"
+    assert android_service.tap_calls == [("device-1", 800, 1000)]
+    assert android_service.input_text_calls == [("device-1", description)]
+
+
+def test_fill_description_retries_when_input_text_restores_listing_form_without_visible_text():
+    description = "34寸显示器 成色很好 北京自提"
     android_service = FakeAndroidService(
         screens=[
             _make_screen(
@@ -2451,19 +2873,146 @@ def test_fill_description_returns_immediately_when_input_text_already_restores_l
                     {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
                 ],
             ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {
+                        "content-desc": "34寸显示器 成色很好 北京自提, 闲鱼",
+                        "bounds": "[70,775][1525,833]",
+                    },
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                        "clickable": "true",
+                    },
+                    {"text": description, "bounds": "[120,900][900,980]"},
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
         ],
         advance_on_input_indices={1},
+        advance_on_set_text_by_description_indices={3},
+        advance_on_tap_calls={1, 2, 3},
     )
     flow = XianyuPublishFlowService(
         settings=XianyuPublishSettings(),
         android_service=android_service,
+        sleep_fn=lambda _seconds: None,
     )
 
-    result = flow.fill_description("device-1", "自动回表单描述")
+    result = flow.fill_description("device-1", description)
 
     assert result.screen_name == "listing_form"
-    assert android_service.tap_calls == [("device-1", 800, 1000)]
-    assert android_service.input_text_calls == [("device-1", "自动回表单描述")]
+    assert android_service.input_text_calls == [("device-1", description)]
+    assert android_service.set_text_by_description_calls == []
+    assert android_service.set_text_on_description_child_calls == [
+        ("device-1", "描述, 描述一下宝贝的品牌型号、货品来源…", description),
+        ("device-1", "描述, 描述一下宝贝的品牌型号、货品来源…", description),
+    ]
+    assert android_service.set_clipboard_text_calls == []
+    assert android_service.tap_calls == [
+        ("device-1", 800, 1000),
+        ("device-1", 800, 1000),
+        ("device-1", 1525, 1671),
+    ]
+
+
+def test_fill_description_prefers_direct_description_child_set_when_listing_form_allows_it():
+    description = "34寸显示器\n\n成色很好，北京自提。"
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "存草稿", "bounds": "[1265,115][1410,155]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"text": description, "bounds": "[70,775][1525,950]"},
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    *_metadata_panel_elements(
+                        selected_category="显示器",
+                        selected_condition="几乎全新",
+                    ),
+                    {"text": description, "bounds": "[120,930][1000,1030]"},
+                ],
+            ),
+        ],
+        advance_on_set_text_by_description_indices={0},
+        advance_on_tap_calls={1},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.fill_description("device-1", description)
+
+    assert result.screen_name == "metadata_panel"
+    assert android_service.set_text_on_description_child_calls == [
+        ("device-1", "描述, 描述一下宝贝的品牌型号、货品来源…", description),
+    ]
+    assert android_service.input_text_calls == []
+    assert android_service.tap_calls == [("device-1", 1525, 1671)]
 
 
 def test_fill_description_accepts_metadata_panel_after_done():
@@ -2532,6 +3081,519 @@ def test_fill_description_accepts_metadata_panel_after_done():
         ("device-1", 1525, 1671),
     ]
     assert android_service.input_text_calls == [("device-1", "描述完成后滚到规格区域")]
+
+
+def test_fill_description_falls_back_to_clipboard_paste_when_input_text_does_not_persist():
+    description = "34寸显示器\n\n成色很好，北京自提。"
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "分类/ISBN码/成色￼", "bounds": "[70,1529][408,1582]"},
+                    {"content-desc": "分类, 分类", "bounds": "[70,1600][220,1650]"},
+                    {"content-desc": "已选中生活百科, 生活百科", "bounds": "[245,1615][435,1755]"},
+                    {"content-desc": "成色, 成色", "bounds": "[70,1800][220,1850]"},
+                    {"content-desc": "可选几乎全新, 几乎全新", "bounds": "[395,1895][585,2035]"},
+                    {"content-desc": "价格设置", "bounds": "[70,2237][1530,2377]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,2517][1530,2560]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"text": "34寸显示器", "bounds": "[120,930][600,980]"},
+                    {"text": "粘贴", "bounds": "[260,860][420,940]", "clickable": "true"},
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                        "clickable": "true",
+                    },
+                    {"text": "34寸显示器", "bounds": "[120,930][600,980]"},
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+        ],
+        advance_on_input_indices={1},
+        advance_on_tap_calls={1, 2, 3, 5},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.fill_description("device-1", description)
+
+    assert result.screen_name == "listing_form"
+    assert android_service.input_text_calls == [
+        ("device-1", description),
+        ("device-1", description),
+    ]
+    assert android_service.set_clipboard_text_calls == [("device-1", description)]
+    assert android_service.long_press_calls == [("device-1", 800, 1173)]
+    assert android_service.tap_calls == [
+        ("device-1", 800, 1000),
+        ("device-1", 800, 1000),
+        ("device-1", 800, 1173),
+        ("device-1", 340, 900),
+        ("device-1", 1525, 1671),
+    ]
+
+
+def test_fill_description_clipboard_fallback_waits_through_publish_chooser_tail():
+    description = "34寸显示器\n\n成色很好，北京自提。"
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="生活百科"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"text": "34寸显示器", "bounds": "[120,930][600,980]"},
+                    {"text": "粘贴", "bounds": "[260,860][420,940]", "clickable": "true"},
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "content-desc": "发闲置\n自己拍图卖·啥都能换钱",
+                        "clickable": "true",
+                        "bounds": "[1280,650][2560,873]",
+                    },
+                    {
+                        "content-desc": "关闭",
+                        "clickable": "true",
+                        "bounds": "[1280,1470][2560,1600]",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    *_metadata_panel_elements(selected_category="生活百科"),
+                    {"text": "34寸显示器", "bounds": "[120,930][600,980]"},
+                ],
+            ),
+        ],
+        advance_on_get_indices={5},
+        advance_on_input_indices={1},
+        advance_on_tap_calls={1, 2, 3, 5},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.fill_description("device-1", description)
+
+    assert result.screen_name == "metadata_panel"
+    assert android_service.tap_calls == [
+        ("device-1", 800, 1000),
+        ("device-1", 800, 1000),
+        ("device-1", 800, 1173),
+        ("device-1", 340, 900),
+        ("device-1", 1525, 1671),
+    ]
+
+
+def test_fill_description_rechecks_editor_before_using_clipboard_fallback():
+    description = "34寸显示器\n\n成色很好，北京自提。"
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="生活百科"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"text": "34寸显示器", "bounds": "[120,930][600,980]"},
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="生活百科"),
+            ),
+        ],
+        advance_on_input_indices={1},
+        advance_on_set_text_by_description_indices={3},
+        advance_on_tap_calls={1, 2, 3},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.fill_description("device-1", description)
+
+    assert result.screen_name == "metadata_panel"
+    assert android_service.input_text_calls == [("device-1", description)]
+    assert android_service.set_clipboard_text_calls == []
+    assert android_service.long_press_calls == []
+    assert android_service.tap_calls == [
+        ("device-1", 800, 1000),
+        ("device-1", 800, 1000),
+        ("device-1", 1525, 1671),
+    ]
+
+
+def test_fill_description_retries_input_from_editor_before_using_clipboard_fallback():
+    description = "34寸显示器\n\n成色很好，北京自提。"
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="生活百科"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"text": "34寸显示器", "bounds": "[120,930][600,980]"},
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    *_metadata_panel_elements(selected_category="生活百科"),
+                    {"text": "34寸显示器", "bounds": "[120,930][600,980]"},
+                ],
+            ),
+        ],
+        advance_on_input_indices={1, 3},
+        advance_on_tap_calls={1, 2, 3},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.fill_description("device-1", description)
+
+    assert result.screen_name == "metadata_panel"
+    assert android_service.input_text_calls == [
+        ("device-1", description),
+        ("device-1", description),
+    ]
+    assert android_service.set_clipboard_text_calls == []
+    assert android_service.long_press_calls == []
+    assert android_service.tap_calls == [
+        ("device-1", 800, 1000),
+        ("device-1", 800, 1000),
+        ("device-1", 1525, 1671),
+    ]
+
+
+def test_fill_description_uses_description_content_selector_before_clipboard_fallback():
+    description = "34寸显示器 成色很好 北京自提"
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "价格设置", "bounds": "[70,1635][1530,1775]"},
+                    {"content-desc": "发货方式\n包邮", "bounds": "[70,1775][1530,1915]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="生活百科"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {"content-desc": "闲鱼", "bounds": "[70,775][1525,833]"},
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1610]",
+                        "clickable": "true",
+                    },
+                    {
+                        "content-desc": "34寸显示器 成色很好 北京自提, 闲鱼",
+                        "bounds": "[70,775][1525,833]",
+                    },
+                    {"content-desc": "完成", "bounds": "[1461,1646][1590,1696]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    *_metadata_panel_elements(selected_category="生活百科"),
+                    {"text": "34寸显示器 成色很好 北京自提", "bounds": "[120,930][880,980]"},
+                ],
+            ),
+        ],
+        advance_on_input_indices={1},
+        advance_on_set_text_by_description_indices={3},
+        advance_on_tap_calls={1, 2, 3},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.fill_description("device-1", description)
+
+    assert result.screen_name == "metadata_panel"
+    assert android_service.input_text_calls == [("device-1", description)]
+    assert android_service.set_text_by_description_calls == [
+        ("device-1", "闲鱼", description),
+    ]
+    assert android_service.set_clipboard_text_calls == []
+    assert android_service.tap_calls == [
+        ("device-1", 800, 1000),
+        ("device-1", 800, 1000),
+        ("device-1", 1525, 1671),
+    ]
 
 
 def test_advance_listing_form_to_price_panel_taps_price_entry():
@@ -3914,3 +4976,92 @@ def test_advance_photo_analysis_to_publish_chooser_can_start_from_unknown_xianyu
         ("device-1", 1374, 276),
         ("device-1", 1740, 1495),
     ]
+
+
+def test_submit_listing_and_wait_for_result_taps_submit_and_returns_success_screen():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="生活百科"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "宝贝发布成功", "bounds": "[520,410][1080,490]"},
+                    {"text": "分享给更多人", "bounds": "[600,560][1000,620]"},
+                    {"text": "看看宝贝", "clickable": "true", "bounds": "[220,1960][760,2090]"},
+                    {"text": "继续发布", "clickable": "true", "bounds": "[840,1960][1380,2090]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.submit_listing_and_wait_for_result("device-1")
+
+    assert result.screen_name == "publish_success"
+    assert android_service.tap_calls == [("device-1", 1505, 135)]
+
+
+def test_submit_listing_and_wait_for_result_raises_when_success_screen_never_appears():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="生活百科"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="生活百科"),
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    with pytest.raises(RuntimeError, match="Publish did not reach success screen"):
+        flow.submit_listing_and_wait_for_result("device-1")
+
+
+def test_submit_listing_and_wait_for_result_surfaces_location_required_dialog_reason():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="生活百科"),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {
+                        "text": (
+                            "无法发布宝贝\n"
+                            "系统无法定位您所在的行政区，请点击宝贝图片下方位置图标，手动选择行政区。"
+                        ),
+                        "bounds": "[250,980][1350,1380]",
+                    },
+                    {"text": "取消", "clickable": "true", "bounds": "[300,1510][700,1610]"},
+                    {"text": "我知道了", "clickable": "true", "bounds": "[900,1510][1300,1610]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="系统无法定位您所在的行政区",
+    ):
+        flow.submit_listing_and_wait_for_result("device-1")

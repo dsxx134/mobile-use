@@ -17,5 +17,7 @@
 | xianyu prepare runner writes preparation status to bitable | 2026-03-14 | 2026-03-14-xianyu-prepare-runner-writes-preparation-status-to-bitable.md |
 | xianyu live prepare entrypoint is scripted | 2026-03-14 | 2026-03-14-xianyu-live-prepare-entrypoint-is-scripted.md |
 | xianyu review mode stops at manual publish | 2026-03-14 | 2026-03-14-xianyu-review-mode-stops-at-manual-publish.md |
+| xianyu auto publish requires explicit row opt-in | 2026-03-14 | 2026-03-14-xianyu-auto-publish-requires-explicit-row-opt-in.md |
+| xianyu admin region remains the next auto publish blocker | 2026-03-14 | 2026-03-14-xianyu-admin-region-remains-the-next-auto-publish-blocker.md |
 
-Total: 15
+Total: 17

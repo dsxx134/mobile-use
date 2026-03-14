@@ -13,6 +13,7 @@ class XianyuPublishSettings(BaseSettings):
     xianyu_main_activity: str = "com.taobao.idlefish.maincontainer.activity.MainActivity"
     publish_entry_text: str = "卖闲置"
     publish_option_text: str = "发闲置"
+    draft_resume_action: str = "discard"
     permission_allow_text: str = "允许"
     album_source_label_text: str = "所有文件"
     preferred_album_name: str = "XianyuPublish"

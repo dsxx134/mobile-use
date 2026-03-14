@@ -137,6 +137,33 @@ class AndroidDebugService:
         self.get_ui_client(serial).set_focused_text(text)
         return {"serial": serial, "text": text, "success": True}
 
+    def set_clipboard_text(self, serial: str, text: str) -> dict[str, Any]:
+        self.get_ui_client(serial).set_clipboard_text(text)
+        return {"serial": serial, "text": text, "success": True}
+
+    def set_text_by_description(self, serial: str, description: str, text: str) -> dict[str, Any]:
+        self.get_ui_client(serial).set_text_by_description(description, text)
+        return {
+            "serial": serial,
+            "description": description,
+            "text": text,
+            "success": True,
+        }
+
+    def set_text_on_description_child(
+        self,
+        serial: str,
+        description: str,
+        text: str,
+    ) -> dict[str, Any]:
+        self.get_ui_client(serial).set_text_on_description_child(description, text)
+        return {
+            "serial": serial,
+            "description": description,
+            "text": text,
+            "success": True,
+        }
+
     def launch_app(self, serial: str, package_name: str) -> dict[str, Any]:
         device = self.get_device(serial)
         device.app_start(package_name)

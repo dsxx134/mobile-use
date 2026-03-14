@@ -38,5 +38,7 @@
 | xianyu-description-entry-needs-tail-polling | 2026-03-14 | xianyu-description-entry-needs-tail-polling.md |
 | xianyu-prepare-runner-writes-bitable-status-around-device-work | 2026-03-14 | xianyu-prepare-runner-writes-bitable-status-around-device-work.md |
 | xianyu-review-mode-checks-submit-target-on-supported-editor | 2026-03-14 | xianyu-review-mode-checks-submit-target-on-supported-editor.md |
+| xianyu-submit-waits-for-publish-success-screen | 2026-03-14 | xianyu-submit-waits-for-publish-success-screen.md |
+| xianyu-submit-can-fail-with-location-required-dialog | 2026-03-14 | xianyu-submit-can-fail-with-location-required-dialog.md |
 
-Total: 36
+Total: 38

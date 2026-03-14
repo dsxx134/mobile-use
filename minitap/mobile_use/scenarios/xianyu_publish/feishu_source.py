@@ -142,16 +142,32 @@ class FeishuBitableSource:
         *,
         failure_reason: str | None = None,
     ) -> None:
-        app_token = self._require_setting("XIANYU_BITABLE_APP_TOKEN")
-        table_id = self._require_setting("XIANYU_BITABLE_TABLE_ID")
-        self._request_json(
-            "PUT",
-            f"/bitable/v1/apps/{app_token}/tables/{table_id}/records/{record_id}",
-            json={
-                "fields": {
-                    self.settings.status_field_name: status,
-                    self.settings.failure_reason_field_name: failure_reason,
-                }
+        self._update_record_fields(
+            record_id,
+            {
+                self.settings.status_field_name: status,
+                self.settings.failure_reason_field_name: failure_reason,
+            },
+        )
+
+    def update_publish_result(
+        self,
+        record_id: str,
+        *,
+        status: str,
+        failure_reason: str | None = None,
+        published_at: str | None = None,
+        listing_id: str | None = None,
+        listing_url: str | None = None,
+    ) -> None:
+        self._update_record_fields(
+            record_id,
+            {
+                self.settings.status_field_name: status,
+                self.settings.failure_reason_field_name: failure_reason,
+                self.settings.published_at_field_name: published_at,
+                self.settings.listing_id_field_name: listing_id,
+                self.settings.listing_url_field_name: listing_url,
             },
         )
 
@@ -196,6 +212,7 @@ class FeishuBitableSource:
             location_search_query=self._get_optional_text_field(
                 fields, self.settings.location_search_query_field_name
             ),
+            allow_auto_publish=bool(fields.get(self.settings.auto_publish_field_name)),
         )
 
     def _parse_attachment(self, attachment: dict[str, Any]) -> FeishuAttachment:
@@ -206,6 +223,15 @@ class FeishuBitableSource:
             tmp_url=attachment.get("tmp_url"),
             url=attachment.get("url"),
             file_type=attachment.get("type"),
+        )
+
+    def _update_record_fields(self, record_id: str, fields: dict[str, Any]) -> None:
+        app_token = self._require_setting("XIANYU_BITABLE_APP_TOKEN")
+        table_id = self._require_setting("XIANYU_BITABLE_TABLE_ID")
+        self._request_json(
+            "PUT",
+            f"/bitable/v1/apps/{app_token}/tables/{table_id}/records/{record_id}",
+            json={"fields": fields},
         )
 
     def _require_setting(self, field_name: str) -> str:

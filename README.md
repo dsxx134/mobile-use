@@ -402,6 +402,23 @@ uv run python scripts/xianyu_publish_review_live.py
 - When that review passes, the Bitable row is written back as `待人工发布`
 - The script does not tap the final `发布` button
 
+### Run the live auto-publish runner
+
+```bash
+uv run python scripts/xianyu_publish_auto_live.py
+```
+
+- This script runs the same deterministic prepare slice and then taps the visible `发布` target
+- The Bitable row must still satisfy `是否允许发布=true` and now also requires `允许自动发布=true`
+- It writes `发布中` before tapping submit
+- If the analyzer reaches the success screen, it writes back:
+  - `发布状态=已发布`
+  - `发布时间=<iso timestamp>`
+- If the success screen does not appear, it writes back:
+  - `发布状态=发布失败`
+  - `失败原因=<raised error>`
+- `闲鱼商品ID` and `闲鱼商品链接` are reserved in the table schema but are not populated yet by the current deterministic flow
+
 ### Current media-selection behavior
 
 - The preferred publish path on the Huawei tablet is now portrait mode:
@@ -419,6 +436,8 @@ uv run python scripts/xianyu_publish_review_live.py
   that tail clears instead of tapping `继续` twice
 - The live prepare entrypoint now retries the initial form preheat once when that Huawei-tablet
   start sequence flakes into a transient `unknown` state
+- The controlled auto-publish path reuses that same prepare slice, but it only proceeds when the
+  Feishu row explicitly opts in through `允许自动发布`
 - The description path now uses a dedicated editor state with a `完成` control
 - On this Huawei tablet, `input_text()` can already return from that editor back to `listing_form`;
   the flow now detects that and avoids stale `完成` taps that can accidentally open `价格设置`
@@ -465,6 +484,12 @@ uv run python scripts/xianyu_publish_review_live.py
   - return to the next Xianyu screen
 - After setting the search text, visible result rows can still arrive one or two snapshots later;
   the flow now polls inside the search screen until the requested result target appears
+- Controlled submission is intentionally narrow:
+  - require the final editor state to still be `listing_form` or `metadata_panel`
+  - require the visible `发布` target
+  - tap it once
+  - keep polling until the analyzer reaches `publish_success`
+  - otherwise fail the row as `发布失败`
 - The stable path into region selection is:
   - tap `选择位置`
   - wait for `宝贝所在地`
@@ -585,7 +610,8 @@ uv run python scripts/xianyu_publish_review_live.py
   `分类/成色/商品来源`,
   drive a best-effort preset `预设地址 -> 搜索地址`,
   reopen the album picker from `添加图片`, prepare one publishable Bitable record into the
-  form through `XianyuPrepareRunner`, and write the prepare status back into Bitable
+  form through `XianyuPrepareRunner`, tap the final `发布` button in controlled auto-publish
+  mode, and write the resulting status back into Bitable
 - The analyzer now also has a basic `publish_success` screen shape for future auto-submit work,
   but this branch still does not tap `发布` automatically or claim live-verified post-submit
   navigation yet
@@ -594,10 +620,12 @@ uv run python scripts/xianyu_publish_review_live.py
   editor state as a valid prepared outcome
 - When the editor is scrolled into the metadata section, the flow now keeps that state classified
   as `metadata_panel` and can still open `价格设置`, `发货方式`, and `选择位置` from it
-- Stable location persistence, deeper category navigation, `买家自提`, and final publish
-  submission are still the next layer
+- Stable location persistence and deeper category navigation are still the next layer
 - The location search helper can now drive the dedicated search UI and visible result rows, but it
   still returns to a form whose visible location row remains `选择位置`
+- Real-device auto-publish now reaches the post-submit phase, but the current Huawei tablet still
+  hits a blocking modal when Xianyu cannot determine the administrative region:
+  `无法发布宝贝 / 系统无法定位您所在的行政区...`
 
 ## 🔎 Agentic System Overview
 

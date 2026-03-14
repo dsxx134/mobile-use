@@ -178,6 +178,21 @@ class XianyuFlowAnalyzer:
             return target.model_copy(update={"text": text})
         return None
 
+    def _find_description_entry_target(self, elements: Iterable[dict]) -> TapTarget | None:
+        preferred_target = self._find_target(elements, contains_text="描述一下宝贝")
+        if preferred_target is not None:
+            return preferred_target
+
+        for element in elements:
+            text = _extract_text(element)
+            if text is None or "描述" not in text or "描述有点少哦" in text:
+                continue
+            target = parse_android_bounds(element.get("bounds"))
+            if target is None:
+                continue
+            return target.model_copy(update={"text": text})
+        return None
+
     def _find_multiline_option_target(
         self,
         elements: Iterable[dict],
@@ -433,6 +448,24 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
+        publish_location_required_cancel = self._find_target(elements, exact_text="取消")
+        publish_location_required_ack = self._find_target(elements, exact_text="我知道了")
+        if (
+            current_package == self._settings.xianyu_package_name
+            and any("无法发布宝贝" in text for text in visible_texts)
+            and publish_location_required_cancel is not None
+            and publish_location_required_ack is not None
+        ):
+            targets["publish_location_required_cancel"] = publish_location_required_cancel
+            targets["publish_location_required_ack"] = publish_location_required_ack
+            return XianyuScreenAnalysis(
+                screen_name="publish_location_required_dialog",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
         publish_entry = self._find_target(elements, exact_text=self._settings.publish_entry_text)
         if (
             current_package == self._settings.xianyu_package_name
@@ -470,7 +503,7 @@ class XianyuFlowAnalyzer:
             elements, contains_text="发布"
         )
         add_image = self._find_target(elements, exact_text="添加图片")
-        description_entry = self._find_target(elements, contains_text="描述")
+        description_entry = self._find_description_entry_target(elements)
         metadata_entry = self._find_target(elements, contains_text="分类/")
         price_entry = self._find_target(elements, exact_text="价格设置")
         shipping_entry = self._find_target(elements, contains_text="发货方式")
@@ -495,6 +528,9 @@ class XianyuFlowAnalyzer:
         ):
             targets["description_entry"] = description_entry
             targets["description_done"] = description_done
+            description_paste = self._find_target(elements, exact_text="粘贴")
+            if description_paste is not None:
+                targets["description_paste"] = description_paste
             if submit_listing is not None:
                 targets["submit_listing"] = submit_listing
             if add_image is not None:
@@ -810,6 +846,30 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
+        media_picker_album_tab = self._find_target(elements, exact_text="相册\nTab 1 of 3")
+        media_picker_camera_tab = self._find_target(elements, exact_text="拍照\nTab 2 of 3")
+        media_picker_video_tab = self._find_target(elements, exact_text="拍视频\nTab 3 of 3")
+        if (
+            current_package == self._settings.xianyu_package_name
+            and media_picker_album_tab is not None
+            and media_picker_camera_tab is not None
+            and media_picker_video_tab is not None
+            and (
+                any("拍更多细节照" in text for text in visible_texts)
+                or any("拍摄" in text for text in visible_texts)
+            )
+        ):
+            targets["media_picker_album_tab"] = media_picker_album_tab
+            targets["media_picker_camera_tab"] = media_picker_camera_tab
+            targets["media_picker_video_tab"] = media_picker_video_tab
+            return XianyuScreenAnalysis(
+                screen_name="media_source_picker",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
         return XianyuScreenAnalysis(
             screen_name="unknown",
             current_package=current_package,
@@ -860,6 +920,24 @@ class XianyuPublishFlowService:
         if target is None:
             raise RuntimeError(f"Missing tap target for {target_name}")
         self._android.tap(serial, target.x, target.y)
+
+    def _long_press_target(
+        self,
+        serial: str,
+        target: TapTarget,
+        target_name: str,
+        *,
+        duration_ms: int = 1200,
+    ) -> None:
+        if target is None:
+            raise RuntimeError(f"Missing long-press target for {target_name}")
+        self._android.tap(
+            serial,
+            target.x,
+            target.y,
+            long_press=True,
+            long_press_duration_ms=duration_ms,
+        )
 
     def _tap_ratio(self, serial: str, x_ratio: float, y_ratio: float) -> None:
         screen = self._android.get_screen_data(serial)
@@ -991,6 +1069,246 @@ class XianyuPublishFlowService:
                 continue
             return analysis
         return analysis
+
+    def _description_seed_text(self, description: str) -> str:
+        for line in description.splitlines():
+            normalized = line.strip()
+            if normalized:
+                return normalized
+        return description.strip()
+
+    def _find_description_content_text(
+        self,
+        elements: Iterable[dict],
+        entry_target: TapTarget,
+    ) -> str | None:
+        if not isinstance(entry_target.bounds, str):
+            return None
+        entry_match = _BOUNDS_RE.fullmatch(entry_target.bounds)
+        if entry_match is None:
+            return None
+
+        entry_left = int(entry_match.group("left"))
+        entry_top = int(entry_match.group("top"))
+        entry_right = int(entry_match.group("right"))
+        entry_bottom = int(entry_match.group("bottom"))
+
+        ignored_text_markers = (
+            "描述一下宝贝的品牌型号",
+            "AI生成仅供参考",
+            "AI帮你写",
+            "分类/",
+            "主题",
+            "表情",
+            "识物",
+            "完成",
+            "菜单",
+            "换肤",
+            "小艺帮写",
+            "隐藏键盘",
+        )
+        candidates: list[tuple[int, str]] = []
+        for element in elements:
+            text = _extract_text(element)
+            bounds = element.get("bounds")
+            if text is None or not isinstance(bounds, str):
+                continue
+            if any(marker in text for marker in ignored_text_markers):
+                continue
+
+            match = _BOUNDS_RE.fullmatch(bounds)
+            if match is None:
+                continue
+            left = int(match.group("left"))
+            top = int(match.group("top"))
+            right = int(match.group("right"))
+            bottom = int(match.group("bottom"))
+            if left < entry_left or right > entry_right or top < entry_top or bottom > entry_bottom:
+                continue
+            if right - left < max(80, int((entry_right - entry_left) * 0.4)):
+                continue
+            candidates.append((top, text))
+
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: item[0])
+        return candidates[0][1]
+
+    def _description_text_is_visible(
+        self,
+        analysis: XianyuScreenAnalysis,
+        description: str,
+    ) -> bool:
+        seed_text = self._description_seed_text(description)
+        if not seed_text:
+            return False
+        return any(seed_text in visible_text for visible_text in analysis.visible_texts)
+
+    def _set_description_text_via_selector(
+        self,
+        serial: str,
+        description: str,
+        *,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis | None:
+        screen = self._android.get_screen_data(serial)
+        analysis = self._analyzer.detect_screen(screen)
+        entry_target = analysis.targets.get("description_entry")
+        if entry_target is None:
+            analysis = self.advance_listing_form_to_description_editor(serial, max_steps=max_steps)
+            screen = self._android.get_screen_data(serial)
+            entry_target = analysis.targets.get("description_entry")
+            if entry_target is None:
+                return None
+
+        content_text = self._find_description_content_text(screen["elements"], entry_target)
+        if content_text is not None:
+            self._android.set_text_by_description(serial, content_text, description)
+        elif entry_target.text:
+            self._android.set_text_on_description_child(serial, entry_target.text, description)
+        else:
+            return None
+        post_set = self._wait_for_non_loading_screen(serial)
+        if post_set.screen_name != "description_editor":
+            return None
+        if not self._description_text_is_visible(post_set, description):
+            return None
+
+        done_target = post_set.targets.get("description_done") or analysis.targets.get(
+            "description_done"
+        )
+        if done_target is None:
+            raise RuntimeError("Missing description_done target on description editor")
+        self._tap_target(serial, done_target, "description_done")
+
+        final_analysis = self._wait_for_screen_transition(
+            serial,
+            transient_screen_names={"publish_chooser"},
+        )
+        if final_analysis.screen_name not in {"listing_form", "metadata_panel"}:
+            raise RuntimeError(
+                "Description selector flow did not return to a supported editor screen: "
+                f"{final_analysis.screen_name}"
+            )
+        return final_analysis
+
+    def _confirm_description_from_editor(
+        self,
+        serial: str,
+        description: str,
+        *,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis | None:
+        analysis = self.advance_listing_form_to_description_editor(serial, max_steps=max_steps)
+        if not self._description_text_is_visible(analysis, description):
+            return None
+
+        done_target = analysis.targets.get("description_done")
+        if done_target is None:
+            raise RuntimeError("Missing description_done target on description editor")
+        self._tap_target(serial, done_target, "description_done")
+
+        final_analysis = self._wait_for_screen_transition(
+            serial,
+            transient_screen_names={"publish_chooser"},
+        )
+        if final_analysis.screen_name not in {"listing_form", "metadata_panel"}:
+            raise RuntimeError(
+                "Description confirmation flow did not return to a supported editor screen: "
+                f"{final_analysis.screen_name}"
+            )
+        return final_analysis
+
+    def _retry_description_input_from_editor(
+        self,
+        serial: str,
+        description: str,
+        *,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis | None:
+        analysis = self.advance_listing_form_to_description_editor(serial, max_steps=max_steps)
+        self._android.input_text(serial, description)
+
+        post_retry = self._wait_for_non_loading_screen(serial)
+        if post_retry.screen_name in {"listing_form", "metadata_panel"}:
+            if self._description_text_is_visible(post_retry, description):
+                return post_retry
+            confirmed_retry = self._confirm_description_from_editor(
+                serial,
+                description,
+                max_steps=max_steps,
+            )
+            return confirmed_retry
+
+        if post_retry.screen_name != "description_editor":
+            return None
+        if not self._description_text_is_visible(post_retry, description):
+            return None
+
+        done_target = post_retry.targets.get("description_done") or analysis.targets.get(
+            "description_done"
+        )
+        if done_target is None:
+            raise RuntimeError("Missing description_done target on description editor")
+        self._tap_target(serial, done_target, "description_done")
+
+        final_analysis = self._wait_for_screen_transition(
+            serial,
+            transient_screen_names={"publish_chooser"},
+        )
+        if final_analysis.screen_name not in {"listing_form", "metadata_panel"}:
+            raise RuntimeError(
+                "Description retry flow did not return to a supported editor screen: "
+                f"{final_analysis.screen_name}"
+            )
+        return final_analysis
+
+    def _fill_description_via_clipboard_paste(
+        self,
+        serial: str,
+        description: str,
+        *,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        if analysis.screen_name != "description_editor":
+            analysis = self.advance_listing_form_to_description_editor(serial, max_steps=max_steps)
+
+        description_target = analysis.targets.get("description_entry")
+        if description_target is None:
+            raise RuntimeError("Missing description_entry target on description editor")
+
+        self._android.set_clipboard_text(serial, description)
+        self._long_press_target(serial, description_target, "description_entry")
+
+        paste_menu = self._wait_for_non_loading_screen(serial)
+        paste_target = paste_menu.targets.get("description_paste")
+        if paste_target is None:
+            raise RuntimeError("Missing description_paste target on description editor")
+        self._tap_target(serial, paste_target, "description_paste")
+
+        post_paste = self._wait_for_non_loading_screen(serial)
+        done_target = (
+            post_paste.targets.get("description_done")
+            or paste_menu.targets.get("description_done")
+            or analysis.targets.get("description_done")
+        )
+        if done_target is None:
+            raise RuntimeError("Missing description_done target on description editor")
+        self._tap_target(serial, done_target, "description_done")
+
+        final_analysis = self._wait_for_screen_transition(
+            serial,
+            transient_screen_names={"publish_chooser"},
+        )
+        if final_analysis.screen_name not in {"listing_form", "metadata_panel"}:
+            raise RuntimeError(
+                "Description clipboard fallback did not return to a supported editor screen: "
+                f"{final_analysis.screen_name}"
+            )
+        if not self._description_text_is_visible(final_analysis, description):
+            raise RuntimeError("Description clipboard fallback did not persist text")
+        return final_analysis
 
     def _wait_for_screen_transition(
         self,
@@ -1231,7 +1549,7 @@ class XianyuPublishFlowService:
 
         for _ in range(max_steps):
             analysis = self._analyze(serial)
-            if analysis.screen_name == "listing_form":
+            if analysis.screen_name in {"listing_form", "metadata_panel"}:
                 return analysis
 
             if analysis.current_package != self._settings.xianyu_package_name:
@@ -1247,7 +1565,7 @@ class XianyuPublishFlowService:
                     serial,
                     transient_screen_names={"home"},
                 )
-                if analysis.screen_name == "listing_form":
+                if analysis.screen_name in {"listing_form", "metadata_panel"}:
                     return analysis
                 continue
 
@@ -1260,24 +1578,41 @@ class XianyuPublishFlowService:
                     serial,
                     transient_screen_names={"publish_chooser"},
                 )
-                if analysis.screen_name == "listing_form":
+                if analysis.screen_name in {"listing_form", "metadata_panel"}:
                     return analysis
                 continue
 
             if analysis.screen_name == "draft_resume_dialog":
-                target = analysis.targets.get("draft_resume_continue")
+                preferred_target_name = (
+                    "draft_resume_discard"
+                    if self._settings.draft_resume_action == "discard"
+                    else "draft_resume_continue"
+                )
+                fallback_target_name = (
+                    "draft_resume_continue"
+                    if preferred_target_name == "draft_resume_discard"
+                    else "draft_resume_discard"
+                )
+                target_name = (
+                    preferred_target_name
+                    if analysis.targets.get(preferred_target_name) is not None
+                    else fallback_target_name
+                )
+                target = analysis.targets.get(target_name)
                 if target is None:
-                    raise RuntimeError("Missing continue target on draft resume dialog")
-                self._tap_target(serial, target, "draft_resume_continue")
+                    raise RuntimeError(
+                        "Missing draft resume action target on draft resume dialog"
+                    )
+                self._tap_target(serial, target, target_name)
                 analysis = self._wait_for_post_draft_resume_screen(serial)
-                if analysis.screen_name == "listing_form":
+                if analysis.screen_name in {"listing_form", "metadata_panel"}:
                     return analysis
                 continue
 
             self.open_home(serial)
 
         final_analysis = self._analyze(serial)
-        if final_analysis.screen_name == "listing_form":
+        if final_analysis.screen_name in {"listing_form", "metadata_panel"}:
             return final_analysis
         raise RuntimeError(
             f"Failed to reach listing form within {max_steps} steps: {final_analysis.screen_name}"
@@ -1293,16 +1628,32 @@ class XianyuPublishFlowService:
             if analysis.screen_name == "album_picker":
                 return analysis
 
-            if analysis.screen_name == "listing_form":
+            if analysis.screen_name in {"listing_form", "metadata_panel"}:
                 target = analysis.targets.get("add_image")
                 if target is None:
-                    raise RuntimeError("Missing add_image target on listing form")
+                    raise RuntimeError(
+                        f"Missing add_image target on {analysis.screen_name}"
+                    )
                 self._tap_target(serial, target, "add_image")
                 analysis = self._wait_for_non_loading_screen(serial)
                 if analysis.screen_name == "album_picker":
                     return analysis
                 if analysis.screen_name == "media_permission_dialog":
                     continue
+                if analysis.screen_name == "unknown":
+                    continue
+                continue
+
+            if analysis.screen_name == "media_source_picker":
+                target = analysis.targets.get("media_picker_album_tab")
+                if target is None:
+                    raise RuntimeError(
+                        "Missing media_picker_album_tab target on media source picker"
+                    )
+                self._tap_target(serial, target, "media_picker_album_tab")
+                analysis = self._wait_for_non_loading_screen(serial)
+                if analysis.screen_name == "album_picker":
+                    return analysis
                 if analysis.screen_name == "unknown":
                     continue
                 continue
@@ -1746,12 +2097,47 @@ class XianyuPublishFlowService:
         description: str,
         max_steps: int = 4,
     ) -> XianyuScreenAnalysis:
+        selector_input = self._set_description_text_via_selector(
+            serial,
+            description,
+            max_steps=max_steps,
+        )
+        if selector_input is not None:
+            return selector_input
+
         analysis = self.advance_listing_form_to_description_editor(serial, max_steps=max_steps)
         self._android.input_text(serial, description)
 
         post_input = self._wait_for_non_loading_screen(serial)
-        if post_input.screen_name == "listing_form":
-            return post_input
+        if post_input.screen_name in {"listing_form", "metadata_panel"}:
+            if self._description_text_is_visible(post_input, description):
+                return post_input
+            confirmed_input = self._confirm_description_from_editor(
+                serial,
+                description,
+                max_steps=max_steps,
+            )
+            if confirmed_input is not None:
+                return confirmed_input
+            selector_input = self._set_description_text_via_selector(
+                serial,
+                description,
+                max_steps=max_steps,
+            )
+            if selector_input is not None:
+                return selector_input
+            retried_input = self._retry_description_input_from_editor(
+                serial,
+                description,
+                max_steps=max_steps,
+            )
+            if retried_input is not None:
+                return retried_input
+            return self._fill_description_via_clipboard_paste(
+                serial,
+                description,
+                max_steps=max_steps,
+            )
 
         done_target = post_input.targets.get("description_done") or analysis.targets.get(
             "description_done"
@@ -1915,3 +2301,41 @@ class XianyuPublishFlowService:
             option_kind="Source",
             max_steps=max_steps,
         )
+
+    def submit_listing_and_wait_for_result(
+        self,
+        serial: str,
+        *,
+        max_polls: int = 6,
+    ) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        if analysis.screen_name not in {"listing_form", "metadata_panel"}:
+            raise RuntimeError(
+                "Cannot submit listing from current screen: "
+                f"{analysis.screen_name}"
+            )
+
+        submit_target = analysis.targets.get("submit_listing")
+        if submit_target is None:
+            raise RuntimeError(f"Missing submit_listing target on {analysis.screen_name}")
+
+        self._tap_target(serial, submit_target, "submit_listing")
+
+        result = self._analyze(serial)
+        for _ in range(max_polls):
+            if result.screen_name == "publish_success":
+                return result
+            if result.screen_name == "publish_location_required_dialog":
+                message = next(
+                    (
+                        text
+                        for text in result.visible_texts
+                        if "无法发布宝贝" in text or "系统无法定位您所在的行政区" in text
+                    ),
+                    "Publish blocked because Xianyu could not locate the administrative region.",
+                )
+                raise RuntimeError(message)
+            self._sleep(1.0)
+            result = self._analyze(serial)
+
+        raise RuntimeError(f"Publish did not reach success screen: {result.screen_name}")

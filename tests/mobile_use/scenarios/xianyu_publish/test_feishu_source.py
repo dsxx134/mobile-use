@@ -60,6 +60,7 @@ def test_pick_first_publishable_record_maps_fields_to_listing_draft():
                 "成色": "几乎全新",
                 "商品来源": "闲置",
                 "预设地址": "上海虹桥站",
+                "允许自动发布": True,
                 "商品图片": [
                     {"file_token": "ft-1", "name": "1.jpg", "size": 111},
                     {"file_token": "ft-2", "name": "2.jpg", "size": 222},
@@ -79,6 +80,7 @@ def test_pick_first_publishable_record_maps_fields_to_listing_draft():
     assert listing.condition == "几乎全新"
     assert listing.item_source == "闲置"
     assert listing.location_search_query == "上海虹桥站"
+    assert listing.allow_auto_publish is True
     assert [attachment.file_token for attachment in listing.attachments] == ["ft-1", "ft-2"]
 
 
@@ -274,5 +276,41 @@ def test_update_listing_status_can_write_failure_reason():
         "fields": {
             "发布状态": "准备失败",
             "失败原因": "price panel missing",
+        }
+    }
+
+
+def test_update_publish_result_can_write_published_at_and_optional_fields():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"code": 0, "data": {"record": {"record_id": "recA"}}})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_publish_result(
+        "recA",
+        status="已发布",
+        published_at="2026-03-14T20:15:00+08:00",
+        listing_id="xy123",
+        listing_url="https://2.taobao.com/item.htm?id=xy123",
+    )
+
+    assert captured["payload"] == {
+        "fields": {
+            "发布状态": "已发布",
+            "失败原因": None,
+            "发布时间": "2026-03-14T20:15:00+08:00",
+            "闲鱼商品ID": "xy123",
+            "闲鱼商品链接": "https://2.taobao.com/item.htm?id=xy123",
         }
     }

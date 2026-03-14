@@ -76,6 +76,7 @@ def prepare_first_publishable_listing_live(
     preheat_max_steps: int = 10,
     preheat_attempts: int = 2,
     review_after_prepare: bool = False,
+    auto_publish_after_prepare: bool = False,
     components: XianyuLivePrepareComponents | None = None,
 ) -> XianyuPrepareListingResult:
     resolved_settings = settings or XianyuPublishSettings()
@@ -97,6 +98,7 @@ def prepare_first_publishable_listing_live(
     last_error: RuntimeError | None = None
     for _ in range(preheat_attempts):
         try:
+            live_components.flow.open_home(resolved_serial)
             live_components.flow.advance_to_listing_form(
                 resolved_serial,
                 max_steps=preheat_max_steps,
@@ -108,11 +110,15 @@ def prepare_first_publishable_listing_live(
     if last_error is not None:
         raise last_error
 
-    return live_components.runner.prepare_first_publishable_listing(
-        serial=resolved_serial,
-        staging_root=resolved_staging_root,
-        review_after_prepare=review_after_prepare,
-    )
+    runner_kwargs: dict[str, Any] = {
+        "serial": resolved_serial,
+        "staging_root": resolved_staging_root,
+        "review_after_prepare": review_after_prepare,
+    }
+    if auto_publish_after_prepare:
+        runner_kwargs["auto_publish_after_prepare"] = True
+
+    return live_components.runner.prepare_first_publishable_listing(**runner_kwargs)
 
 
 def format_live_prepare_result(result: XianyuPrepareListingResult) -> str:

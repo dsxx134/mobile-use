@@ -26,6 +26,7 @@ class ListingDraft(BaseModel):
     condition: str | None = None
     item_source: str | None = None
     location_search_query: str | None = None
+    allow_auto_publish: bool = False
     local_image_paths: list[Path] = Field(default_factory=list)
 
     @field_validator("attachments")

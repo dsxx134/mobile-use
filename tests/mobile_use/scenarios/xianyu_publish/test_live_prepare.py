@@ -107,6 +107,7 @@ def test_prepare_first_publishable_listing_live_preheats_before_runner(tmp_path)
     )
 
     assert flow.mock_calls == [
+        call.open_home("tablet-1"),
         call.advance_to_listing_form("tablet-1", max_steps=12),
     ]
     runner.prepare_first_publishable_listing.assert_called_once_with(
@@ -147,7 +148,9 @@ def test_prepare_first_publishable_listing_live_retries_preheat_once(tmp_path):
     )
 
     assert flow.mock_calls == [
+        call.open_home("tablet-1"),
         call.advance_to_listing_form("tablet-1", max_steps=10),
+        call.open_home("tablet-1"),
         call.advance_to_listing_form("tablet-1", max_steps=10),
     ]
     runner.prepare_first_publishable_listing.assert_called_once_with(
@@ -189,4 +192,39 @@ def test_prepare_first_publishable_listing_live_can_request_review_mode(tmp_path
         serial="tablet-1",
         staging_root=tmp_path,
         review_after_prepare=True,
+    )
+
+
+def test_prepare_first_publishable_listing_live_can_request_auto_publish_mode(tmp_path):
+    settings = _make_settings(serial="tablet-1")
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = Mock(screen_name="listing_form")
+    runner = Mock()
+    runner.prepare_first_publishable_listing.return_value = XianyuPrepareListingResult(
+        record_id="recA",
+        serial="tablet-1",
+        remote_media_paths=["/sdcard/DCIM/XianyuPublish/recA/01_image.png"],
+        body_text="34寸显示器\n\n成色很好，北京自提。",
+        final_screen_name="publish_success",
+    )
+    components = XianyuLivePrepareComponents(
+        source=Mock(),
+        media_sync=Mock(),
+        flow=flow,
+        runner=runner,
+    )
+
+    prepare_first_publishable_listing_live(
+        settings=settings,
+        adb_client=Mock(),
+        staging_root=tmp_path,
+        components=components,
+        auto_publish_after_prepare=True,
+    )
+
+    runner.prepare_first_publishable_listing.assert_called_once_with(
+        serial="tablet-1",
+        staging_root=tmp_path,
+        review_after_prepare=False,
+        auto_publish_after_prepare=True,
     )

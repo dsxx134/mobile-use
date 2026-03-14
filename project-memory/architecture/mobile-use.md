@@ -36,6 +36,9 @@ Updated: 2026-03-14
   portrait form, and then delegates to `XianyuPrepareRunner`
 - The same runner now has an opt-in review mode that turns a successful prepare slice into a
   guarded manual-publish checkpoint instead of automatic submission.
+- The same runner now also has an opt-in auto-publish mode that reuses the exact same prepare
+  slice, requires a visible `submit_listing` target, then submits once and waits for
+  `publish_success` before writing Bitable publish state.
 - The Xianyu flow currently recognizes:
   - home tab
   - publish chooser
@@ -170,6 +173,10 @@ Updated: 2026-03-14
 - Review mode is intentionally narrow: it only accepts `listing_form` or `metadata_panel` as the
   final editor state and requires the visible `submit_listing` target before the row can be marked
   `待人工发布`.
+- Auto-publish mode builds on that same narrow gate. It is only allowed when:
+  - the row still passes `是否允许发布`
+  - the row also has `允许自动发布=true`
+  - the final editor slice still exposes a visible `发布` target
 - The analyzer also now has a basic `publish_success` screen shape for future post-submit work,
   keyed off visible success text plus `看看宝贝` and `继续发布` actions.
 - The flow service now also has a hierarchical `set_location_region_path()` helper for the verified
@@ -229,4 +236,15 @@ Updated: 2026-03-14
   Feishu-backed prepare slice end-to-end against the Huawei tablet.
 - `scripts/xianyu_publish_review_live.py` is now the canonical way to run the same slice in
   non-submitting review mode and write the row back as `待人工发布`.
+- `scripts/xianyu_publish_auto_live.py` is now the canonical way to run the same slice in
+  controlled auto-publish mode and write back `发布中 / 已发布 / 发布失败`.
+- On the current Huawei tablet, blank description entry is most reliable when the flow writes
+  directly into the first child under the `描述...` container; this bypasses the flaky
+  FastInputIME and clipboard paths that often no-op or paste stale text.
+- The current live runner now fills `价格` before `描述`, because direct description writeback can
+  immediately expand the screen into a metadata-rich editor slice where the lower `价格设置` row is
+  no longer visible.
+- Real-device auto-publish now reaches the final submit tap, and the next deterministic blocker is
+  an in-app modal: `无法发布宝贝 / 系统无法定位您所在的行政区...`. This dialog is now treated as an
+  explicit post-submit failure signal rather than an `unknown` screen.
 - The next layer should still consume `ListingDraft` directly and stay isolated from raw Feishu record payloads.

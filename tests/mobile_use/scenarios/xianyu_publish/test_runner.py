@@ -1,3 +1,5 @@
+from datetime import datetime
+from datetime import UTC
 from unittest.mock import Mock, call
 
 import pytest
@@ -23,6 +25,7 @@ def _make_listing(
     condition: str | None = None,
     item_source: str | None = None,
     location_search_query: str | None = None,
+    allow_auto_publish: bool = False,
 ) -> ListingDraft:
     return ListingDraft(
         record_id="recA",
@@ -34,6 +37,7 @@ def _make_listing(
         condition=condition,
         item_source=item_source,
         location_search_query=location_search_query,
+        allow_auto_publish=allow_auto_publish,
     )
 
 
@@ -107,12 +111,12 @@ def test_prepare_first_publishable_listing_runs_feishu_media_and_flow_chain_in_o
         ),
         call.media_sync.push_listing_media(downloaded_listing, serial="device-1"),
         call.flow.advance_to_listing_form("device-1"),
+        call.flow.fill_price("device-1", 199.0),
+        call.flow.fill_description("device-1", "二手显示器\n\n成色很好，支持验货"),
         call.flow.advance_listing_form_to_album_picker("device-1"),
         call.flow.select_cover_image("device-1", preferred_album_name="XianyuPublish"),
         call.flow.advance_photo_analysis_to_publish_chooser("device-1"),
         call.flow.advance_to_listing_form("device-1"),
-        call.flow.fill_description("device-1", "二手显示器\n\n成色很好，支持验货"),
-        call.flow.fill_price("device-1", 199.0),
         call.source.update_listing_status("recA", "已就绪", failure_reason=None),
     ]
     assert result.record_id == "recA"
@@ -187,6 +191,42 @@ def test_prepare_first_publishable_listing_skips_bridge_when_image_flow_returns_
     assert result.final_screen_name == "listing_form"
 
 
+def test_prepare_first_publishable_listing_accepts_metadata_panel_after_image_flow(tmp_path):
+    listing = _make_listing()
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+    )
+
+    result = runner.prepare_first_publishable_listing(
+        serial="device-1",
+        staging_root=tmp_path,
+    )
+
+    flow.advance_photo_analysis_to_publish_chooser.assert_not_called()
+    assert result.final_screen_name == "metadata_panel"
+
+
 def test_prepare_first_publishable_listing_applies_optional_metadata_fields(tmp_path):
     listing = _make_listing(category="家居摆件", condition="几乎全新", item_source="闲置")
     source = Mock()
@@ -207,8 +247,8 @@ def test_prepare_first_publishable_listing_applies_optional_metadata_fields(tmp_
     )
     flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
-    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.set_item_category.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
     flow.set_item_condition.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
     flow.set_item_source.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
     timeline = Mock()
@@ -237,10 +277,10 @@ def test_prepare_first_publishable_listing_applies_optional_metadata_fields(tmp_
         ),
         call.media_sync.push_listing_media(listing, serial="device-1"),
         call.flow.advance_to_listing_form("device-1"),
+        call.flow.fill_price("device-1", 199.0),
+        call.flow.fill_description("device-1", "二手显示器\n\n成色很好，支持验货"),
         call.flow.advance_listing_form_to_album_picker("device-1"),
         call.flow.select_cover_image("device-1", preferred_album_name="XianyuPublish"),
-        call.flow.fill_description("device-1", "二手显示器\n\n成色很好，支持验货"),
-        call.flow.fill_price("device-1", 199.0),
         call.flow.set_item_category("device-1", "家居摆件"),
         call.flow.set_item_condition("device-1", "几乎全新"),
         call.flow.set_item_source("device-1", "闲置"),
@@ -285,6 +325,51 @@ def test_prepare_first_publishable_listing_treats_item_source_as_best_effort(tmp
     )
 
     flow.set_item_source.assert_called_once_with("device-1", "闲置")
+    source.update_listing_status.assert_has_calls(
+        [
+            call("recA", "准备中"),
+            call("recA", "已就绪", failure_reason=None),
+        ]
+    )
+    assert result.final_screen_name == "listing_form"
+
+
+def test_prepare_first_publishable_listing_treats_category_as_best_effort(tmp_path):
+    listing = _make_listing(category="生活百科")
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
+    flow.set_item_category.side_effect = RuntimeError(
+        "Missing metadata_category_option_生活百科 target on metadata panel"
+    )
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+    )
+
+    result = runner.prepare_first_publishable_listing(
+        serial="device-1",
+        staging_root=tmp_path,
+    )
+
+    flow.set_item_category.assert_called_once_with("device-1", "生活百科")
     source.update_listing_status.assert_has_calls(
         [
             call("recA", "准备中"),
@@ -344,10 +429,10 @@ def test_prepare_first_publishable_listing_applies_optional_location_search_quer
         ),
         call.media_sync.push_listing_media(listing, serial="device-1"),
         call.flow.advance_to_listing_form("device-1"),
+        call.flow.fill_price("device-1", 199.0),
+        call.flow.fill_description("device-1", "二手显示器\n\n成色很好，支持验货"),
         call.flow.advance_listing_form_to_album_picker("device-1"),
         call.flow.select_cover_image("device-1", preferred_album_name="XianyuPublish"),
-        call.flow.fill_description("device-1", "二手显示器\n\n成色很好，支持验货"),
-        call.flow.fill_price("device-1", 199.0),
         call.flow.search_location_and_select_result("device-1", "上海虹桥站"),
         call.source.update_listing_status("recA", "已就绪", failure_reason=None),
     ]
@@ -396,7 +481,7 @@ def test_prepare_first_publishable_listing_treats_location_search_as_best_effort
             call("recA", "已就绪", failure_reason=None),
         ]
     )
-    assert result.final_screen_name == "metadata_panel"
+    assert result.final_screen_name == "listing_form"
 
 
 def test_prepare_first_publishable_listing_marks_failure_and_reraises(tmp_path):
@@ -536,4 +621,177 @@ def test_prepare_first_publishable_listing_review_mode_fails_without_submit_butt
                 failure_reason="Publish submit button is not visible after prepare",
             ),
         ]
+    )
+
+
+def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tmp_path):
+    listing = _make_listing(allow_auto_publish=True)
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    final_editor = XianyuScreenAnalysis(
+        screen_name="metadata_panel",
+        targets={"submit_listing": TapTarget(x=1500, y=140, text="发布, 发布")},
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = final_editor
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.submit_listing_and_wait_for_result.return_value = XianyuScreenAnalysis(
+        screen_name="publish_success",
+        targets={
+            "publish_success_view_listing": TapTarget(
+                x=500,
+                y=2000,
+                text="看看宝贝",
+            )
+        },
+    )
+    fixed_now = datetime(2026, 3, 14, 20, 30, 0, tzinfo=UTC)
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+        now_fn=lambda: fixed_now,
+    )
+
+    result = runner.prepare_first_publishable_listing(
+        serial="device-1",
+        staging_root=tmp_path,
+        auto_publish_after_prepare=True,
+    )
+
+    source.update_listing_status.assert_has_calls(
+        [
+            call("recA", "准备中"),
+            call("recA", "发布中", failure_reason=None),
+        ]
+    )
+    source.update_publish_result.assert_called_once_with(
+        "recA",
+        status="已发布",
+        failure_reason=None,
+        published_at="2026-03-14T20:30:00+00:00",
+        listing_id=None,
+        listing_url=None,
+    )
+    flow.submit_listing_and_wait_for_result.assert_called_once_with("device-1")
+    assert result.publish is not None
+    assert result.publish.success is True
+    assert result.publish.screen_name == "publish_success"
+    assert result.publish.published_at == "2026-03-14T20:30:00+00:00"
+
+
+def test_prepare_first_publishable_listing_auto_publish_requires_listing_opt_in(tmp_path):
+    listing = _make_listing(allow_auto_publish=False)
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = XianyuScreenAnalysis(
+        screen_name="metadata_panel",
+        targets={"submit_listing": TapTarget(x=1500, y=140, text="发布, 发布")},
+    )
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+    )
+
+    with pytest.raises(RuntimeError, match="Auto publish is not enabled for this listing"):
+        runner.prepare_first_publishable_listing(
+            serial="device-1",
+            staging_root=tmp_path,
+            auto_publish_after_prepare=True,
+        )
+
+    source.update_publish_result.assert_called_once_with(
+        "recA",
+        status="发布失败",
+        failure_reason="Auto publish is not enabled for this listing",
+        published_at=None,
+        listing_id=None,
+        listing_url=None,
+    )
+
+
+def test_prepare_first_publishable_listing_auto_publish_marks_publish_failure(tmp_path):
+    listing = _make_listing(allow_auto_publish=True)
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = XianyuScreenAnalysis(
+        screen_name="metadata_panel",
+        targets={"submit_listing": TapTarget(x=1500, y=140, text="发布, 发布")},
+    )
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.submit_listing_and_wait_for_result.side_effect = RuntimeError(
+        "Publish did not reach success screen: metadata_panel"
+    )
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+    )
+
+    with pytest.raises(RuntimeError, match="Publish did not reach success screen: metadata_panel"):
+        runner.prepare_first_publishable_listing(
+            serial="device-1",
+            staging_root=tmp_path,
+            auto_publish_after_prepare=True,
+        )
+
+    source.update_listing_status.assert_has_calls(
+        [
+            call("recA", "准备中"),
+            call("recA", "发布中", failure_reason=None),
+        ]
+    )
+    source.update_publish_result.assert_called_once_with(
+        "recA",
+        status="发布失败",
+        failure_reason="Publish did not reach success screen: metadata_panel",
+        published_at=None,
+        listing_id=None,
+        listing_url=None,
     )

@@ -87,3 +87,49 @@ def test_set_focused_text_uses_ui_client_helper():
 
     ui_client.set_focused_text.assert_called_once_with("上海虹桥站")
     assert result == {"serial": "device-1", "text": "上海虹桥站", "success": True}
+
+
+def test_set_text_by_description_uses_ui_client_helper():
+    adb_client = Mock()
+    adb_client.list.return_value = [_make_device_info()]
+    ui_client = Mock()
+    ui_client_factory = Mock(return_value=ui_client)
+    service = AndroidDebugService(adb_client=adb_client, ui_client_factory=ui_client_factory)
+
+    result = service.set_text_by_description("device-1", "闲鱼", "34寸显示器 成色很好 北京自提")
+
+    ui_client.set_text_by_description.assert_called_once_with(
+        "闲鱼",
+        "34寸显示器 成色很好 北京自提",
+    )
+    assert result == {
+        "serial": "device-1",
+        "description": "闲鱼",
+        "text": "34寸显示器 成色很好 北京自提",
+        "success": True,
+    }
+
+
+def test_set_text_on_description_child_uses_ui_client_helper():
+    adb_client = Mock()
+    adb_client.list.return_value = [_make_device_info()]
+    ui_client = Mock()
+    ui_client_factory = Mock(return_value=ui_client)
+    service = AndroidDebugService(adb_client=adb_client, ui_client_factory=ui_client_factory)
+
+    result = service.set_text_on_description_child(
+        "device-1",
+        "描述, 描述一下宝贝的品牌型号、货品来源…",
+        "34寸显示器 成色很好 北京自提",
+    )
+
+    ui_client.set_text_on_description_child.assert_called_once_with(
+        "描述, 描述一下宝贝的品牌型号、货品来源…",
+        "34寸显示器 成色很好 北京自提",
+    )
+    assert result == {
+        "serial": "device-1",
+        "description": "描述, 描述一下宝贝的品牌型号、货品来源…",
+        "text": "34寸显示器 成色很好 北京自提",
+        "success": True,
+    }
