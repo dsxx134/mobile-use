@@ -3,6 +3,7 @@
 | Name | Updated | File |
 |------|---------|------|
 | feishu-attachments-use-batch-temp-download-urls | 2026-03-12 | feishu-attachments-use-batch-temp-download-urls.md |
+| feishu-app-credentials-stay-in-local-env | 2026-03-14 | feishu-app-credentials-stay-in-local-env.md |
 | xianyu-media-staging-uses-record-scoped-directories | 2026-03-12 | xianyu-media-staging-uses-record-scoped-directories.md |
 | android-debug-snapshot-should-preserve-hierarchy | 2026-03-12 | android-debug-snapshot-should-preserve-hierarchy.md |
 | fastmcp-structured-output-needs-models | 2026-03-12 | fastmcp-structured-output-needs-models.md |
@@ -34,4 +35,4 @@
 | xianyu-location-search-needs-focused-edittext-set-text | 2026-03-14 | xianyu-location-search-needs-focused-edittext-set-text.md |
 | xianyu-prepare-runner-writes-bitable-status-around-device-work | 2026-03-14 | xianyu-prepare-runner-writes-bitable-status-around-device-work.md |
 
-Total: 31
+Total: 32
