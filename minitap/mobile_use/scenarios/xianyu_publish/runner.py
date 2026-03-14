@@ -50,43 +50,58 @@ class XianyuPrepareRunner:
         if listing is None:
             raise ValueError("No publishable Xianyu listing found")
 
-        download_urls = self._source.get_attachment_download_urls(listing.attachments)
-        staged_listing = self._media_sync.download_listing_media(
-            listing,
-            download_urls,
-            staging_root,
-        )
-        media_result = self._media_sync.push_listing_media(staged_listing, serial=serial)
+        self._source.update_listing_status(listing.record_id, "准备中")
+        try:
+            download_urls = self._source.get_attachment_download_urls(listing.attachments)
+            staged_listing = self._media_sync.download_listing_media(
+                listing,
+                download_urls,
+                staging_root,
+            )
+            media_result = self._media_sync.push_listing_media(staged_listing, serial=serial)
 
-        self._flow.advance_to_listing_form(serial)
-        self._flow.advance_listing_form_to_album_picker(serial)
-        post_image_analysis = self._flow.select_cover_image(
-            serial,
-            preferred_album_name=self._settings.preferred_album_name,
-        )
-        if post_image_analysis.screen_name == "photo_analysis":
-            self._flow.advance_photo_analysis_to_publish_chooser(serial)
             self._flow.advance_to_listing_form(serial)
-        elif post_image_analysis.screen_name != "listing_form":
-            raise RuntimeError(
-                "Unsupported post-image screen for prepare runner: "
-                f"{post_image_analysis.screen_name}"
-            )
-
-        body_text = build_listing_body(staged_listing)
-        self._flow.fill_description(serial, body_text)
-        final_analysis = self._flow.fill_price(serial, staged_listing.price)
-        if staged_listing.category:
-            final_analysis = self._flow.set_item_category(serial, staged_listing.category)
-        if staged_listing.condition:
-            final_analysis = self._flow.set_item_condition(serial, staged_listing.condition)
-        if staged_listing.item_source:
-            final_analysis = self._flow.set_item_source(serial, staged_listing.item_source)
-        if staged_listing.location_search_query:
-            final_analysis = self._flow.search_location_and_select_result(
+            self._flow.advance_listing_form_to_album_picker(serial)
+            post_image_analysis = self._flow.select_cover_image(
                 serial,
-                staged_listing.location_search_query,
+                preferred_album_name=self._settings.preferred_album_name,
             )
+            if post_image_analysis.screen_name == "photo_analysis":
+                self._flow.advance_photo_analysis_to_publish_chooser(serial)
+                self._flow.advance_to_listing_form(serial)
+            elif post_image_analysis.screen_name != "listing_form":
+                raise RuntimeError(
+                    "Unsupported post-image screen for prepare runner: "
+                    f"{post_image_analysis.screen_name}"
+                )
+
+            body_text = build_listing_body(staged_listing)
+            self._flow.fill_description(serial, body_text)
+            final_analysis = self._flow.fill_price(serial, staged_listing.price)
+            if staged_listing.category:
+                final_analysis = self._flow.set_item_category(serial, staged_listing.category)
+            if staged_listing.condition:
+                final_analysis = self._flow.set_item_condition(serial, staged_listing.condition)
+            if staged_listing.item_source:
+                final_analysis = self._flow.set_item_source(serial, staged_listing.item_source)
+            if staged_listing.location_search_query:
+                final_analysis = self._flow.search_location_and_select_result(
+                    serial,
+                    staged_listing.location_search_query,
+                )
+
+            self._source.update_listing_status(
+                staged_listing.record_id,
+                "已就绪",
+                failure_reason=None,
+            )
+        except Exception as exc:
+            self._source.update_listing_status(
+                listing.record_id,
+                "准备失败",
+                failure_reason=str(exc),
+            )
+            raise
 
         return XianyuPrepareListingResult(
             record_id=staged_listing.record_id,

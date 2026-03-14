@@ -97,6 +97,7 @@ def test_prepare_first_publishable_listing_runs_feishu_media_and_flow_chain_in_o
 
     assert timeline.mock_calls == [
         call.source.pick_first_publishable_record(),
+        call.source.update_listing_status("recA", "准备中"),
         call.source.get_attachment_download_urls(listing.attachments),
         call.media_sync.download_listing_media(
             listing,
@@ -111,6 +112,7 @@ def test_prepare_first_publishable_listing_runs_feishu_media_and_flow_chain_in_o
         call.flow.advance_to_listing_form("device-1"),
         call.flow.fill_description("device-1", "二手显示器\n\n成色很好，支持验货"),
         call.flow.fill_price("device-1", 199.0),
+        call.source.update_listing_status("recA", "已就绪", failure_reason=None),
     ]
     assert result.record_id == "recA"
     assert result.serial == "device-1"
@@ -134,6 +136,7 @@ def test_prepare_first_publishable_listing_raises_when_no_publishable_record_exi
         runner.prepare_first_publishable_listing(serial="device-1", staging_root=tmp_path)
 
     source.get_attachment_download_urls.assert_not_called()
+    source.update_listing_status.assert_not_called()
     media_sync.download_listing_media.assert_not_called()
     flow.advance_to_listing_form.assert_not_called()
 
@@ -172,6 +175,12 @@ def test_prepare_first_publishable_listing_skips_bridge_when_image_flow_returns_
         staging_root=tmp_path,
     )
 
+    source.update_listing_status.assert_has_calls(
+        [
+            call("recA", "准备中"),
+            call("recA", "已就绪", failure_reason=None),
+        ]
+    )
     flow.advance_photo_analysis_to_publish_chooser.assert_not_called()
     assert flow.advance_to_listing_form.call_count == 1
     assert result.final_screen_name == "listing_form"
@@ -218,6 +227,7 @@ def test_prepare_first_publishable_listing_applies_optional_metadata_fields(tmp_
 
     assert timeline.mock_calls == [
         call.source.pick_first_publishable_record(),
+        call.source.update_listing_status("recA", "准备中"),
         call.source.get_attachment_download_urls(listing.attachments),
         call.media_sync.download_listing_media(
             listing,
@@ -233,6 +243,7 @@ def test_prepare_first_publishable_listing_applies_optional_metadata_fields(tmp_
         call.flow.set_item_category("device-1", "家居摆件"),
         call.flow.set_item_condition("device-1", "几乎全新"),
         call.flow.set_item_source("device-1", "闲置"),
+        call.source.update_listing_status("recA", "已就绪", failure_reason=None),
     ]
     assert result.final_screen_name == "metadata_panel"
 
@@ -278,6 +289,7 @@ def test_prepare_first_publishable_listing_applies_optional_location_search_quer
 
     assert timeline.mock_calls == [
         call.source.pick_first_publishable_record(),
+        call.source.update_listing_status("recA", "准备中"),
         call.source.get_attachment_download_urls(listing.attachments),
         call.media_sync.download_listing_media(
             listing,
@@ -291,5 +303,47 @@ def test_prepare_first_publishable_listing_applies_optional_location_search_quer
         call.flow.fill_description("device-1", "二手显示器\n\n成色很好，支持验货"),
         call.flow.fill_price("device-1", 199.0),
         call.flow.search_location_and_select_result("device-1", "上海虹桥站"),
+        call.source.update_listing_status("recA", "已就绪", failure_reason=None),
     ]
     assert result.final_screen_name == "listing_form"
+
+
+def test_prepare_first_publishable_listing_marks_failure_and_reraises(tmp_path):
+    listing = _make_listing()
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_price.side_effect = RuntimeError("price panel missing")
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+    )
+
+    with pytest.raises(RuntimeError, match="price panel missing"):
+        runner.prepare_first_publishable_listing(
+            serial="device-1",
+            staging_root=tmp_path,
+        )
+
+    source.update_listing_status.assert_has_calls(
+        [
+            call("recA", "准备中"),
+            call("recA", "准备失败", failure_reason="price panel missing"),
+        ]
+    )

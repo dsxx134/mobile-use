@@ -129,3 +129,58 @@ def test_get_attachment_download_urls_uses_file_tokens_in_order():
     assert captured["payload"] == {"file_tokens": ["ft-1", "ft-2"]}
     assert list(result.keys()) == ["ft-1", "ft-2"]
     assert result["ft-1"] == "https://files.example/1.jpg"
+
+
+def test_update_listing_status_writes_status_field():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["method"] = request.method
+        captured["path"] = request.url.path
+        captured["authorization"] = request.headers["Authorization"]
+        captured["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"code": 0, "data": {"record": {"record_id": "recA"}}})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_listing_status("recA", "准备中")
+
+    assert captured["method"] == "PUT"
+    assert captured["path"] == "/open-apis/bitable/v1/apps/app_token/tables/tbl_token/records/recA"
+    assert captured["authorization"] == "Bearer tenant-token"
+    assert captured["payload"] == {"fields": {"发布状态": "准备中", "失败原因": None}}
+
+
+def test_update_listing_status_can_write_failure_reason():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"code": 0, "data": {"record": {"record_id": "recA"}}})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_listing_status("recA", "准备失败", failure_reason="price panel missing")
+
+    assert captured["payload"] == {
+        "fields": {
+            "发布状态": "准备失败",
+            "失败原因": "price panel missing",
+        }
+    }

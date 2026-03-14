@@ -139,6 +139,26 @@ class FeishuBitableSource:
                 ordered_urls[attachment.file_token] = matched
         return ordered_urls
 
+    def update_listing_status(
+        self,
+        record_id: str,
+        status: str,
+        *,
+        failure_reason: str | None = None,
+    ) -> None:
+        app_token = self._require_setting("XIANYU_BITABLE_APP_TOKEN")
+        table_id = self._require_setting("XIANYU_BITABLE_TABLE_ID")
+        self._request_json(
+            "PUT",
+            f"/bitable/v1/apps/{app_token}/tables/{table_id}/records/{record_id}",
+            json={
+                "fields": {
+                    self.settings.status_field_name: status,
+                    self.settings.failure_reason_field_name: failure_reason,
+                }
+            },
+        )
+
     def _request_json(
         self,
         method: str,

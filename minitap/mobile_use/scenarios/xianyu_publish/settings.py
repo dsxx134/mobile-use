@@ -31,6 +31,7 @@ class XianyuPublishSettings(BaseSettings):
     location_search_query_field_name: str = Field(default="预设地址")
     attachment_field_name: str = Field(default="商品图片")
     status_field_name: str = Field(default="发布状态")
+    failure_reason_field_name: str = Field(default="失败原因")
     allow_publish_field_name: str = Field(default="是否允许发布")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
