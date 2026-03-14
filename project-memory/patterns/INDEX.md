@@ -31,5 +31,6 @@
 | xianyu-category-selection-uses-visible-chips | 2026-03-14 | xianyu-category-selection-uses-visible-chips.md |
 | xianyu-scrolled-metadata-still-belongs-to-editor | 2026-03-14 | xianyu-scrolled-metadata-still-belongs-to-editor.md |
 | xianyu-location-region-final-selection-needs-tail-polling | 2026-03-14 | xianyu-location-region-final-selection-needs-tail-polling.md |
+| xianyu-location-search-needs-focused-edittext-set-text | 2026-03-14 | xianyu-location-search-needs-focused-edittext-set-text.md |
 
-Total: 29
+Total: 30

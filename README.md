@@ -326,6 +326,9 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - switch between verified mail shipping modes and return to the portrait form
   - open the root location chooser from the portrait form
   - enter the hierarchical location region picker by tapping `请选择宝贝所在地`
+  - open the dedicated location search screen from `宝贝所在地`
+  - fill the focused address search field with direct `EditText.set_text()`
+  - tap a visible location search result row and return to the next Xianyu screen
   - expand the portrait form into the metadata/spec panel
   - set a currently visible category chip from the metadata/spec panel
   - set the verified `成色` chip options
@@ -415,6 +418,17 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   `宝贝所在地` chooser and the hierarchical `所在地` region picker
 - The location bridge also works from a scrolled `metadata_panel` state when the lower
   `选择位置` row is visible on screen
+- The root `宝贝所在地` chooser also exposes a dedicated `搜索地址` path
+- On this Huawei tablet, that search page does not reliably accept the existing FastInputIME
+  `send_keys()` path even though the field is focused
+- Real-device probing showed that the screen exposes a focused `android.widget.EditText` with
+  `hint="搜索地址"`, and using direct `EditText.set_text()` is what actually surfaces visible
+  result rows such as `上海虹桥站\n新虹街道申贵路1500号`
+- The flow now treats that page as `location_search_screen` and can:
+  - tap `搜索地址`
+  - set text on the focused field
+  - tap a visible result row
+  - return to the next Xianyu screen
 - The stable path into region selection is:
   - tap `选择位置`
   - wait for `宝贝所在地`
@@ -427,7 +441,7 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   instead of treating the first post-tap frame as a hard failure.
 - Final location writeback is still not treated as deterministic yet; real-device probing did not
   produce a stable, visible confirmation on the listing form after selecting either a common
-  address or a region row
+  address row, a search result row, or a region row
 - The portrait form also exposes a large metadata section row such as `分类/ISBN码/成色` or
   richer variants like `分类/盒袋状态/盒卡状态/等\n款式`
 - On the Huawei tablet, expanding that row does not open the old publish chooser; it opens a
@@ -517,6 +531,8 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   as `metadata_panel` and can still open `价格设置`, `发货方式`, and `选择位置` from it
 - Stable location persistence, deeper category navigation, `买家自提`, and final publish
   submission are still the next layer
+- The location search helper can now drive the dedicated search UI and visible result rows, but it
+  still returns to a form whose visible location row remains `选择位置`
 
 ## 🔎 Agentic System Overview
 

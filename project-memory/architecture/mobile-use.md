@@ -123,6 +123,12 @@ Updated: 2026-03-14
   - enter the root `location_panel`
   - tap the full `请选择宝贝所在地` row
   - enter the hierarchical `location_region_picker`
+- The root `location_panel` also exposes a dedicated location-search path:
+  - tap `搜索地址`
+  - enter a focused `android.widget.EditText` search screen
+  - use direct `EditText.set_text()` instead of the existing FastInputIME `send_keys()` path
+  - tap a visible search result row
+  - return to the next Xianyu screen
 - The flow service now also has a hierarchical `set_location_region_path()` helper for the verified
   Huawei-tablet path `上海 -> 上海 -> 黄浦区`. The first `上海` tap narrows the picker, the second
   `上海` tap expands districts, and the final district tap can leave a transient
@@ -145,10 +151,10 @@ Updated: 2026-03-14
 - Category support is intentionally scoped to the chips already visible on the metadata panel.
   This branch does not yet traverse a deeper category tree or category search flow.
 - Final location persistence is still unresolved on this app/device pair. Real-device probes showed
-  that tapping a common address or a district row can return to the listing form without a stable,
-  visible location confirmation in either the form row or the reopened `location_panel`. The flow
-  can now survive the picker tail, but the runner still does not treat location as a deterministic
-  writeback.
+  that tapping a common address, a search result, or a district row can return to the listing form
+  without a stable, visible location confirmation in either the form row or the reopened
+  `location_panel`. The flow can now survive the picker tail and drive the search UI, but the
+  runner still does not treat location as a deterministic writeback.
 - Real-device probing also showed that selecting a top-level region like `上海` narrows the same
   hierarchical picker rather than completing location selection in one tap.
 - Because this portrait `发闲置` form does not currently expose a separate title field through the
