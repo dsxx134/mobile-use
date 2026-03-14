@@ -55,6 +55,7 @@ def test_pick_first_publishable_record_maps_fields_to_listing_draft():
                 "商品标题": "二手显示器",
                 "商品描述": "成色很好",
                 "售价": 199,
+                "分类": "家居摆件",
                 "成色": "几乎全新",
                 "商品来源": "闲置",
                 "商品图片": [
@@ -72,6 +73,7 @@ def test_pick_first_publishable_record_maps_fields_to_listing_draft():
     assert listing.title == "二手显示器"
     assert listing.description == "成色很好"
     assert listing.price == 199.0
+    assert listing.category == "家居摆件"
     assert listing.condition == "几乎全新"
     assert listing.item_source == "闲置"
     assert [attachment.file_token for attachment in listing.attachments] == ["ft-1", "ft-2"]

@@ -85,9 +85,40 @@ class FakeAndroidService:
 
 def _metadata_panel_elements(
     *,
+    selected_category: str | None = None,
     selected_condition: str | None = None,
     selected_source: str | None = None,
 ) -> list[dict]:
+    category_blind_box = (
+        "已选中潮玩盲盒, 潮玩盲盒"
+        if selected_category == "潮玩盲盒"
+        else "可选潮玩盲盒, 潮玩盲盒"
+    )
+    category_novel = (
+        "已选中文学/小说, 文学/小说"
+        if selected_category == "文学/小说"
+        else "可选文学/小说, 文学/小说"
+    )
+    category_game = (
+        "已选中游戏装备, 游戏装备"
+        if selected_category == "游戏装备"
+        else "可选游戏装备, 游戏装备"
+    )
+    category_home = (
+        "已选中家居摆件, 家居摆件"
+        if selected_category == "家居摆件"
+        else "可选家居摆件, 家居摆件"
+    )
+    category_other = (
+        "已选中其他游戏道具, 其他游戏道具"
+        if selected_category == "其他游戏道具"
+        else "可选其他游戏道具, 其他游戏道具"
+    )
+    category_life = (
+        "已选中生活百科, 生活百科"
+        if selected_category == "生活百科"
+        else "可选生活百科, 生活百科"
+    )
     condition_full_new = "已选中全新, 全新" if selected_condition == "全新" else "可选全新, 全新"
     condition_almost_new = (
         "已选中几乎全新, 几乎全新"
@@ -124,10 +155,19 @@ def _metadata_panel_elements(
         },
         {"content-desc": "分类, 分类", "bounds": "[40,1665][215,1705]"},
         {
-            "content-desc": "已选中潮玩盲盒, 潮玩盲盒",
+            "content-desc": category_blind_box,
             "bounds": "[245,1615][435,1755]",
             "clickable": "true",
         },
+        {"content-desc": category_novel, "bounds": "[455,1615][660,1755]", "clickable": "true"},
+        {"content-desc": category_game, "bounds": "[680,1615][870,1755]", "clickable": "true"},
+        {"content-desc": category_home, "bounds": "[890,1615][1080,1755]", "clickable": "true"},
+        {
+            "content-desc": category_other,
+            "bounds": "[1100,1615][1355,1755]",
+            "clickable": "true",
+        },
+        {"content-desc": category_life, "bounds": "[1375,1615][1565,1755]", "clickable": "true"},
         {"content-desc": "成色, 成色", "bounds": "[40,1945][215,1985]"},
         {"content-desc": condition_full_new, "bounds": "[245,2035][375,2175]", "clickable": "true"},
         {
@@ -390,6 +430,8 @@ def test_detects_metadata_panel_instead_of_publish_chooser():
     analysis = analyzer.detect_screen(screen)
 
     assert analysis.screen_name == "metadata_panel"
+    assert analysis.targets["metadata_category_option_家居摆件"].x == 985
+    assert analysis.targets["metadata_category_option_家居摆件"].y == 1685
     assert analysis.targets["metadata_condition_option_几乎全新"].x == 490
     assert analysis.targets["metadata_condition_option_几乎全新"].y == 2105
     assert analysis.targets["metadata_source_option_闲置"].x == 940
@@ -1383,6 +1425,50 @@ def test_set_item_source_selects_option_and_verifies_selected_state():
 
     assert result.screen_name == "metadata_panel"
     assert android_service.tap_calls == [("device-1", 940, 2245)]
+
+
+def test_set_item_category_selects_option_and_verifies_selected_state():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="家居摆件"),
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.set_item_category("device-1", "家居摆件")
+
+    assert result.screen_name == "metadata_panel"
+    assert android_service.tap_calls == [("device-1", 985, 1685)]
+
+
+def test_set_item_category_returns_immediately_when_value_already_matches():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_metadata_panel_elements(selected_category="家居摆件"),
+            )
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.set_item_category("device-1", "家居摆件")
+
+    assert result.screen_name == "metadata_panel"
+    assert android_service.tap_calls == []
 
 
 def test_advance_listing_form_to_album_picker_handles_media_permission_dialog():

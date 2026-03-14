@@ -18,6 +18,7 @@ def _make_listing(
     *,
     title: str = "二手显示器",
     description: str = "成色很好，支持验货",
+    category: str | None = None,
     condition: str | None = None,
     item_source: str | None = None,
 ) -> ListingDraft:
@@ -27,6 +28,7 @@ def _make_listing(
         description=description,
         price=199.0,
         attachments=[FeishuAttachment(file_token="ft-1", name="1.jpg")],
+        category=category,
         condition=condition,
         item_source=item_source,
     )
@@ -174,7 +176,7 @@ def test_prepare_first_publishable_listing_skips_bridge_when_image_flow_returns_
 
 
 def test_prepare_first_publishable_listing_applies_optional_metadata_fields(tmp_path):
-    listing = _make_listing(condition="几乎全新", item_source="闲置")
+    listing = _make_listing(category="家居摆件", condition="几乎全新", item_source="闲置")
     source = Mock()
     source.pick_first_publishable_record.return_value = listing
     source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
@@ -194,6 +196,7 @@ def test_prepare_first_publishable_listing_applies_optional_metadata_fields(tmp_
     flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.set_item_category.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
     flow.set_item_condition.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
     flow.set_item_source.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
     timeline = Mock()
@@ -225,6 +228,7 @@ def test_prepare_first_publishable_listing_applies_optional_metadata_fields(tmp_
         call.flow.select_cover_image("device-1", preferred_album_name="XianyuPublish"),
         call.flow.fill_description("device-1", "二手显示器\n\n成色很好，支持验货"),
         call.flow.fill_price("device-1", 199.0),
+        call.flow.set_item_category("device-1", "家居摆件"),
         call.flow.set_item_condition("device-1", "几乎全新"),
         call.flow.set_item_source("device-1", "闲置"),
     ]

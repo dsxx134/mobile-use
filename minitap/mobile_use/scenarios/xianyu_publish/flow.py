@@ -10,6 +10,7 @@ from minitap.mobile_use.scenarios.xianyu_publish.models import TapTarget, Xianyu
 from minitap.mobile_use.scenarios.xianyu_publish.settings import XianyuPublishSettings
 
 _BOUNDS_RE = re.compile(r"\[(?P<left>\d+),(?P<top>\d+)\]\[(?P<right>\d+),(?P<bottom>\d+)\]")
+_METADATA_CHOICE_RE = re.compile(r"^(?P<state>已选中|可选)(?P<label>.+), (?P=label)$")
 
 
 def _extract_text(element: dict) -> str | None:
@@ -113,6 +114,13 @@ def normalize_item_condition(condition: str) -> str:
     if normalized is None:
         raise ValueError(f"Unsupported item condition: {condition!r}")
     return normalized
+
+
+def normalize_item_category(category: str) -> str:
+    raw = str(category).strip()
+    if not raw:
+        raise ValueError("Item category cannot be empty")
+    return raw
 
 
 def normalize_item_source(source: str) -> str:
@@ -280,10 +288,53 @@ class XianyuFlowAnalyzer:
             resolved = selected or available
             if resolved is None:
                 continue
-            targets[f"{prefix}_option_{option}"] = resolved.model_copy(update={"text": option})
+            suffix = _normalize_target_suffix(option)
+            targets[f"{prefix}_option_{suffix}"] = resolved.model_copy(update={"text": option})
             if selected is not None:
-                targets[f"{prefix}_selected_{option}"] = selected.model_copy(
+                targets[f"{prefix}_selected_{suffix}"] = selected.model_copy(
                     update={"text": option}
+                )
+        return targets
+
+    def _find_metadata_category_targets(self, elements: Iterable[dict]) -> dict[str, TapTarget]:
+        category_header = self._find_target(elements, exact_text="分类, 分类")
+        if category_header is None:
+            return {}
+
+        next_section_y_candidates: list[int] = []
+        for header_text in ("盒袋状态, 盒袋状态", "盒卡状态, 盒卡状态", "成色, 成色"):
+            header_target = self._find_target(elements, exact_text=header_text)
+            if header_target is not None and header_target.y >= category_header.y:
+                next_section_y_candidates.append(header_target.y)
+        lower_y_bound = min(next_section_y_candidates) if next_section_y_candidates else 10_000
+
+        targets: dict[str, TapTarget] = {}
+        for element in elements:
+            text = _extract_text(element)
+            if text is None:
+                continue
+            match = _METADATA_CHOICE_RE.fullmatch(text)
+            if match is None:
+                continue
+            target = parse_android_bounds(element.get("bounds"))
+            if target is None:
+                continue
+            if target.x <= 200:
+                continue
+            if target.y < category_header.y - 120 or target.y >= lower_y_bound:
+                continue
+
+            label = match.group("label")
+            suffix = _normalize_target_suffix(label)
+            if not suffix:
+                continue
+
+            targets[f"metadata_category_option_{suffix}"] = target.model_copy(
+                update={"text": label}
+            )
+            if match.group("state") == "已选中":
+                targets[f"metadata_category_selected_{suffix}"] = target.model_copy(
+                    update={"text": label}
                 )
         return targets
 
@@ -356,6 +407,7 @@ class XianyuFlowAnalyzer:
         shipping_entry = self._find_target(elements, contains_text="发货方式")
         location_entry = self._find_target(elements, exact_text="选择位置")
         description_done = self._find_target(elements, exact_text="完成")
+        metadata_category_targets = self._find_metadata_category_targets(elements)
         metadata_condition_targets = self._find_metadata_choice_targets(
             elements,
             prefix="metadata_condition",
@@ -479,13 +531,14 @@ class XianyuFlowAnalyzer:
             and add_image is not None
             and description_entry is not None
             and metadata_entry is not None
-            and (metadata_condition_targets or metadata_source_targets)
+            and (metadata_category_targets or metadata_condition_targets or metadata_source_targets)
         ):
             if submit_listing is not None:
                 targets["submit_listing"] = submit_listing
             targets["add_image"] = add_image
             targets["description_entry"] = description_entry
             targets["metadata_entry"] = metadata_entry
+            targets.update(metadata_category_targets)
             targets.update(metadata_condition_targets)
             targets.update(metadata_source_targets)
             return XianyuScreenAnalysis(
@@ -1282,8 +1335,9 @@ class XianyuPublishFlowService:
         max_steps: int = 4,
     ) -> XianyuScreenAnalysis:
         current_analysis = self._analyze(serial)
-        selected_target_name = f"{target_prefix}_selected_{desired_value}"
-        option_target_name = f"{target_prefix}_option_{desired_value}"
+        suffix = _normalize_target_suffix(desired_value)
+        selected_target_name = f"{target_prefix}_selected_{suffix}"
+        option_target_name = f"{target_prefix}_option_{suffix}"
         if (
             current_analysis.screen_name == "metadata_panel"
             and current_analysis.targets.get(selected_target_name) is not None
@@ -1519,6 +1573,21 @@ class XianyuPublishFlowService:
             desired_value=desired_condition,
             target_prefix="metadata_condition",
             option_kind="Condition",
+            max_steps=max_steps,
+        )
+
+    def set_item_category(
+        self,
+        serial: str,
+        category: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        desired_category = normalize_item_category(category)
+        return self._set_metadata_choice(
+            serial,
+            desired_value=desired_category,
+            target_prefix="metadata_category",
+            option_kind="Category",
             max_steps=max_steps,
         )
 

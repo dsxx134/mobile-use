@@ -172,6 +172,7 @@ class FeishuBitableSource:
             description=str(fields[self.settings.description_field_name]).strip(),
             price=float(fields[self.settings.price_field_name]),
             attachments=attachments,
+            category=self._get_optional_text_field(fields, self.settings.category_field_name),
             condition=self._get_optional_text_field(fields, self.settings.condition_field_name),
             item_source=self._get_optional_text_field(
                 fields, self.settings.item_source_field_name
