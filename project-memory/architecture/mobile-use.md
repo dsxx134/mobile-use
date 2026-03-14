@@ -142,6 +142,20 @@ Updated: 2026-03-14
   - `已就绪` when the portrait form is prepared again
   - `准备失败` plus `失败原因` if any downstream device step raises
 - This writeback currently describes prepare-runner state, not final Xianyu publish state.
+- The live Feishu integration differs from the earlier test-only assumptions in two important ways:
+  - Bitable record filters work through `POST /bitable/v1/apps/{app}/tables/{table}/records/search`
+    with a JSON `filter` body; the older `GET /records?filter=...` path returned `InvalidFilter`
+    against the real table.
+  - Attachment downloads are currently driven by the `url` already present in each attachment item,
+    and the file request must carry a tenant bearer token. The old
+    `/drive/v1/medias/batch_get_tmp_download_url` path returned `404` in the live environment.
+- Real Feishu text fields for this table arrive as arrays like `[{text: ..., type: ...}]`, so the
+  source layer must flatten those arrays before handing values to the runner.
+- On the current Huawei tablet, `fill_description()` and `fill_price()` can both settle on
+  `metadata_panel` instead of the upper `listing_form`; downstream metadata steps must treat either
+  state as a valid editor continuation.
+- The current runner keeps `商品来源` and `预设地址` as best-effort operations when their controls
+  are off-screen in the current editor slice, instead of failing the entire prepare run.
 - The flow service now also has a hierarchical `set_location_region_path()` helper for the verified
   Huawei-tablet path `上海 -> 上海 -> 黄浦区`. The first `上海` tap narrows the picker, the second
   `上海` tap expands districts, and the final district tap can leave a transient

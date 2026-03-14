@@ -499,7 +499,8 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 - `XianyuPrepareRunner` currently orchestrates the deterministic business slice:
   - pick the first publishable Bitable record
   - mark the record `准备中`
-  - resolve temporary download URLs for attachments
+  - parse real Feishu text-array fields into plain strings
+  - derive authenticated attachment download URLs directly from record metadata
   - download staged media into a record-scoped local directory
   - push the staged files into `XIANYU_ANDROID_MEDIA_DIR/<record_id>`
   - reach the portrait listing form
@@ -511,12 +512,17 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - fill the sale price
   - optionally apply a visible category chip
   - optionally apply `成色`
-  - optionally apply `商品来源`
-  - optionally apply a preset Bitable location search query such as `上海虹桥站`
+  - best-effort apply `商品来源` when the source chips are visible
+  - best-effort apply a preset Bitable location search query such as `上海虹桥站`
   - mark the record `已就绪` when the prepared form is reached again
   - mark the record `准备失败` with `失败原因` if any step raises
+- For live Feishu-backed runs, callers should construct `XianyuMediaSyncService` with
+  `download_file=source.download_attachment_file`
 - Real-device verification on `E2P6R22708000602` confirmed a full prepare-runner pass that ended
   on `listing_form` with body text and price filled
+- A fresh live Feishu-backed probe on `E2P6R22708000602` also confirmed an end-to-end prepare run
+  that reached `metadata_panel`, pushed `/sdcard/DCIM/XianyuPublish/recvdOzzR38eVi/01_image.png`,
+  and wrote the row back as `已就绪`
 - Real-device verification also confirmed that the current metadata page is recognized as
   `metadata_panel`, and that `set_item_condition('几乎全新')` and `set_item_source('闲置')`
   both end on visible selected-chip states
@@ -537,6 +543,9 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   drive a best-effort preset `预设地址 -> 搜索地址`,
   reopen the album picker from `添加图片`, prepare one publishable Bitable record into the
   form through `XianyuPrepareRunner`, and write the prepare status back into Bitable
+- On the current Huawei tablet, both `fill_description()` and `fill_price()` can legitimately
+  settle on `metadata_panel` instead of the upper `listing_form`; the runner now treats either
+  editor state as a valid prepared outcome
 - When the editor is scrolled into the metadata section, the flow now keeps that state classified
   as `metadata_panel` and can still open `价格设置`, `发货方式`, and `选择位置` from it
 - Stable location persistence, deeper category navigation, `买家自提`, and final publish
