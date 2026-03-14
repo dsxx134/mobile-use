@@ -1,6 +1,6 @@
 # mobile-use
 
-Updated: 2026-03-13
+Updated: 2026-03-14
 Repo: `D:\github\mobile-use`
 Status: Active
 
@@ -33,6 +33,7 @@ Status: Active
 - Xianyu publish flow batch 10 completed on `feat/android-debug-mcp`: draft-resume dialog recovery after tapping `发闲置`, location-chooser and region-picker recognition, and real-device verification that the flow reaches `location_region_picker` from the portrait listing form.
 - Xianyu publish flow batch 11 completed on `feat/android-debug-mcp`: post-`继续` draft-resume polling, a deterministic `XianyuPrepareRunner`, and a business-layer decision to fold `ListingDraft.title` into the description body because the portrait form does not expose a separate title field on this Huawei tablet.
 - Xianyu publish flow batch 12 completed on `feat/android-debug-mcp`: stale home/chooser wait handling, selected-media preview and media-edit recognition, and real-device verification that the prepare runner can now return to `listing_form` after image selection on the Huawei tablet.
+- Xianyu publish flow batch 13 completed on `feat/android-debug-mcp`: metadata/spec-panel recognition, deterministic `成色` and `商品来源` chip selection, optional Feishu mapping for those fields, and real-device verification that the metadata page is distinct from `publish_chooser`.
 
 ## Operational Rule
 - Important milestones should be committed and pushed to GitHub instead of remaining only local.

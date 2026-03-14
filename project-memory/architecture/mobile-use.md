@@ -1,6 +1,6 @@
 # mobile-use architecture
 
-Updated: 2026-03-13
+Updated: 2026-03-14
 
 ## High-Level Structure
 - Entry surfaces:
@@ -41,6 +41,7 @@ Updated: 2026-03-13
   - description editor
   - sale-price keypad panel
   - shipping bottom sheet
+  - expanded metadata/spec panel
   - location root chooser
   - location region picker
   - Android media permission dialog
@@ -122,6 +123,15 @@ Updated: 2026-03-13
   - enter the root `location_panel`
   - tap the full `请选择宝贝所在地` row
   - enter the hierarchical `location_region_picker`
+- The portrait listing form also exposes a metadata/spec entry row such as `分类/ISBN码/成色`
+  or richer variants like `分类/盒袋状态/盒卡状态/等\n款式`.
+- On the Huawei tablet, tapping that row does not reopen the old publish chooser; it expands into
+  a stable `metadata_panel` that still shows the main `发闲置` header plus chip-like choice rows.
+- The flow service now supports deterministic metadata selection from that page for:
+  - `成色`: `全新`, `几乎全新`, `轻微使用痕迹`, `明显使用痕迹`
+  - `商品来源`: `盒机转赠`, `盒机直发`, `淘宝转卖`, `闲置`
+- These metadata selections do not currently require a confirm button; real-device probing showed
+  the page stays on `metadata_panel` and the chip text flips from `可选...` to `已选中...`.
 - Final location persistence is still unresolved on this app/device pair. Real-device probes showed
   that tapping a common address or a district row can return to the listing form without a stable,
   visible location confirmation, so the flow stops at entering the picker for now.
@@ -138,8 +148,11 @@ Updated: 2026-03-13
   - if the app returns `photo_analysis`, bridge back into the form
   - fill the merged body text
   - fill the sale price
-- The runner intentionally stops at a prepared portrait listing form and does not yet own category,
-  stable location persistence, shipping values from Feishu, or final publish submission.
+  - optionally apply `成色`
+  - optionally apply `商品来源`
+- The runner intentionally stops at a prepared portrait listing form or metadata panel and does not
+  yet own category, stable location persistence, shipping values from Feishu, or final publish
+  submission.
 - On a fresh Android session, the first UIAutomator FastInputIME use can trigger one-time
   `com.github.uiautomator/.AdbKeyboard` installation and temporarily switch foreground away from
   Xianyu. After that warm-up, subsequent text entry stays in-app.

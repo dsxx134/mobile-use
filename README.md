@@ -290,7 +290,8 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `media_sync`: downloads Feishu attachment assets into a local staging directory and pushes them
   onto an Android device directory through `adbutils`
 - `flow`: recognizes key Xianyu publish screens and can deterministically advance from the
-  Xianyu home tab into the portrait listing form, album picker, description editor, sale-price panel, and shipping panel
+  Xianyu home tab into the portrait listing form, metadata panel, album picker, description
+  editor, sale-price panel, and shipping panel
 
 ### Deterministic flow coverage
 
@@ -300,6 +301,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - Xianyu home tab
   - publish chooser
   - portrait listing form
+  - expanded metadata/spec panel
   - description editor
   - sale-price keypad panel
   - shipping bottom sheet
@@ -324,6 +326,9 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - switch between verified mail shipping modes and return to the portrait form
   - open the root location chooser from the portrait form
   - enter the hierarchical location region picker by tapping `请选择宝贝所在地`
+  - expand the portrait form into the metadata/spec panel
+  - set the verified `成色` chip options
+  - set the verified `商品来源` chip options
   - accept the media permission dialog
   - reopen the album picker directly from the portrait form by tapping `添加图片`
   - switch the album source to a dedicated folder like `XianyuPublish`
@@ -345,6 +350,8 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `商品标题`
 - `商品描述`
 - `售价`
+- `成色`
+- `商品来源`
 - `商品图片`
 - `发布状态`
 - `是否允许发布`
@@ -412,6 +419,17 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 - Final location writeback is still not treated as deterministic yet; real-device probing did not
   produce a stable, visible confirmation on the listing form after selecting either a common
   address or a region row
+- The portrait form also exposes a large metadata section row such as `分类/ISBN码/成色` or
+  richer variants like `分类/盒袋状态/盒卡状态/等\n款式`
+- On the Huawei tablet, expanding that row does not open the old publish chooser; it opens a
+  stable metadata/spec page that still shows the main `发闲置` header plus chip-style options
+- The flow now treats that state as `metadata_panel` instead of misclassifying it as
+  `publish_chooser`
+- Real-device verification confirmed that tapping a chip such as `几乎全新` changes the visible
+  text from `可选几乎全新, 几乎全新` to `已选中几乎全新, 几乎全新`
+- The currently verified deterministic metadata fields are:
+  - `成色`: `全新`, `几乎全新`, `轻微使用痕迹`, `明显使用痕迹`
+  - `商品来源`: `盒机转赠`, `盒机直发`, `淘宝转卖`, `闲置`
 - From that portrait form, tapping `添加图片` opens the album picker directly without going back
   through the older publish chooser path
 - On the current app build, image selection can continue through extra media-processing screens:
@@ -457,8 +475,13 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - if needed, bridge back from `photo_analysis` into the portrait form
   - fill the merged title+description body
   - fill the sale price
+  - optionally apply `成色`
+  - optionally apply `商品来源`
 - Real-device verification on `E2P6R22708000602` confirmed a full prepare-runner pass that ended
   on `listing_form` with body text and price filled
+- Real-device verification also confirmed that the current metadata page is recognized as
+  `metadata_panel`, and that `set_item_condition('几乎全新')` and `set_item_source('闲置')`
+  both end on visible selected-chip states
 - The runner intentionally stops once the form is prepared and visible again; it does not yet claim:
   - category selection
   - stable location persistence
@@ -468,9 +491,11 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 ### Current boundary
 
 - The flow can now reach the portrait listing form, fill description text, set the sale price,
-  set the verified mail shipping mode, reopen the album picker from `添加图片`, and prepare one
-  publishable Bitable record into the form through `XianyuPrepareRunner`
-- Location, category, `买家自提`, and final publish submission are still the next layer
+  set the verified mail shipping mode, set verified metadata chips for `成色/商品来源`,
+  reopen the album picker from `添加图片`, and prepare one publishable Bitable record into the
+  form through `XianyuPrepareRunner`
+- Category, stable location persistence, `买家自提`, and final publish submission are still the
+  next layer
 
 ## 🔎 Agentic System Overview
 
