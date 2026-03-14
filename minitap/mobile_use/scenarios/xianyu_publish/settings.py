@@ -28,6 +28,7 @@ class XianyuPublishSettings(BaseSettings):
     category_field_name: str = Field(default="分类")
     condition_field_name: str = Field(default="成色")
     item_source_field_name: str = Field(default="商品来源")
+    location_search_query_field_name: str = Field(default="预设地址")
     attachment_field_name: str = Field(default="商品图片")
     status_field_name: str = Field(default="发布状态")
     allow_publish_field_name: str = Field(default="是否允许发布")

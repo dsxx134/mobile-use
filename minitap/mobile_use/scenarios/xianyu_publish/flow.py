@@ -1486,6 +1486,7 @@ class XianyuPublishFlowService:
         *,
         result_index: int = 0,
         max_steps: int = 4,
+        max_result_polls: int = 6,
     ) -> XianyuScreenAnalysis:
         normalized_query = query.strip()
         if not normalized_query:
@@ -1507,6 +1508,17 @@ class XianyuPublishFlowService:
 
         target_name = f"location_search_result_{result_index}"
         result_target = analysis.targets.get(target_name)
+        for _ in range(max_result_polls):
+            if result_target is not None:
+                break
+            self._sleep(1.0)
+            analysis = self._analyze(serial)
+            if analysis.screen_name != "location_search_screen":
+                raise RuntimeError(
+                    "Location search left the search screen before a result became selectable: "
+                    f"{analysis.screen_name}"
+                )
+            result_target = analysis.targets.get(target_name)
         if result_target is None:
             raise RuntimeError(f"Missing location search result target: {target_name}")
         self._tap_target(serial, result_target, target_name)

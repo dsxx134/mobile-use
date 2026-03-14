@@ -177,6 +177,9 @@ class FeishuBitableSource:
             item_source=self._get_optional_text_field(
                 fields, self.settings.item_source_field_name
             ),
+            location_search_query=self._get_optional_text_field(
+                fields, self.settings.location_search_query_field_name
+            ),
         )
 
     def _parse_attachment(self, attachment: dict[str, Any]) -> FeishuAttachment:

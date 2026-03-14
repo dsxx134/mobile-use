@@ -21,6 +21,7 @@ def _make_listing(
     category: str | None = None,
     condition: str | None = None,
     item_source: str | None = None,
+    location_search_query: str | None = None,
 ) -> ListingDraft:
     return ListingDraft(
         record_id="recA",
@@ -31,6 +32,7 @@ def _make_listing(
         category=category,
         condition=condition,
         item_source=item_source,
+        location_search_query=location_search_query,
     )
 
 
@@ -233,3 +235,61 @@ def test_prepare_first_publishable_listing_applies_optional_metadata_fields(tmp_
         call.flow.set_item_source("device-1", "闲置"),
     ]
     assert result.final_screen_name == "metadata_panel"
+
+
+def test_prepare_first_publishable_listing_applies_optional_location_search_query(tmp_path):
+    listing = _make_listing(location_search_query="上海虹桥站")
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.search_location_and_select_result.return_value = XianyuScreenAnalysis(
+        screen_name="listing_form"
+    )
+    timeline = Mock()
+    timeline.attach_mock(source, "source")
+    timeline.attach_mock(media_sync, "media_sync")
+    timeline.attach_mock(flow, "flow")
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+    )
+
+    result = runner.prepare_first_publishable_listing(
+        serial="device-1",
+        staging_root=tmp_path,
+    )
+
+    assert timeline.mock_calls == [
+        call.source.pick_first_publishable_record(),
+        call.source.get_attachment_download_urls(listing.attachments),
+        call.media_sync.download_listing_media(
+            listing,
+            {"ft-1": "https://files.example/1.jpg"},
+            tmp_path,
+        ),
+        call.media_sync.push_listing_media(listing, serial="device-1"),
+        call.flow.advance_to_listing_form("device-1"),
+        call.flow.advance_listing_form_to_album_picker("device-1"),
+        call.flow.select_cover_image("device-1", preferred_album_name="XianyuPublish"),
+        call.flow.fill_description("device-1", "二手显示器\n\n成色很好，支持验货"),
+        call.flow.fill_price("device-1", 199.0),
+        call.flow.search_location_and_select_result("device-1", "上海虹桥站"),
+    ]
+    assert result.final_screen_name == "listing_form"

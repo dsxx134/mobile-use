@@ -82,6 +82,11 @@ class XianyuPrepareRunner:
             final_analysis = self._flow.set_item_condition(serial, staged_listing.condition)
         if staged_listing.item_source:
             final_analysis = self._flow.set_item_source(serial, staged_listing.item_source)
+        if staged_listing.location_search_query:
+            final_analysis = self._flow.search_location_and_select_result(
+                serial,
+                staged_listing.location_search_query,
+            )
 
         return XianyuPrepareListingResult(
             record_id=staged_listing.record_id,

@@ -25,6 +25,7 @@ class ListingDraft(BaseModel):
     category: str | None = None
     condition: str | None = None
     item_source: str | None = None
+    location_search_query: str | None = None
     local_image_paths: list[Path] = Field(default_factory=list)
 
     @field_validator("attachments")

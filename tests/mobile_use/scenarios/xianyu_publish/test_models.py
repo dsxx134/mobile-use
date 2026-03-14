@@ -48,8 +48,10 @@ def test_listing_draft_accepts_optional_metadata_fields():
         category="家居摆件",
         condition="几乎全新",
         item_source="闲置",
+        location_search_query="上海虹桥站",
     )
 
     assert draft.category == "家居摆件"
     assert draft.condition == "几乎全新"
     assert draft.item_source == "闲置"
+    assert draft.location_search_query == "上海虹桥站"
