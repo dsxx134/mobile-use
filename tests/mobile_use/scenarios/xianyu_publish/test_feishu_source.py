@@ -311,6 +311,9 @@ def test_update_publish_result_can_write_published_at_and_optional_fields():
             "失败原因": None,
             "发布时间": "2026-03-14T20:15:00+08:00",
             "闲鱼商品ID": "xy123",
-            "闲鱼商品链接": "https://2.taobao.com/item.htm?id=xy123",
+            "闲鱼商品链接": {
+                "text": "https://2.taobao.com/item.htm?id=xy123",
+                "link": "https://2.taobao.com/item.htm?id=xy123",
+            },
         }
     }

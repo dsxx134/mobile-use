@@ -66,6 +66,8 @@ class FakeAndroidService:
         self.set_text_by_description_calls: list[tuple[str, str, str]] = []
         self.set_text_on_description_child_calls: list[tuple[str, str, str]] = []
         self.activity_dump = ""
+        self.clipboard_text = ""
+        self.clipboard_reads = 0
         self._tap_count = 0
         self._swipe_count = 0
 
@@ -192,6 +194,10 @@ class FakeAndroidService:
 
     def dump_activity_activities(self, serial: str) -> dict:
         return {"serial": serial, "raw_output": self.activity_dump}
+
+    def get_clipboard_text(self, serial: str) -> dict:
+        self.clipboard_reads += 1
+        return {"serial": serial, "text": self.clipboard_text}
 
 
 def _metadata_panel_elements(
@@ -5415,3 +5421,78 @@ def test_extract_listing_receipt_from_current_detail_returns_none_when_dump_has_
     receipt = flow.extract_listing_receipt_from_current_detail("device-1")
 
     assert receipt is None
+
+
+def test_copy_public_listing_url_from_current_detail_taps_share_copy_and_returns_to_detail():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.taobao.idlefish.detail.DetailActivity",
+                elements=_listing_detail_elements(),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostTransparencyActivity",
+                elements=[
+                    {"text": "分享至", "bounds": "[650,980][950,1040]"},
+                    {"text": "复制链接", "clickable": "true", "bounds": "[310,1410][650,1540]"},
+                    {
+                        "text": "【闲鱼】https://m.tb.cn/h.ifJqS57?tk=9y8uUxYazY4 CZ005",
+                        "bounds": "[120,1200][1480,1330]",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.taobao.idlefish.detail.DetailActivity",
+                elements=_listing_detail_elements(),
+            ),
+        ],
+        advance_on_tap_calls={1},
+    )
+    android_service.clipboard_text = (
+        "【闲鱼】https://m.tb.cn/h.ifJqS57?tk=9y8uUxYazY4 CZ005 "
+        "「快来捡漏【海信34g6k-pro】」"
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    url = flow.copy_public_listing_url_from_current_detail("device-1")
+
+    assert url == "https://m.tb.cn/h.ifJqS57?tk=9y8uUxYazY4"
+    assert android_service.tap_calls == [("device-1", 1515, 135), ("device-1", 480, 1475)]
+    assert android_service.clipboard_reads == 1
+    assert android_service.back_calls == ["device-1"]
+
+
+def test_copy_public_listing_url_from_current_detail_raises_when_clipboard_has_no_http_url():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.taobao.idlefish.detail.DetailActivity",
+                elements=_listing_detail_elements(),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostTransparencyActivity",
+                elements=[
+                    {"text": "分享至", "bounds": "[650,980][950,1040]"},
+                    {"text": "复制链接", "clickable": "true", "bounds": "[310,1410][650,1540]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.taobao.idlefish.detail.DetailActivity",
+                elements=_listing_detail_elements(),
+            ),
+        ],
+        advance_on_tap_calls={1},
+    )
+    android_service.clipboard_text = "淘口令已复制"
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    with pytest.raises(RuntimeError, match="Clipboard did not contain a public http"):
+        flow.copy_public_listing_url_from_current_detail("device-1")

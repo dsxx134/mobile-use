@@ -276,6 +276,11 @@ class UIAutomatorClient:
         device = self._ensure_connected()
         device.set_clipboard(text)
 
+    def get_clipboard_text(self) -> str:
+        """Read clipboard text from the connected device."""
+        device = self._ensure_connected()
+        return str(device.clipboard)
+
     def set_text_by_description(self, description: str, text: str) -> None:
         """Set text on a node selected by exact content description."""
         device = self._ensure_connected()

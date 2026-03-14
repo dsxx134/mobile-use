@@ -417,6 +417,7 @@ uv run python scripts/xianyu_publish_auto_live.py
   - `发布状态=已发布`
   - `发布时间=<iso timestamp>`
   - `闲鱼商品ID=<itemId>` when `DetailActivity` receipt extraction succeeds
+  - `闲鱼商品链接=<https short link>` when the detail share sheet copy-link flow succeeds
 - Xianyu can also show a reward-style success page with `发布成功` and `再发一件`; the analyzer now
   treats that variant as the same `publish_success` outcome
 - After a successful submit, the flow now also has a best-effort bridge into the published item
@@ -426,14 +427,20 @@ uv run python scripts/xianyu_publish_auto_live.py
 - On the Huawei tablet, the current receipt extraction source is
   `adb shell dumpsys activity activities`, where the resumed `DetailActivity` exposes an
   `Intent { dat=fleamarket://awesome_detail?...itemId=... }` line
+- The current public item URL source is the detail-page share sheet:
+  - tap `分享按钮`
+  - tap `复制链接`
+  - read the clipboard
+  - extract the first `https://...` URL such as `https://m.tb.cn/...`
 - The live script result can now include:
   - `publish.listing_id`
   - `publish.detail_deep_link`
+  - `publish.listing_url`
 - If the success screen does not appear, it writes back:
   - `发布状态=发布失败`
   - `失败原因=<raised error>`
-- `闲鱼商品链接` still stays empty for now because the current receipt source is an app deep link
-  (`fleamarket://...`), and the Feishu hyperlink field rejects that value
+- The Feishu `闲鱼商品链接` field is a real hyperlink field, so the source layer now writes it as a
+  `{text, link}` object instead of a bare string
 
 ### Current media-selection behavior
 

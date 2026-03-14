@@ -22,5 +22,6 @@
 | xianyu live success should be recovered without republish | 2026-03-14 | 2026-03-14-xianyu-live-success-should-be-recovered-without-republish.md |
 | xianyu post publish detail comes before id writeback | 2026-03-14 | 2026-03-14-xianyu-post-publish-detail-comes-before-id-writeback.md |
 | xianyu hyperlink writeback waits for a public url | 2026-03-14 | 2026-03-14-xianyu-hyperlink-writeback-waits-for-a-public-url.md |
+| xianyu public url writeback uses detail share copy link | 2026-03-14 | 2026-03-14-xianyu-public-url-writeback-uses-detail-share-copy-link.md |
 
-Total: 20
+Total: 21

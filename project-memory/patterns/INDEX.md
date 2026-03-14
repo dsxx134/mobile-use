@@ -46,5 +46,7 @@
 | xianyu-detail-detection-uses-header-controls | 2026-03-14 | xianyu-detail-detection-uses-header-controls.md |
 | xianyu-detail-receipt-can-be-read-from-activity-dump | 2026-03-14 | xianyu-detail-receipt-can-be-read-from-activity-dump.md |
 | feishu-url-fields-reject-app-deep-links | 2026-03-14 | feishu-url-fields-reject-app-deep-links.md |
+| xianyu-public-url-comes-from-share-copy-link | 2026-03-14 | xianyu-public-url-comes-from-share-copy-link.md |
+| feishu-url-fields-use-text-link-objects | 2026-03-14 | feishu-url-fields-use-text-link-objects.md |
 
-Total: 44
+Total: 46

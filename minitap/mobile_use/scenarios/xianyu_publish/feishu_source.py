@@ -167,7 +167,7 @@ class FeishuBitableSource:
                 self.settings.failure_reason_field_name: failure_reason,
                 self.settings.published_at_field_name: published_at,
                 self.settings.listing_id_field_name: listing_id,
-                self.settings.listing_url_field_name: listing_url,
+                self.settings.listing_url_field_name: self._format_url_field(listing_url),
             },
         )
 
@@ -269,3 +269,14 @@ class FeishuBitableSource:
             if parts:
                 return "".join(parts).strip()
         return str(value).strip()
+
+    def _format_url_field(self, value: str | None) -> Any:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        return {
+            "text": text,
+            "link": text,
+        }

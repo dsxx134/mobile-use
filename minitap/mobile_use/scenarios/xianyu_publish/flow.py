@@ -20,6 +20,7 @@ _DETAIL_INTENT_DEEPLINK_RE = re.compile(
     r" [^}]*(?:cmp=com\.taobao\.idlefish/\.detail\.DetailActivity)[^}]*\}"
 )
 _ITEM_ID_RE = re.compile(r"(?:^|[?&])itemId=(?P<item_id>\d+)(?:&|$)")
+_PUBLIC_HTTP_URL_RE = re.compile(r"https?://[^\s]+")
 
 
 def _extract_text(element: dict) -> str | None:
@@ -170,6 +171,13 @@ def extract_listing_receipt_from_activity_dump(
         item_id=item_id_match.group("item_id"),
         deep_link=deep_link,
     )
+
+
+def extract_public_url_from_share_text(text: str) -> str | None:
+    match = _PUBLIC_HTTP_URL_RE.search(text)
+    if match is None:
+        return None
+    return match.group(0)
 
 
 class XianyuFlowAnalyzer:
@@ -2501,3 +2509,51 @@ class XianyuPublishFlowService:
         dump = self._android.dump_activity_activities(serial)
         raw_output = str(dump.get("raw_output", ""))
         return extract_listing_receipt_from_activity_dump(raw_output)
+
+    def copy_public_listing_url_from_current_detail(
+        self,
+        serial: str,
+        *,
+        max_polls: int = 4,
+    ) -> str:
+        analysis = self._analyze(serial)
+        if analysis.screen_name != "listing_detail":
+            raise RuntimeError(
+                "Cannot copy public listing url outside listing detail: "
+                f"{analysis.screen_name}"
+            )
+
+        share_target = analysis.targets.get("listing_detail_share")
+        if share_target is None:
+            raise RuntimeError("Missing listing_detail_share target on listing detail")
+        self._tap_target(serial, share_target, "listing_detail_share")
+
+        copy_target = None
+        for _ in range(max_polls):
+            screen = self._android.get_screen_data(serial)
+            copy_target = self._analyzer._find_target(screen["elements"], exact_text="复制链接")
+            if copy_target is not None:
+                break
+            self._sleep(0.8)
+
+        if copy_target is None:
+            raise RuntimeError("Could not find copy-link target on the share sheet")
+
+        self._tap_target(serial, copy_target, "share_copy_link")
+        self._sleep(0.8)
+        clipboard = self._android.get_clipboard_text(serial)
+        clipboard_text = str(clipboard.get("text", ""))
+        public_url = extract_public_url_from_share_text(clipboard_text)
+
+        self._android.press_back(serial)
+        final_analysis = self._wait_for_non_loading_screen(serial)
+        if final_analysis.screen_name != "listing_detail":
+            raise RuntimeError(
+                "Copy-link flow did not return to listing detail: "
+                f"{final_analysis.screen_name}"
+            )
+
+        if public_url is None:
+            raise RuntimeError("Clipboard did not contain a public http url after copy-link")
+
+        return public_url

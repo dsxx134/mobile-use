@@ -154,3 +154,20 @@ def test_dump_activity_activities_returns_raw_output():
         "serial": "device-1",
         "raw_output": activity_dump,
     }
+
+
+def test_get_clipboard_text_reads_from_ui_client():
+    adb_client = Mock()
+    adb_client.list.return_value = [_make_device_info()]
+    ui_client = Mock()
+    ui_client.get_clipboard_text.return_value = "https://m.tb.cn/example"
+    ui_client_factory = Mock(return_value=ui_client)
+    service = AndroidDebugService(adb_client=adb_client, ui_client_factory=ui_client_factory)
+
+    result = service.get_clipboard_text("device-1")
+
+    ui_client.get_clipboard_text.assert_called_once_with()
+    assert result == {
+        "serial": "device-1",
+        "text": "https://m.tb.cn/example",
+    }

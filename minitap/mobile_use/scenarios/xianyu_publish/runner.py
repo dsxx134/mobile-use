@@ -183,12 +183,22 @@ class XianyuPrepareRunner:
                 try:
                     detail_analysis = self._flow.advance_publish_success_to_listing_detail(serial)
                     detail_screen_name = detail_analysis.screen_name
-                    receipt = self._flow.extract_listing_receipt_from_current_detail(serial)
-                    if receipt is not None:
-                        detail_deep_link = receipt.deep_link
-                        listing_id = receipt.item_id
                 except RuntimeError:
                     detail_screen_name = None
+                if detail_screen_name is not None:
+                    try:
+                        receipt = self._flow.extract_listing_receipt_from_current_detail(serial)
+                        if receipt is not None:
+                            detail_deep_link = receipt.deep_link
+                            listing_id = receipt.item_id
+                    except RuntimeError:
+                        pass
+                    try:
+                        listing_url = self._flow.copy_public_listing_url_from_current_detail(
+                            serial
+                        )
+                    except RuntimeError:
+                        pass
                 published_at = self._now_fn().isoformat()
                 self._source.update_publish_result(
                     staged_listing.record_id,

@@ -223,8 +223,15 @@ Updated: 2026-03-14
   - call `adb shell dumpsys activity activities`
   - parse the resumed detail `Intent { dat=fleamarket://awesome_detail?...itemId=... }`
 - This source is good enough to recover `闲鱼商品ID` and the raw app deep link after a successful
-  publish, but it does not yet produce a Feishu-compatible public `https://...` URL. The current
-  Bitable hyperlink field rejects `fleamarket://...`, so only `闲鱼商品ID` is written back today.
+  publish.
+- Public share-link extraction now uses the detail-page share sheet rather than activity state:
+  - tap `分享按钮`
+  - wait for the transparency share sheet
+  - tap `复制链接`
+  - read the device clipboard and extract the first `https://...` URL
+  - press `Back` once to return to `listing_detail`
+- The Feishu Bitable `Url` field for `闲鱼商品链接` accepts a `{text, link}` object, not the bare
+  string form previously used in the source layer.
 - Post-publish navigation is now split into two deterministic branches:
   - classic success page: tap `看看宝贝`
   - reward-style success page: press `Back` once

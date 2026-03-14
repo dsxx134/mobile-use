@@ -148,6 +148,12 @@ class AndroidDebugService:
         self.get_ui_client(serial).set_clipboard_text(text)
         return {"serial": serial, "text": text, "success": True}
 
+    def get_clipboard_text(self, serial: str) -> dict[str, Any]:
+        return {
+            "serial": serial,
+            "text": self.get_ui_client(serial).get_clipboard_text(),
+        }
+
     def set_text_by_description(self, serial: str, description: str, text: str) -> dict[str, Any]:
         self.get_ui_client(serial).set_text_by_description(description, text)
         return {

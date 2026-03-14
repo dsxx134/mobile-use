@@ -667,6 +667,9 @@ def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tm
         item_id="1022496357535",
         deep_link="fleamarket://awesome_detail?itemId=1022496357535&hitNativeDetail=true",
     )
+    flow.copy_public_listing_url_from_current_detail.return_value = (
+        "https://m.tb.cn/h.ifJqS57?tk=9y8uUxYazY4"
+    )
     fixed_now = datetime(2026, 3, 14, 20, 30, 0, tzinfo=UTC)
     runner = XianyuPrepareRunner(
         source=source,
@@ -693,11 +696,12 @@ def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tm
         failure_reason=None,
         published_at="2026-03-14T20:30:00+00:00",
         listing_id="1022496357535",
-        listing_url=None,
+        listing_url="https://m.tb.cn/h.ifJqS57?tk=9y8uUxYazY4",
     )
     flow.submit_listing_and_wait_for_result.assert_called_once_with("device-1")
     flow.advance_publish_success_to_listing_detail.assert_called_once_with("device-1")
     flow.extract_listing_receipt_from_current_detail.assert_called_once_with("device-1")
+    flow.copy_public_listing_url_from_current_detail.assert_called_once_with("device-1")
     assert result.publish is not None
     assert result.publish.success is True
     assert result.publish.screen_name == "publish_success"
@@ -710,7 +714,7 @@ def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tm
     )
     assert (
         result.publish.listing_url
-        is None
+        == "https://m.tb.cn/h.ifJqS57?tk=9y8uUxYazY4"
     )
 
 
