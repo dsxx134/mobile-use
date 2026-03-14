@@ -35,6 +35,7 @@
 | xianyu-location-region-final-selection-needs-tail-polling | 2026-03-14 | xianyu-location-region-final-selection-needs-tail-polling.md |
 | xianyu-location-search-needs-focused-edittext-set-text | 2026-03-14 | xianyu-location-search-needs-focused-edittext-set-text.md |
 | xianyu-editor-steps-may-return-metadata-panel | 2026-03-14 | xianyu-editor-steps-may-return-metadata-panel.md |
+| xianyu-description-entry-needs-tail-polling | 2026-03-14 | xianyu-description-entry-needs-tail-polling.md |
 | xianyu-prepare-runner-writes-bitable-status-around-device-work | 2026-03-14 | xianyu-prepare-runner-writes-bitable-status-around-device-work.md |
 
-Total: 34
+Total: 35

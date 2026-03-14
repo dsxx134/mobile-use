@@ -31,6 +31,9 @@ Updated: 2026-03-14
   - `XianyuFlowAnalyzer` for pure screen classification and tap-target extraction
   - `XianyuPublishFlowService` for deterministic Xianyu navigation built on `AndroidDebugService`
   - `XianyuPrepareRunner` for business orchestration across Feishu source, media sync, and the deterministic flow layer
+  - `live_prepare.py` for the live-device orchestration glue that resolves the Android serial,
+    wires authenticated Feishu downloads into media sync, preheats the Huawei tablet back to the
+    portrait form, and then delegates to `XianyuPrepareRunner`
 - The Xianyu flow currently recognizes:
   - home tab
   - publish chooser
@@ -156,6 +159,12 @@ Updated: 2026-03-14
   state as a valid editor continuation.
 - The current runner keeps `商品来源` and `预设地址` as best-effort operations when their controls
   are off-screen in the current editor slice, instead of failing the entire prepare run.
+- The live prepare entrypoint now retries the initial `advance_to_listing_form()` preheat once
+  before surfacing a startup failure, because the Huawei tablet can occasionally stop on a
+  transient `unknown` state even though a second preheat attempt succeeds.
+- Opening the description editor from a scrolled `metadata_panel` is also a two-phase transition on
+  this tablet: the first post-tap frame can still look like `metadata_panel`, so the flow now uses
+  a dedicated post-description-entry poll instead of treating that tail frame as a hard failure.
 - The flow service now also has a hierarchical `set_location_region_path()` helper for the verified
   Huawei-tablet path `上海 -> 上海 -> 黄浦区`. The first `上海` tap narrows the picker, the second
   `上海` tap expands districts, and the final district tap can leave a transient
@@ -209,4 +218,6 @@ Updated: 2026-03-14
   Xianyu. After that warm-up, subsequent text entry stays in-app.
 - The landscape space-analysis path remains supported for investigation and fallback, but it is no longer the default route for entering the form.
 - `scripts/xianyu_publish_flow_smoke.py` is the quickest way to inspect the current Xianyu screen classification on a connected Android device.
+- `scripts/xianyu_prepare_runner_live.py` is now the canonical way to run the verified live
+  Feishu-backed prepare slice end-to-end against the Huawei tablet.
 - The next layer should still consume `ListingDraft` directly and stay isolated from raw Feishu record payloads.

@@ -15,5 +15,6 @@
 | xianyu location stays out of runner until writeback is visible | 2026-03-14 | 2026-03-14-xianyu-location-stays-out-of-runner-until-writeback-is-visible.md |
 | xianyu runner can apply best effort location search query | 2026-03-14 | 2026-03-14-xianyu-runner-can-apply-best-effort-location-search-query.md |
 | xianyu prepare runner writes preparation status to bitable | 2026-03-14 | 2026-03-14-xianyu-prepare-runner-writes-preparation-status-to-bitable.md |
+| xianyu live prepare entrypoint is scripted | 2026-03-14 | 2026-03-14-xianyu-live-prepare-entrypoint-is-scripted.md |
 
-Total: 13
+Total: 14
