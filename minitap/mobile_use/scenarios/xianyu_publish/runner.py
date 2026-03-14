@@ -22,6 +22,7 @@ class XianyuPublishResult(BaseModel):
 
     success: bool
     screen_name: str
+    detail_screen_name: str | None = None
     published_at: str | None = None
     listing_id: str | None = None
     listing_url: str | None = None
@@ -174,6 +175,12 @@ class XianyuPrepareRunner:
                     failure_reason=None,
                 )
                 publish_analysis = self._flow.submit_listing_and_wait_for_result(serial)
+                detail_screen_name: str | None = None
+                try:
+                    detail_analysis = self._flow.advance_publish_success_to_listing_detail(serial)
+                    detail_screen_name = detail_analysis.screen_name
+                except RuntimeError:
+                    detail_screen_name = None
                 published_at = self._now_fn().isoformat()
                 self._source.update_publish_result(
                     staged_listing.record_id,
@@ -186,11 +193,15 @@ class XianyuPrepareRunner:
                 publish = XianyuPublishResult(
                     success=True,
                     screen_name=publish_analysis.screen_name,
+                    detail_screen_name=detail_screen_name,
                     published_at=published_at,
                     listing_id=None,
                     listing_url=None,
                 )
-                final_analysis = publish_analysis
+                if detail_screen_name is not None:
+                    final_analysis = detail_analysis
+                else:
+                    final_analysis = publish_analysis
             except Exception as exc:
                 self._source.update_publish_result(
                     staged_listing.record_id,

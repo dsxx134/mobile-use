@@ -659,6 +659,9 @@ def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tm
             )
         },
     )
+    flow.advance_publish_success_to_listing_detail.return_value = XianyuScreenAnalysis(
+        screen_name="listing_detail"
+    )
     fixed_now = datetime(2026, 3, 14, 20, 30, 0, tzinfo=UTC)
     runner = XianyuPrepareRunner(
         source=source,
@@ -688,9 +691,11 @@ def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tm
         listing_url=None,
     )
     flow.submit_listing_and_wait_for_result.assert_called_once_with("device-1")
+    flow.advance_publish_success_to_listing_detail.assert_called_once_with("device-1")
     assert result.publish is not None
     assert result.publish.success is True
     assert result.publish.screen_name == "publish_success"
+    assert result.publish.detail_screen_name == "listing_detail"
     assert result.publish.published_at == "2026-03-14T20:30:00+00:00"
 
 

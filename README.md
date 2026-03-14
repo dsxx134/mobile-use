@@ -418,6 +418,10 @@ uv run python scripts/xianyu_publish_auto_live.py
   - `发布时间=<iso timestamp>`
 - Xianyu can also show a reward-style success page with `发布成功` and `再发一件`; the analyzer now
   treats that variant as the same `publish_success` outcome
+- After a successful submit, the flow now also has a best-effort bridge into the published item
+  detail page:
+  - tap `看看宝贝` on the classic success page
+  - or press `Back` once from the reward-style success page
 - If the success screen does not appear, it writes back:
   - `发布状态=发布失败`
   - `失败原因=<raised error>`
@@ -631,6 +635,8 @@ uv run python scripts/xianyu_publish_auto_live.py
 - Real-device auto-publish has now reached and stayed on a live `publish_success` result page on
   the Huawei tablet; the analyzer recognizes both the classic success page and the reward-style
   `发布成功 + 再发一件` variant
+- The flow can now also bridge from post-publish success into a recognizable item detail page, but
+  stable `闲鱼商品ID / 闲鱼商品链接` extraction is still pending a deterministic source
 
 ## 🔎 Agentic System Overview
 

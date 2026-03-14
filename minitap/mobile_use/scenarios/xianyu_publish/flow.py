@@ -450,6 +450,27 @@ class XianyuFlowAnalyzer:
                 targets=targets,
             )
 
+        listing_detail_back = self._find_target(elements, exact_text="返回")
+        listing_detail_search = self._find_target(elements, exact_text="搜索按钮")
+        listing_detail_share = self._find_target(elements, exact_text="分享按钮")
+        if (
+            current_package == self._settings.xianyu_package_name
+            and current_activity == "com.taobao.idlefish.detail.DetailActivity"
+            and listing_detail_back is not None
+            and listing_detail_search is not None
+            and listing_detail_share is not None
+        ):
+            targets["listing_detail_back"] = listing_detail_back
+            targets["listing_detail_search"] = listing_detail_search
+            targets["listing_detail_share"] = listing_detail_share
+            return XianyuScreenAnalysis(
+                screen_name="listing_detail",
+                current_package=current_package,
+                current_activity=current_activity,
+                visible_texts=visible_texts,
+                targets=targets,
+            )
+
         publish_location_required_cancel = self._find_target(elements, exact_text="取消")
         publish_location_required_ack = self._find_target(elements, exact_text="我知道了")
         if (
@@ -2405,3 +2426,36 @@ class XianyuPublishFlowService:
             result = self._analyze(serial)
 
         raise RuntimeError(f"Publish did not reach success screen: {result.screen_name}")
+
+    def advance_publish_success_to_listing_detail(
+        self,
+        serial: str,
+        max_steps: int = 4,
+    ) -> XianyuScreenAnalysis:
+        for _ in range(max_steps):
+            analysis = self._analyze(serial)
+            if analysis.screen_name == "listing_detail":
+                return analysis
+
+            if analysis.screen_name == "publish_success":
+                view_listing_target = analysis.targets.get("publish_success_view_listing")
+                if view_listing_target is not None:
+                    self._tap_target(serial, view_listing_target, "publish_success_view_listing")
+                else:
+                    self._android.press_back(serial)
+                analysis = self._wait_for_non_loading_screen(serial)
+                if analysis.screen_name in {"listing_detail", "unknown"}:
+                    continue
+
+            raise RuntimeError(
+                "Cannot reach listing detail from current screen: "
+                f"{analysis.screen_name}"
+            )
+
+        final_analysis = self._analyze(serial)
+        if final_analysis.screen_name == "listing_detail":
+            return final_analysis
+        raise RuntimeError(
+            "Failed to reach listing detail after publish success within "
+            f"{max_steps} steps: {final_analysis.screen_name}"
+        )

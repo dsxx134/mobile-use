@@ -58,6 +58,7 @@ class FakeAndroidService:
         self.device = Mock()
         self.tap_calls: list[tuple[str, int, int]] = []
         self.swipe_calls: list[tuple[str, int, int, int, int, int]] = []
+        self.back_calls: list[str] = []
         self.long_press_calls: list[tuple[str, int, int]] = []
         self.input_text_calls: list[tuple[str, str]] = []
         self.set_clipboard_text_calls: list[tuple[str, str]] = []
@@ -108,6 +109,12 @@ class FakeAndroidService:
 
     def get_device(self, serial: str) -> Mock:
         return self.device
+
+    def press_back(self, serial: str) -> dict:
+        self.back_calls.append(serial)
+        if self._index < len(self._screens) - 1:
+            self._index += 1
+        return {"serial": serial, "success": True}
 
     def swipe(
         self,
@@ -397,6 +404,23 @@ def _location_search_screen_elements(
         ]
     )
     return elements
+
+
+def _listing_detail_elements() -> list[dict]:
+    return [
+        {"text": "返回", "bounds": "[35,105][90,165]"},
+        {"text": "搜索按钮", "bounds": "[1120,104][1180,166]"},
+        {"text": "搜索你要的宝贝", "bounds": "[140,95][1080,175]"},
+        {"text": "分享按钮", "bounds": "[1485,103][1545,167]"},
+        {"text": "用户头像", "bounds": "[60,230][160,330]"},
+        {"text": "用户昵称：描述为具体的用户昵称", "bounds": "[190,230][980,290]"},
+        {"text": "南朝笑不可支的川谷", "bounds": "[60,520][620,600]"},
+        {"text": "刚刚擦亮 | 上海", "bounds": "[60,620][420,680]"},
+        {"text": "价格-点击播放具体价格", "bounds": "[60,720][520,790]"},
+        {"text": "¥", "bounds": "[60,800][105,850]"},
+        {"text": "799", "bounds": "[120,780][300,860]"},
+        {"text": "包邮", "bounds": "[60,900][180,960]"},
+    ]
 
 
 def test_detects_xianyu_home_screen_and_publish_entry_target():
@@ -835,6 +859,21 @@ def test_detects_publish_success_screen_with_reward_variant():
     assert analysis.screen_name == "publish_success"
     assert "publish_success_view_listing" not in analysis.targets
     assert analysis.targets["publish_success_continue"].text == "再发一件"
+
+
+def test_detects_listing_detail_screen_targets():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.taobao.idlefish.detail.DetailActivity",
+        elements=_listing_detail_elements(),
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "listing_detail"
+    assert analysis.targets["listing_detail_back"].text == "返回"
+    assert analysis.targets["listing_detail_search"].text == "搜索按钮"
+    assert analysis.targets["listing_detail_share"].text == "分享按钮"
 
 
 def test_detects_publish_location_required_dialog_targets():
@@ -5255,3 +5294,65 @@ def test_submit_listing_and_wait_for_result_surfaces_location_required_dialog_re
         match="系统无法定位您所在的行政区",
     ):
         flow.submit_listing_and_wait_for_result("device-1")
+
+
+def test_advance_publish_success_to_listing_detail_taps_view_listing_when_available():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "宝贝发布成功", "bounds": "[520,410][1080,490]"},
+                    {"text": "分享给更多人", "bounds": "[600,560][1000,620]"},
+                    {"text": "看看宝贝", "clickable": "true", "bounds": "[220,1960][760,2090]"},
+                    {"text": "继续发布", "clickable": "true", "bounds": "[840,1960][1380,2090]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.taobao.idlefish.detail.DetailActivity",
+                elements=_listing_detail_elements(),
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.advance_publish_success_to_listing_detail("device-1")
+
+    assert result.screen_name == "listing_detail"
+    assert android_service.tap_calls == [("device-1", 490, 2025)]
+    assert android_service.back_calls == []
+
+
+def test_advance_publish_success_to_listing_detail_presses_back_for_reward_variant():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostTransparencyActivity",
+                elements=[
+                    {"text": "发布成功", "bounds": "[698,1303][1000,1381]"},
+                    {"text": "100闲鱼币", "bounds": "[763,1432][1048,1505]"},
+                    {"text": "点击领取", "bounds": "[1159,1432][1399,1505]"},
+                    {"text": "再发一件", "bounds": "[663,2340][938,2422]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.taobao.idlefish.detail.DetailActivity",
+                elements=_listing_detail_elements(),
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.advance_publish_success_to_listing_detail("device-1")
+
+    assert result.screen_name == "listing_detail"
+    assert android_service.tap_calls == []
+    assert android_service.back_calls == ["device-1"]

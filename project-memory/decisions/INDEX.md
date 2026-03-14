@@ -20,5 +20,6 @@
 | xianyu auto publish requires explicit row opt-in | 2026-03-14 | 2026-03-14-xianyu-auto-publish-requires-explicit-row-opt-in.md |
 | xianyu admin region remains the next auto publish blocker | 2026-03-14 | 2026-03-14-xianyu-admin-region-remains-the-next-auto-publish-blocker.md |
 | xianyu live success should be recovered without republish | 2026-03-14 | 2026-03-14-xianyu-live-success-should-be-recovered-without-republish.md |
+| xianyu post publish detail comes before id writeback | 2026-03-14 | 2026-03-14-xianyu-post-publish-detail-comes-before-id-writeback.md |
 
-Total: 18
+Total: 19

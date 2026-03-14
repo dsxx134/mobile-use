@@ -42,5 +42,7 @@
 | xianyu-submit-can-fail-with-location-required-dialog | 2026-03-14 | xianyu-submit-can-fail-with-location-required-dialog.md |
 | xianyu-metadata-panel-may-need-scroll-to-reveal-lower-rows | 2026-03-14 | xianyu-metadata-panel-may-need-scroll-to-reveal-lower-rows.md |
 | xianyu-publish-success-has-reward-variant | 2026-03-14 | xianyu-publish-success-has-reward-variant.md |
+| xianyu-publish-success-can-bridge-to-detail | 2026-03-14 | xianyu-publish-success-can-bridge-to-detail.md |
+| xianyu-detail-detection-uses-header-controls | 2026-03-14 | xianyu-detail-detection-uses-header-controls.md |
 
-Total: 40
+Total: 42

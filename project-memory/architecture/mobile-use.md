@@ -184,6 +184,9 @@ Updated: 2026-03-14
   keyed off visible success text plus either:
   - the classic `看看宝贝` and `继续发布` actions
   - or the Huawei-tablet reward variant with `再发一件`
+- The analyzer now also recognizes Xianyu item detail pages when the app is on
+  `com.taobao.idlefish.detail.DetailActivity` and the screen exposes the characteristic
+  `返回 / 搜索按钮 / 分享按钮` header controls.
 - The flow service now also has a hierarchical `set_location_region_path()` helper for the verified
   Huawei-tablet path `上海 -> 上海 -> 黄浦区`. The first `上海` tap narrows the picker, the second
   `上海` tap expands districts, and the final district tap can leave a transient
@@ -215,6 +218,11 @@ Updated: 2026-03-14
   actually a success-screen recognition gap rather than a location blocker: after the metadata
   scroll fix, the live tablet stayed on a reward-style `publish_success` page that the analyzer now
   classifies correctly.
+- Post-publish navigation is now split into two deterministic branches:
+  - classic success page: tap `看看宝贝`
+  - reward-style success page: press `Back` once
+  Both branches can settle on `DetailActivity`, which gives the flow a stable post-publish landing
+  page even though item-id/link extraction is still unresolved.
 - Real-device probing also showed that selecting a top-level region like `上海` narrows the same
   hierarchical picker rather than completing location selection in one tap.
 - Because this portrait `发闲置` form does not currently expose a separate title field through the
