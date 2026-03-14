@@ -23,5 +23,6 @@
 | xianyu post publish detail comes before id writeback | 2026-03-14 | 2026-03-14-xianyu-post-publish-detail-comes-before-id-writeback.md |
 | xianyu hyperlink writeback waits for a public url | 2026-03-14 | 2026-03-14-xianyu-hyperlink-writeback-waits-for-a-public-url.md |
 | xianyu public url writeback uses detail share copy link | 2026-03-14 | 2026-03-14-xianyu-public-url-writeback-uses-detail-share-copy-link.md |
+| xianyu batch worker reuses single item publish path | 2026-03-14 | 2026-03-14-xianyu-batch-worker-reuses-single-item-publish-path.md |
 
-Total: 21
+Total: 22

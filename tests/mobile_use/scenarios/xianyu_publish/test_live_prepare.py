@@ -2,13 +2,19 @@ from unittest.mock import Mock, call
 
 import pytest
 
+from minitap.mobile_use.scenarios.xianyu_publish import live_prepare as live_prepare_module
 from minitap.mobile_use.scenarios.xianyu_publish.live_prepare import (
+    XianyuLiveBatchPublishResult,
     XianyuLivePrepareComponents,
     build_live_prepare_components,
+    publish_listing_queue_live,
     prepare_first_publishable_listing_live,
     resolve_adb_serial,
 )
-from minitap.mobile_use.scenarios.xianyu_publish.runner import XianyuPrepareListingResult
+from minitap.mobile_use.scenarios.xianyu_publish.runner import (
+    XianyuPrepareListingResult,
+    XianyuPublishResult,
+)
 from minitap.mobile_use.scenarios.xianyu_publish.settings import XianyuPublishSettings
 
 
@@ -228,3 +234,172 @@ def test_prepare_first_publishable_listing_live_can_request_auto_publish_mode(tm
         review_after_prepare=False,
         auto_publish_after_prepare=True,
     )
+
+
+def test_publish_listing_queue_live_processes_multiple_items_with_cooldown(tmp_path, monkeypatch):
+    settings = _make_settings(serial="tablet-1")
+    first = XianyuPrepareListingResult(
+        record_id="recA",
+        serial="tablet-1",
+        remote_media_paths=["/sdcard/DCIM/XianyuPublish/recA/01_image.png"],
+        body_text="A",
+        final_screen_name="listing_detail",
+        publish=XianyuPublishResult(
+            success=True,
+            screen_name="publish_success",
+            detail_screen_name="listing_detail",
+            published_at="2026-03-14T20:30:00+00:00",
+            listing_id="xyA",
+            listing_url="https://m.tb.cn/a",
+        ),
+    )
+    second = XianyuPrepareListingResult(
+        record_id="recB",
+        serial="tablet-1",
+        remote_media_paths=["/sdcard/DCIM/XianyuPublish/recB/01_image.png"],
+        body_text="B",
+        final_screen_name="listing_detail",
+        publish=XianyuPublishResult(
+            success=True,
+            screen_name="publish_success",
+            detail_screen_name="listing_detail",
+            published_at="2026-03-14T20:31:00+00:00",
+            listing_id="xyB",
+            listing_url="https://m.tb.cn/b",
+        ),
+    )
+    prepare_mock = Mock(side_effect=[first, second])
+    sleep_fn = Mock()
+    monkeypatch.setattr(
+        live_prepare_module,
+        "prepare_first_publishable_listing_live",
+        prepare_mock,
+    )
+
+    result = publish_listing_queue_live(
+        settings=settings,
+        adb_client=Mock(),
+        staging_root=tmp_path,
+        max_items=2,
+        cooldown_seconds=3.5,
+        sleep_fn=sleep_fn,
+    )
+
+    assert isinstance(result, XianyuLiveBatchPublishResult)
+    assert result.processed_count == 2
+    assert result.success_count == 2
+    assert result.failure_count == 0
+    assert result.stopped_reason == "limit_reached"
+    assert [item.record_id for item in result.items] == ["recA", "recB"]
+    assert [item.listing_url for item in result.items] == ["https://m.tb.cn/a", "https://m.tb.cn/b"]
+    sleep_fn.assert_called_once_with(3.5)
+    assert prepare_mock.call_count == 2
+
+
+def test_publish_listing_queue_live_stops_cleanly_when_no_candidates_exist(tmp_path, monkeypatch):
+    settings = _make_settings(serial="tablet-1")
+    prepare_mock = Mock(side_effect=ValueError("No publishable Xianyu listing found"))
+    sleep_fn = Mock()
+    monkeypatch.setattr(
+        live_prepare_module,
+        "prepare_first_publishable_listing_live",
+        prepare_mock,
+    )
+
+    result = publish_listing_queue_live(
+        settings=settings,
+        adb_client=Mock(),
+        staging_root=tmp_path,
+        max_items=3,
+        sleep_fn=sleep_fn,
+    )
+
+    assert result.processed_count == 0
+    assert result.success_count == 0
+    assert result.failure_count == 0
+    assert result.stopped_reason == "no_publishable_listing"
+    assert result.items == []
+    sleep_fn.assert_not_called()
+    prepare_mock.assert_called_once()
+
+
+def test_publish_listing_queue_live_can_continue_after_a_failed_item(tmp_path, monkeypatch):
+    settings = _make_settings(serial="tablet-1")
+    success = XianyuPrepareListingResult(
+        record_id="recB",
+        serial="tablet-1",
+        remote_media_paths=["/sdcard/DCIM/XianyuPublish/recB/01_image.png"],
+        body_text="B",
+        final_screen_name="listing_detail",
+        publish=XianyuPublishResult(
+            success=True,
+            screen_name="publish_success",
+            detail_screen_name="listing_detail",
+            published_at="2026-03-14T20:31:00+00:00",
+            listing_id="xyB",
+            listing_url="https://m.tb.cn/b",
+        ),
+    )
+    prepare_mock = Mock(
+        side_effect=[
+            RuntimeError(
+                "Publish blocked because Xianyu could not locate the administrative region."
+            ),
+            success,
+            ValueError("No publishable Xianyu listing found"),
+        ]
+    )
+    sleep_fn = Mock()
+    monkeypatch.setattr(
+        live_prepare_module,
+        "prepare_first_publishable_listing_live",
+        prepare_mock,
+    )
+
+    result = publish_listing_queue_live(
+        settings=settings,
+        adb_client=Mock(),
+        staging_root=tmp_path,
+        max_items=3,
+        cooldown_seconds=2.0,
+        sleep_fn=sleep_fn,
+    )
+
+    assert result.processed_count == 2
+    assert result.success_count == 1
+    assert result.failure_count == 1
+    assert result.stopped_reason == "no_publishable_listing"
+    assert result.items[0].success is False
+    assert result.items[0].error == (
+        "Publish blocked because Xianyu could not locate the administrative region."
+    )
+    assert result.items[1].record_id == "recB"
+    assert sleep_fn.call_count == 2
+
+
+def test_publish_listing_queue_live_can_stop_on_first_error(tmp_path, monkeypatch):
+    settings = _make_settings(serial="tablet-1")
+    prepare_mock = Mock(side_effect=RuntimeError("Publish blocked"))
+    sleep_fn = Mock()
+    monkeypatch.setattr(
+        live_prepare_module,
+        "prepare_first_publishable_listing_live",
+        prepare_mock,
+    )
+
+    result = publish_listing_queue_live(
+        settings=settings,
+        adb_client=Mock(),
+        staging_root=tmp_path,
+        max_items=3,
+        sleep_fn=sleep_fn,
+        stop_on_error=True,
+    )
+
+    assert result.processed_count == 1
+    assert result.success_count == 0
+    assert result.failure_count == 1
+    assert result.stopped_reason == "stopped_on_error"
+    assert result.items[0].success is False
+    assert result.items[0].error == "Publish blocked"
+    sleep_fn.assert_not_called()

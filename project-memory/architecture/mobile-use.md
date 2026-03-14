@@ -232,6 +232,12 @@ Updated: 2026-03-14
   - press `Back` once to return to `listing_detail`
 - The Feishu Bitable `Url` field for `闲鱼商品链接` accepts a `{text, link}` object, not the bare
   string form previously used in the source layer.
+- Queue-style publishing is intentionally implemented as a thin live-layer loop on top of the
+  existing single-item publish entrypoint, not as a second publish engine:
+  - resolve and preheat one listing
+  - auto-publish it
+  - sleep for a configurable cooldown
+  - repeat until `max_items`, no candidates, or optional stop-on-error
 - Post-publish navigation is now split into two deterministic branches:
   - classic success page: tap `看看宝贝`
   - reward-style success page: press `Back` once

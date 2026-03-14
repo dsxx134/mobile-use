@@ -1,9 +1,11 @@
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from adbutils import AdbClient, adb
+from pydantic import BaseModel, ConfigDict, Field
 
 from minitap.mobile_use.scenarios.xianyu_publish.feishu_source import FeishuBitableSource
 from minitap.mobile_use.scenarios.xianyu_publish.flow import XianyuPublishFlowService
@@ -21,6 +23,31 @@ class XianyuLivePrepareComponents:
     media_sync: Any
     flow: Any
     runner: Any
+
+
+class XianyuLiveBatchPublishItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attempt: int
+    success: bool
+    record_id: str | None = None
+    final_screen_name: str | None = None
+    publish_screen_name: str | None = None
+    detail_screen_name: str | None = None
+    listing_id: str | None = None
+    listing_url: str | None = None
+    error: str | None = None
+
+
+class XianyuLiveBatchPublishResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    requested_count: int
+    processed_count: int
+    success_count: int
+    failure_count: int
+    stopped_reason: str
+    items: list[XianyuLiveBatchPublishItem] = Field(default_factory=list)
 
 
 def resolve_adb_serial(adb_client: AdbClient, requested_serial: str | None = None) -> str:
@@ -123,3 +150,91 @@ def prepare_first_publishable_listing_live(
 
 def format_live_prepare_result(result: XianyuPrepareListingResult) -> str:
     return json.dumps(result.model_dump(), ensure_ascii=False, indent=2)
+
+
+def format_live_batch_result(result: XianyuLiveBatchPublishResult) -> str:
+    return json.dumps(result.model_dump(), ensure_ascii=False, indent=2)
+
+
+def _build_batch_item(
+    attempt: int,
+    result: XianyuPrepareListingResult,
+) -> XianyuLiveBatchPublishItem:
+    publish = result.publish
+    return XianyuLiveBatchPublishItem(
+        attempt=attempt,
+        success=bool(publish and publish.success),
+        record_id=result.record_id,
+        final_screen_name=result.final_screen_name,
+        publish_screen_name=publish.screen_name if publish is not None else None,
+        detail_screen_name=publish.detail_screen_name if publish is not None else None,
+        listing_id=publish.listing_id if publish is not None else None,
+        listing_url=publish.listing_url if publish is not None else None,
+    )
+
+
+def publish_listing_queue_live(
+    *,
+    settings: XianyuPublishSettings | None = None,
+    adb_client: AdbClient | None = None,
+    serial: str | None = None,
+    staging_root: Path | None = None,
+    preheat_max_steps: int = 10,
+    preheat_attempts: int = 2,
+    max_items: int = 1,
+    cooldown_seconds: float = 0.0,
+    stop_on_error: bool = False,
+    sleep_fn: Any | None = None,
+    components: XianyuLivePrepareComponents | None = None,
+) -> XianyuLiveBatchPublishResult:
+    if max_items < 1:
+        raise ValueError("max_items must be at least 1")
+
+    sleeper = sleep_fn or time.sleep
+    items: list[XianyuLiveBatchPublishItem] = []
+    stopped_reason = "limit_reached"
+
+    for attempt in range(1, max_items + 1):
+        try:
+            result = prepare_first_publishable_listing_live(
+                settings=settings,
+                adb_client=adb_client,
+                serial=serial,
+                staging_root=staging_root,
+                preheat_max_steps=preheat_max_steps,
+                preheat_attempts=preheat_attempts,
+                auto_publish_after_prepare=True,
+                components=components,
+            )
+        except ValueError as exc:
+            if str(exc) == "No publishable Xianyu listing found":
+                stopped_reason = "no_publishable_listing"
+                break
+            raise
+        except Exception as exc:
+            items.append(
+                XianyuLiveBatchPublishItem(
+                    attempt=attempt,
+                    success=False,
+                    error=str(exc),
+                )
+            )
+            if stop_on_error:
+                stopped_reason = "stopped_on_error"
+                break
+        else:
+            items.append(_build_batch_item(attempt, result))
+
+        if attempt < max_items and cooldown_seconds > 0:
+            sleeper(cooldown_seconds)
+
+    success_count = sum(1 for item in items if item.success)
+    failure_count = sum(1 for item in items if not item.success)
+    return XianyuLiveBatchPublishResult(
+        requested_count=max_items,
+        processed_count=len(items),
+        success_count=success_count,
+        failure_count=failure_count,
+        stopped_reason=stopped_reason,
+        items=items,
+    )

@@ -442,6 +442,29 @@ uv run python scripts/xianyu_publish_auto_live.py
 - The Feishu `闲鱼商品链接` field is a real hyperlink field, so the source layer now writes it as a
   `{text, link}` object instead of a bare string
 
+### Run the live batch publish worker
+
+```bash
+uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seconds 5
+```
+
+- This worker repeatedly reuses the same live auto-publish path, one listing at a time
+- It only processes rows that still satisfy both:
+  - `是否允许发布=true`
+  - `允许自动发布=true`
+- It stops when one of these happens:
+  - it reaches `--max-items`
+  - there are no more publishable rows
+  - `--stop-on-error` is set and one listing fails
+- The JSON result summarizes:
+  - processed count
+  - success count
+  - failure count
+  - per-item record ids, publish screens, ids, links, and errors
+- The default is intentionally conservative:
+  - `--max-items 1`
+  - `--cooldown-seconds 3`
+
 ### Current media-selection behavior
 
 - The preferred publish path on the Huawei tablet is now portrait mode:
