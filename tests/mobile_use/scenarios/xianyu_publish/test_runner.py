@@ -521,7 +521,7 @@ def test_prepare_first_publishable_listing_marks_failure_and_reraises(tmp_path):
     source.update_listing_status.assert_has_calls(
         [
             call("recA", "准备中"),
-            call("recA", "准备失败", failure_reason="price panel missing"),
+            call("recA", "准备失败", failure_reason="price panel missing", retry_count=1),
         ]
     )
 
@@ -620,6 +620,7 @@ def test_prepare_first_publishable_listing_review_mode_fails_without_submit_butt
                 "recA",
                 "准备失败",
                 failure_reason="Publish submit button is not visible after prepare",
+                retry_count=1,
             ),
         ]
     )
@@ -697,6 +698,7 @@ def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tm
         published_at="2026-03-14T20:30:00+00:00",
         listing_id="1022496357535",
         listing_url="https://m.tb.cn/h.ifJqS57?tk=9y8uUxYazY4",
+        retry_count=0,
     )
     flow.submit_listing_and_wait_for_result.assert_called_once_with("device-1")
     flow.advance_publish_success_to_listing_detail.assert_called_once_with("device-1")
@@ -762,6 +764,7 @@ def test_prepare_first_publishable_listing_auto_publish_requires_listing_opt_in(
         published_at=None,
         listing_id=None,
         listing_url=None,
+        retry_count=1,
     )
 
 
@@ -818,4 +821,5 @@ def test_prepare_first_publishable_listing_auto_publish_marks_publish_failure(tm
         published_at=None,
         listing_id=None,
         listing_url=None,
+        retry_count=1,
     )

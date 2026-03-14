@@ -110,6 +110,8 @@ class FeishuBitableSource:
             return None
 
         for record in candidate_records:
+            if self._is_retry_exhausted(record):
+                continue
             draft = self._record_to_listing_draft(record)
             if draft is not None:
                 return draft
@@ -141,14 +143,16 @@ class FeishuBitableSource:
         status: str,
         *,
         failure_reason: str | None = None,
+        retry_count: int | None = None,
     ) -> None:
-        self._update_record_fields(
-            record_id,
-            {
-                self.settings.status_field_name: status,
-                self.settings.failure_reason_field_name: failure_reason,
-            },
-        )
+        fields = {
+            self.settings.status_field_name: status,
+            self.settings.failure_reason_field_name: failure_reason,
+        }
+        if retry_count is not None:
+            fields[self.settings.retry_count_field_name] = retry_count
+
+        self._update_record_fields(record_id, fields)
 
     def update_publish_result(
         self,
@@ -159,17 +163,19 @@ class FeishuBitableSource:
         published_at: str | None = None,
         listing_id: str | None = None,
         listing_url: str | None = None,
+        retry_count: int | None = None,
     ) -> None:
-        self._update_record_fields(
-            record_id,
-            {
-                self.settings.status_field_name: status,
-                self.settings.failure_reason_field_name: failure_reason,
-                self.settings.published_at_field_name: published_at,
-                self.settings.listing_id_field_name: listing_id,
-                self.settings.listing_url_field_name: self._format_url_field(listing_url),
-            },
-        )
+        fields = {
+            self.settings.status_field_name: status,
+            self.settings.failure_reason_field_name: failure_reason,
+            self.settings.published_at_field_name: published_at,
+            self.settings.listing_id_field_name: listing_id,
+            self.settings.listing_url_field_name: self._format_url_field(listing_url),
+        }
+        if retry_count is not None:
+            fields[self.settings.retry_count_field_name] = retry_count
+
+        self._update_record_fields(record_id, fields)
 
     def _request_json(
         self,
@@ -198,6 +204,9 @@ class FeishuBitableSource:
         if not attachments:
             return None
 
+        retry_count = self._resolve_retry_count(fields)
+        retry_limit = self._resolve_retry_limit(fields)
+
         return ListingDraft(
             record_id=record["record_id"],
             title=self._get_required_text_field(fields, self.settings.title_field_name),
@@ -213,6 +222,8 @@ class FeishuBitableSource:
                 fields, self.settings.location_search_query_field_name
             ),
             allow_auto_publish=bool(fields.get(self.settings.auto_publish_field_name)),
+            retry_count=retry_count,
+            retry_limit=retry_limit,
         )
 
     def _parse_attachment(self, attachment: dict[str, Any]) -> FeishuAttachment:
@@ -254,6 +265,26 @@ class FeishuBitableSource:
             raise ValueError(f"Missing required text field: {field_name}")
         return text
 
+    def _resolve_retry_count(self, fields: dict[str, Any]) -> int:
+        value = fields.get(self.settings.retry_count_field_name)
+        if value is None:
+            return 0
+        resolved = self._extract_int_value(value)
+        return max(resolved, 0)
+
+    def _resolve_retry_limit(self, fields: dict[str, Any]) -> int:
+        value = fields.get(self.settings.retry_limit_field_name)
+        if value is None:
+            return max(self.settings.default_retry_limit, 0)
+        resolved = self._extract_int_value(value)
+        return max(resolved, 0)
+
+    def _is_retry_exhausted(self, record: dict[str, Any]) -> bool:
+        fields = record.get("fields", {})
+        retry_count = self._resolve_retry_count(fields)
+        retry_limit = self._resolve_retry_limit(fields)
+        return retry_count >= retry_limit
+
     def _extract_text_value(self, value: Any) -> str:
         if value is None:
             return ""
@@ -269,6 +300,22 @@ class FeishuBitableSource:
             if parts:
                 return "".join(parts).strip()
         return str(value).strip()
+
+    def _extract_int_value(self, value: Any) -> int:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value)
+
+        text = self._extract_text_value(value)
+        if not text:
+            return 0
+        try:
+            return int(text)
+        except ValueError:
+            return int(float(text))
 
     def _format_url_field(self, value: str | None) -> Any:
         if value is None:

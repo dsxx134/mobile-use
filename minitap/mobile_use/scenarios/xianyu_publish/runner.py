@@ -162,6 +162,7 @@ class XianyuPrepareRunner:
                 listing.record_id,
                 "准备失败",
                 failure_reason=str(exc),
+                retry_count=listing.retry_count + 1,
             )
             raise
 
@@ -207,6 +208,7 @@ class XianyuPrepareRunner:
                     published_at=published_at,
                     listing_id=listing_id,
                     listing_url=listing_url,
+                    retry_count=0,
                 )
                 publish = XianyuPublishResult(
                     success=True,
@@ -229,6 +231,7 @@ class XianyuPrepareRunner:
                     published_at=None,
                     listing_id=None,
                     listing_url=None,
+                    retry_count=staged_listing.retry_count + 1,
                 )
                 raise
         else:

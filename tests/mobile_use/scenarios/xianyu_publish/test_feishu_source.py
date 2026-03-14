@@ -81,7 +81,47 @@ def test_pick_first_publishable_record_maps_fields_to_listing_draft():
     assert listing.item_source == "闲置"
     assert listing.location_search_query == "上海虹桥站"
     assert listing.allow_auto_publish is True
+    assert listing.retry_count == 0
+    assert listing.retry_limit == 3
     assert [attachment.file_token for attachment in listing.attachments] == ["ft-1", "ft-2"]
+
+
+def test_pick_first_publishable_record_skips_retry_exhausted_rows():
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        token_provider=lambda: "tenant-token",
+    )
+    records = [
+        {
+            "record_id": "recA",
+            "fields": {
+                "商品标题": "旧记录",
+                "商品描述": "会被跳过",
+                "售价": 99,
+                "失败重试次数": 3,
+                "失败重试上限": 3,
+                "商品图片": [{"file_token": "ft-exhausted", "name": "a.jpg"}],
+            },
+        },
+        {
+            "record_id": "recB",
+            "fields": {
+                "商品标题": "新记录",
+                "商品描述": "应该被选中",
+                "售价": 188,
+                "失败重试次数": 1,
+                "失败重试上限": 3,
+                "商品图片": [{"file_token": "ft-ready", "name": "b.jpg"}],
+            },
+        },
+    ]
+
+    listing = source.pick_first_publishable_record(records)
+
+    assert listing is not None
+    assert listing.record_id == "recB"
+    assert listing.retry_count == 1
+    assert listing.retry_limit == 3
 
 
 def test_pick_first_publishable_record_extracts_text_from_feishu_text_arrays():
@@ -280,6 +320,39 @@ def test_update_listing_status_can_write_failure_reason():
     }
 
 
+def test_update_listing_status_can_write_retry_count():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"code": 0, "data": {"record": {"record_id": "recA"}}})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_listing_status(
+        "recA",
+        "准备失败",
+        failure_reason="price panel missing",
+        retry_count=2,
+    )
+
+    assert captured["payload"] == {
+        "fields": {
+            "发布状态": "准备失败",
+            "失败原因": "price panel missing",
+            "失败重试次数": 2,
+        }
+    }
+
+
 def test_update_publish_result_can_write_published_at_and_optional_fields():
     captured: dict[str, object] = {}
 
@@ -315,5 +388,41 @@ def test_update_publish_result_can_write_published_at_and_optional_fields():
                 "text": "https://2.taobao.com/item.htm?id=xy123",
                 "link": "https://2.taobao.com/item.htm?id=xy123",
             },
+        }
+    }
+
+
+def test_update_publish_result_can_write_retry_count():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"code": 0, "data": {"record": {"record_id": "recA"}}})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_publish_result(
+        "recA",
+        status="发布失败",
+        failure_reason="location missing",
+        retry_count=3,
+    )
+
+    assert captured["payload"] == {
+        "fields": {
+            "发布状态": "发布失败",
+            "失败原因": "location missing",
+            "发布时间": None,
+            "闲鱼商品ID": None,
+            "闲鱼商品链接": None,
+            "失败重试次数": 3,
         }
     }

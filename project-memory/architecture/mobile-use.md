@@ -238,6 +238,13 @@ Updated: 2026-03-14
   - auto-publish it
   - sleep for a configurable cooldown
   - repeat until `max_items`, no candidates, or optional stop-on-error
+- Retry budgeting is now layered alongside that queue without introducing server-side Feishu
+  comparison logic:
+  - store `失败重试次数` and `失败重试上限` on the Bitable row
+  - keep the base Feishu search filter simple (`是否允许发布 / 待发布 / 商品图片非空`)
+  - skip exhausted rows in `FeishuBitableSource` before constructing `ListingDraft`
+  - increment retry count when prepare/review/auto-publish fails
+  - reset retry count to `0` only after a successful auto-publish writeback
 - Post-publish navigation is now split into two deterministic branches:
   - classic success page: tap `看看宝贝`
   - reward-style success page: press `Back` once

@@ -364,6 +364,8 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `商品图片`
 - `发布状态`
 - `失败原因`
+- `失败重试次数`
+- `失败重试上限`
 - `是否允许发布`
 - `允许自动发布`
 - `闲鱼商品ID`
@@ -449,9 +451,13 @@ uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seco
 ```
 
 - This worker repeatedly reuses the same live auto-publish path, one listing at a time
-- It only processes rows that still satisfy both:
+- It only pulls rows that still satisfy the base publish queue filter:
   - `是否允许发布=true`
-  - `允许自动发布=true`
+  - `发布状态=待发布`
+  - `商品图片` is not empty
+- It also skips rows whose retry budget is already exhausted:
+  - `失败重试次数 >= 失败重试上限`
+  - when the row does not define `失败重试上限`, the code falls back to the local default `3`
 - It stops when one of these happens:
   - it reaches `--max-items`
   - there are no more publishable rows
@@ -464,6 +470,7 @@ uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seco
 - The default is intentionally conservative:
   - `--max-items 1`
   - `--cooldown-seconds 3`
+  - `失败重试上限 3`
 
 ### Current media-selection behavior
 
@@ -650,6 +657,8 @@ uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seco
   - final publish submission
 - The default optional Bitable field for that best-effort search path is `预设地址`
 - The current writeback statuses used by the runner are `准备中`, `已就绪`, `待人工发布`, and `准备失败`
+- Failure writeback now also increments `失败重试次数`
+- Successful auto-publish writeback resets `失败重试次数` to `0`
 
 ### Current boundary
 
