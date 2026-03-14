@@ -12,6 +12,8 @@ Updated: 2026-03-14
 - On this screen, the existing FastInputIME `send_keys()` path can no-op even though the field is
   focused.
 - Using direct `EditText.set_text()` on the focused field surfaces visible result rows.
+- Those result rows can still appear one or two snapshots after the text is set, so callers should
+  poll inside the same search screen instead of expecting an immediate selectable result.
 
 ## Evidence
 - Real-device probe:

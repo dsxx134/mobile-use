@@ -357,6 +357,7 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `分类`
 - `成色`
 - `商品来源`
+- `预设地址`
 - `商品图片`
 - `发布状态`
 - `是否允许发布`
@@ -429,6 +430,8 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - set text on the focused field
   - tap a visible result row
   - return to the next Xianyu screen
+- After setting the search text, visible result rows can still arrive one or two snapshots later;
+  the flow now polls inside the search screen until the requested result target appears
 - The stable path into region selection is:
   - tap `选择位置`
   - wait for `宝贝所在地`
@@ -507,6 +510,7 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - optionally apply a visible category chip
   - optionally apply `成色`
   - optionally apply `商品来源`
+  - optionally apply a preset Bitable location search query such as `上海虹桥站`
 - Real-device verification on `E2P6R22708000602` confirmed a full prepare-runner pass that ended
   on `listing_form` with body text and price filled
 - Real-device verification also confirmed that the current metadata page is recognized as
@@ -519,12 +523,14 @@ uv run python scripts/xianyu_publish_flow_smoke.py
   - stable location persistence
   - shipping writeback from Bitable
   - final publish submission
+- The default optional Bitable field for that best-effort search path is `预设地址`
 
 ### Current boundary
 
 - The flow can now reach the portrait listing form, fill description text, set the sale price,
   set the verified mail shipping mode, set verified metadata chips for
   `分类/成色/商品来源`,
+  drive a best-effort preset `预设地址 -> 搜索地址`,
   reopen the album picker from `添加图片`, and prepare one publishable Bitable record into the
   form through `XianyuPrepareRunner`
 - When the editor is scrolled into the metadata section, the flow now keeps that state classified

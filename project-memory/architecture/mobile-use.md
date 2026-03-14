@@ -129,6 +129,10 @@ Updated: 2026-03-14
   - use direct `EditText.set_text()` instead of the existing FastInputIME `send_keys()` path
   - tap a visible search result row
   - return to the next Xianyu screen
+- `ListingDraft` and the Feishu mapping layer now also expose an optional preset search field,
+  defaulted to the Bitable column name `预设地址`.
+- `XianyuPrepareRunner` can call the existing location-search helper when that optional field is
+  present, but this is still treated as best-effort rather than proven persisted state.
 - The flow service now also has a hierarchical `set_location_region_path()` helper for the verified
   Huawei-tablet path `上海 -> 上海 -> 黄浦区`. The first `上海` tap narrows the picker, the second
   `上海` tap expands districts, and the final district tap can leave a transient
@@ -154,7 +158,8 @@ Updated: 2026-03-14
   that tapping a common address, a search result, or a district row can return to the listing form
   without a stable, visible location confirmation in either the form row or the reopened
   `location_panel`. The flow can now survive the picker tail and drive the search UI, but the
-  runner still does not treat location as a deterministic writeback.
+  runner still does not treat location as a deterministic writeback even when driven from the new
+  `预设地址` field.
 - Real-device probing also showed that selecting a top-level region like `上海` narrows the same
   hierarchical picker rather than completing location selection in one tap.
 - Because this portrait `发闲置` form does not currently expose a separate title field through the

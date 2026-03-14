@@ -38,6 +38,7 @@ Status: Active
 - Xianyu publish flow batch 15 completed on `feat/android-debug-mcp`: scrolled metadata-editor recovery, lower-row target extraction inside `metadata_panel`, and real-device verification that `选择位置` still opens `location_panel` from that state while top-level region selection remains hierarchical.
 - Xianyu publish flow batch 16 completed on `feat/android-debug-mcp`: hierarchical location-region path helper, post-district tail polling for `location_region_picker`, and real-device verification that `上海 -> 上海 -> 黄浦区` returns through a transient picker tail before settling back to the editor.
 - Xianyu publish flow batch 17 completed on `feat/android-debug-mcp`: dedicated location-search-screen recognition, focused-EditText address entry through `set_text()`, visible result-row selection, and real-device verification that `搜索地址 -> 上海虹桥站` returns to the editor even though visible location writeback is still unresolved.
+- Xianyu publish flow batch 18 completed on `feat/android-debug-mcp`: optional Bitable `预设地址` mapping, runner integration for best-effort `搜索地址` application, and preservation of the boundary that visible location writeback remains unresolved after the helper returns.
 
 ## Operational Rule
 - Important milestones should be committed and pushed to GitHub instead of remaining only local.
