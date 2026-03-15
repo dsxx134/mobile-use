@@ -333,6 +333,14 @@ Updated: 2026-03-15
 - The current live runner now fills `价格` before `描述`, because direct description writeback can
   immediately expand the screen into a metadata-rich editor slice where the lower `价格设置` row is
   no longer visible.
+- Xianyu assistant helper rows such as `AI帮你写` and `AI帮你润色` are now treated as forbidden tap
+  targets. If a computed target resolves to one of those helper rows, the flow raises instead of
+  entering a non-deterministic side flow.
+- `XianyuPublishFlowService.require_location_written_on_editor()` now acts as the publish-facing
+  location gate:
+  - it reuses the existing metadata reveal scroll on `metadata_panel`
+  - it treats a visible `选择位置` row as proof that location is still unset
+  - review and auto-publish paths now call this gate before they continue
 - Real-device auto-publish now reaches the final submit tap, and the next deterministic blocker is
   an in-app modal: `无法发布宝贝 / 系统无法定位您所在的行政区...`. This dialog is now treated as an
   explicit post-submit failure signal rather than an `unknown` screen.

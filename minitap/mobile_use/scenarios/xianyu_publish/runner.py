@@ -61,15 +61,6 @@ def _is_optional_category_visibility_error(error: RuntimeError) -> bool:
     return "metadata_category_option_" in message and "target on metadata panel" in message
 
 
-def _is_best_effort_location_error(error: RuntimeError) -> bool:
-    message = str(error)
-    return (
-        "location_entry target on metadata_panel" in message
-        or "location_entry target on listing_form" in message
-        or "location" in message.lower()
-    )
-
-
 class XianyuPrepareRunner:
     def __init__(
         self,
@@ -166,16 +157,14 @@ class XianyuPrepareRunner:
                     if not _is_optional_item_source_visibility_error(exc):
                         raise
             if staged_listing.location_search_query:
-                try:
-                    final_analysis = self._flow.search_location_and_select_result(
-                        serial,
-                        staged_listing.location_search_query,
-                    )
-                except RuntimeError as exc:
-                    if not _is_best_effort_location_error(exc):
-                        raise
+                final_analysis = self._flow.search_location_and_select_result(
+                    serial,
+                    staged_listing.location_search_query,
+                )
+                final_analysis = self._flow.require_location_written_on_editor(serial)
 
             if review_after_prepare or auto_publish_after_prepare:
+                final_analysis = self._flow.require_location_written_on_editor(serial)
                 review = self._build_prepare_review(final_analysis)
 
         except Exception as exc:

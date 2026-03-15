@@ -21,6 +21,12 @@ _DETAIL_INTENT_DEEPLINK_RE = re.compile(
 )
 _ITEM_ID_RE = re.compile(r"(?:^|[?&])itemId=(?P<item_id>\d+)(?:&|$)")
 _PUBLIC_HTTP_URL_RE = re.compile(r"https?://[^\s]+")
+_FORBIDDEN_ASSISTANT_TEXT_MARKERS = (
+    "AI帮你写",
+    "AI帮你润色",
+    "AI生成仅供参考",
+    "小艺帮写",
+)
 
 
 def _extract_text(element: dict) -> str | None:
@@ -61,6 +67,12 @@ def parse_android_bounds(bounds: str | dict | None) -> TapTarget | None:
         )
 
     return None
+
+
+def _contains_forbidden_assistant_text(text: str | None) -> bool:
+    if text is None:
+        return False
+    return any(marker in text for marker in _FORBIDDEN_ASSISTANT_TEXT_MARKERS)
 
 
 def normalize_price_input(price: str | float | int) -> str:
@@ -221,6 +233,25 @@ class XianyuFlowAnalyzer:
         for element in elements:
             text = _extract_text(element)
             if text is None or "描述" not in text or "描述有点少哦" in text:
+                continue
+            target = parse_android_bounds(element.get("bounds"))
+            if target is None:
+                continue
+            return target.model_copy(update={"text": text})
+        return None
+
+    def _find_metadata_entry_target(self, elements: Iterable[dict]) -> TapTarget | None:
+        preferred_target = self._find_target(elements, contains_text="分类/")
+        if preferred_target is not None:
+            return preferred_target
+
+        for element in elements:
+            text = _extract_text(element)
+            if text is None:
+                continue
+            if "分类" not in text and "商品规格" not in text:
+                continue
+            if "更多信息" not in text and "非必填" not in text:
                 continue
             target = parse_android_bounds(element.get("bounds"))
             if target is None:
@@ -581,7 +612,7 @@ class XianyuFlowAnalyzer:
         )
         add_image = self._find_target(elements, exact_text="添加图片")
         description_entry = self._find_description_entry_target(elements)
-        metadata_entry = self._find_target(elements, contains_text="分类/")
+        metadata_entry = self._find_metadata_entry_target(elements)
         price_entry = self._find_target(elements, exact_text="价格设置")
         shipping_entry = self._find_target(elements, contains_text="发货方式")
         location_entry = self._find_target(elements, exact_text="选择位置")
@@ -988,6 +1019,10 @@ class XianyuPublishFlowService:
     def _tap_target(self, serial: str, target: TapTarget, target_name: str) -> None:
         if target is None:
             raise RuntimeError(f"Missing tap target for {target_name}")
+        if _contains_forbidden_assistant_text(target.text):
+            raise RuntimeError(
+                f"Forbidden AI assistant target for {target_name}: {target.text}"
+            )
         self._android.tap(serial, target.x, target.y)
 
     def _find_album_source_option_target(
@@ -1007,6 +1042,10 @@ class XianyuPublishFlowService:
     ) -> None:
         if target is None:
             raise RuntimeError(f"Missing long-press target for {target_name}")
+        if _contains_forbidden_assistant_text(target.text):
+            raise RuntimeError(
+                f"Forbidden AI assistant target for {target_name}: {target.text}"
+            )
         self._android.tap(
             serial,
             target.x,
@@ -1942,6 +1981,31 @@ class XianyuPublishFlowService:
             f"{max_steps} steps: {final_analysis.screen_name}"
         )
 
+    def require_location_written_on_editor(
+        self,
+        serial: str,
+        *,
+        max_swipes: int = 2,
+    ) -> XianyuScreenAnalysis:
+        analysis = self._analyze(serial)
+        if analysis.screen_name == "metadata_panel":
+            analysis = self._reveal_metadata_target(
+                serial,
+                target_name="location_entry",
+                max_swipes=max_swipes,
+            )
+
+        if analysis.screen_name not in {"listing_form", "metadata_panel"}:
+            raise RuntimeError(
+                "Location verification requires an editor screen, got "
+                f"{analysis.screen_name}"
+            )
+
+        if analysis.targets.get("location_entry") is not None:
+            raise RuntimeError("Location is still unset on editor")
+
+        return analysis
+
     def set_location_region_path(
         self,
         serial: str,
@@ -2078,7 +2142,7 @@ class XianyuPublishFlowService:
                     raise RuntimeError("Missing metadata_entry target on listing form")
                 self._tap_target(serial, target, "metadata_entry")
                 analysis = self._wait_for_non_loading_screen(serial)
-                if analysis.screen_name in {"metadata_panel", "unknown"}:
+                if analysis.screen_name in {"metadata_panel", "listing_form", "unknown"}:
                     continue
 
             raise RuntimeError(

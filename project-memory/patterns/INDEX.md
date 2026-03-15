@@ -56,7 +56,8 @@
 | xianyu-batch-summary-writeback-is-best-effort | 2026-03-15 | xianyu-batch-summary-writeback-is-best-effort.md |
 | xianyu-empty-queue-should-skip-device-preheat | 2026-03-15 | xianyu-empty-queue-should-skip-device-preheat.md |
 | xianyu-failure-artifacts-write-local-paths-back-to-bitable | 2026-03-15 | xianyu-failure-artifacts-write-local-paths-back-to-bitable.md |
+| xianyu-ai-helper-rows-are-forbidden-tap-targets | 2026-03-15 | xianyu-ai-helper-rows-are-forbidden-tap-targets.md |
 | xianyu-mcp-separates-publish-and-debug-services | 2026-03-15 | xianyu-mcp-separates-publish-and-debug-services.md |
 | xianyu-schedule-loop-reuses-batch-worker | 2026-03-15 | xianyu-schedule-loop-reuses-batch-worker.md |
 
-Total: 56
+Total: 57

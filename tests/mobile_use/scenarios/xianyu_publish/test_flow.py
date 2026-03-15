@@ -7,6 +7,7 @@ from minitap.mobile_use.scenarios.xianyu_publish.flow import (
     XianyuFlowAnalyzer,
     XianyuPublishFlowService,
 )
+from minitap.mobile_use.scenarios.xianyu_publish.models import TapTarget
 from minitap.mobile_use.scenarios.xianyu_publish.settings import XianyuPublishSettings
 
 
@@ -713,6 +714,35 @@ def test_detects_listing_form_metadata_entry_target():
     assert analysis.targets["metadata_entry"].y == 1794
 
 
+def test_detects_listing_form_metadata_entry_target_from_more_info_variant():
+    analyzer = XianyuFlowAnalyzer()
+    screen = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+            {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+            {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+            {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+            {
+                "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                "bounds": "[30,737][1570,1264]",
+            },
+            {"content-desc": "分类, 更多信息\n分类", "bounds": "[0,1494][1600,1815]"},
+            {"content-desc": "已选中电子资料, 电子资料", "bounds": "[245,1615][435,1755]"},
+            {"content-desc": "价格设置", "bounds": "[70,1957][1530,2097]"},
+            {"content-desc": "发货方式\n包邮", "bounds": "[70,2237][1530,2377]"},
+            {"content-desc": "选择位置", "bounds": "[70,2377][1530,2517]"},
+        ],
+    )
+
+    analysis = analyzer.detect_screen(screen)
+
+    assert analysis.screen_name == "listing_form"
+    assert analysis.targets["metadata_entry"].text == "分类, 更多信息\n分类"
+    assert analysis.targets["metadata_entry"].x == 800
+    assert analysis.targets["metadata_entry"].y == 1654
+
+
 def test_detects_metadata_panel_instead_of_publish_chooser():
     analyzer = XianyuFlowAnalyzer()
     screen = _make_screen(
@@ -1242,6 +1272,28 @@ def test_open_home_uses_explicit_main_activity_shell():
     android_service.device.shell.assert_called_once_with(
         "am start -n com.taobao.idlefish/com.taobao.idlefish.maincontainer.activity.MainActivity"
     )
+
+
+def test_tap_target_rejects_ai_assistant_entry():
+    android_service = FakeAndroidService(screens=[_make_screen(elements=[])])
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    with pytest.raises(RuntimeError, match="Forbidden AI assistant target"):
+        flow._tap_target(  # noqa: SLF001
+            "device-1",
+            TapTarget(
+                x=480,
+                y=1475,
+                text="AI帮你写, AI帮你润色",
+                bounds="[70,1410][1530,1540]",
+            ),
+            "description_entry",
+        )
+
+    assert android_service.tap_calls == []
 
 
 def test_advance_to_album_picker_taps_home_entry_then_publish_choice():
@@ -2533,6 +2585,115 @@ def test_advance_listing_form_to_metadata_panel_taps_metadata_entry():
 
     assert result.screen_name == "metadata_panel"
     assert android_service.tap_calls == [("device-1", 800, 1794)]
+
+
+def test_advance_listing_form_to_metadata_panel_waits_through_listing_form_tail():
+    listing_form = _make_screen(
+        activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+        elements=[
+            {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+            {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+            {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+            {"content-desc": "添加图片", "bounds": "[70,250][550,730]"},
+            {
+                "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                "bounds": "[30,737][1570,1264]",
+            },
+            {"content-desc": "分类, 更多信息\n分类", "bounds": "[0,1494][1600,1815]"},
+            {"content-desc": "已选中电子资料, 电子资料", "bounds": "[245,1615][435,1755]"},
+            {"content-desc": "价格设置", "bounds": "[70,1957][1530,2097]"},
+            {"content-desc": "发货方式\n包邮", "bounds": "[70,2237][1530,2377]"},
+            {"content-desc": "选择位置", "bounds": "[70,2377][1530,2517]"},
+        ],
+    )
+    android_service = FakeAndroidService(
+        screens=[
+            listing_form,
+            listing_form,
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"content-desc": "关闭", "bounds": "[0,105][90,165]"},
+                    {"content-desc": "发闲置", "bounds": "[90,104][255,166]"},
+                    {"content-desc": "发布, 发布", "bounds": "[1410,95][1600,175]"},
+                    {"content-desc": "添加图片", "bounds": "[560,250][1040,730]"},
+                    {
+                        "content-desc": "描述, 描述一下宝贝的品牌型号、货品来源…",
+                        "bounds": "[30,737][1570,1264]",
+                    },
+                    {
+                        "content-desc": (
+                            "分类/品牌/计价方式\n"
+                            "当前分类不支持修改服务信息，如需设置可从「首页-卖闲置-发服务」进行发布"
+                        ),
+                        "bounds": "[0,1695][1600,2397]",
+                    },
+                    {"content-desc": "分类, 分类", "bounds": "[40,1867][215,1907]"},
+                    {
+                        "content-desc": "已选中软件安装包/序列号/激活码, 软件安装包/序列号/激活码",
+                        "bounds": "[245,1817][690,1957]",
+                    },
+                    {"content-desc": "可选电子资料, 电子资料", "bounds": "[710,1817][900,1957]"},
+                    {"content-desc": "价格设置", "bounds": "[70,2538][1530,2560]"},
+                ],
+            ),
+        ],
+        advance_on_tap_calls={1},
+        advance_on_get_indices={1},
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+    )
+
+    result = flow.advance_listing_form_to_metadata_panel("device-1")
+
+    assert result.screen_name == "metadata_panel"
+    assert android_service.tap_calls == [("device-1", 800, 1654)]
+
+
+def test_require_location_written_on_editor_raises_when_location_is_unset():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=_scrolled_metadata_panel_elements(),
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    with pytest.raises(RuntimeError, match="Location is still unset on editor"):
+        flow.require_location_written_on_editor("device-1")
+
+
+def test_require_location_written_on_editor_accepts_metadata_panel_without_location_entry():
+    elements = [
+        element
+        for element in _scrolled_metadata_panel_elements()
+        if element.get("content-desc") != "选择位置"
+    ]
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=elements,
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    result = flow.require_location_written_on_editor("device-1")
+
+    assert result.screen_name == "metadata_panel"
 
 
 def test_set_item_condition_selects_option_and_verifies_selected_state():

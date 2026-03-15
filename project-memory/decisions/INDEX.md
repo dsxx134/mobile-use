@@ -29,5 +29,6 @@
 | xianyu batch summary uses a dedicated table | 2026-03-15 | 2026-03-15-xianyu-batch-summary-uses-a-dedicated-table.md |
 | xianyu failure evidence stays local with path writeback | 2026-03-15 | 2026-03-15-xianyu-failure-evidence-stays-local-with-path-writeback.md |
 | xianyu mcp will live in a separate thin-wrapper repo | 2026-03-15 | 2026-03-15-xianyu-mcp-will-live-in-a-separate-thin-wrapper-repo.md |
+| xianyu review and auto publish now require location clearance | 2026-03-15 | 2026-03-15-xianyu-review-and-auto-publish-now-require-location-clearance.md |
 
-Total: 27
+Total: 28

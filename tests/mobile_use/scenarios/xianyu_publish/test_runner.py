@@ -405,6 +405,9 @@ def test_prepare_first_publishable_listing_applies_optional_location_search_quer
     flow.search_location_and_select_result.return_value = XianyuScreenAnalysis(
         screen_name="listing_form"
     )
+    flow.require_location_written_on_editor.return_value = XianyuScreenAnalysis(
+        screen_name="listing_form"
+    )
     timeline = Mock()
     timeline.attach_mock(source, "source")
     timeline.attach_mock(media_sync, "media_sync")
@@ -436,12 +439,13 @@ def test_prepare_first_publishable_listing_applies_optional_location_search_quer
         call.flow.advance_listing_form_to_album_picker("device-1"),
         call.flow.select_cover_image("device-1", preferred_album_name="recA"),
         call.flow.search_location_and_select_result("device-1", "上海虹桥站"),
+        call.flow.require_location_written_on_editor("device-1"),
         call.source.update_listing_status("recA", "已就绪", failure_reason=None),
     ]
     assert result.final_screen_name == "listing_form"
 
 
-def test_prepare_first_publishable_listing_treats_location_search_as_best_effort(tmp_path):
+def test_prepare_first_publishable_listing_fails_when_location_stays_unset(tmp_path):
     listing = _make_listing(location_search_query="上海虹桥站")
     source = Mock()
     source.pick_first_publishable_record.return_value = listing
@@ -462,8 +466,12 @@ def test_prepare_first_publishable_listing_treats_location_search_as_best_effort
     flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
     flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
-    flow.search_location_and_select_result.side_effect = RuntimeError(
-        "Missing location_entry target on metadata_panel"
+    flow.search_location_and_select_result.return_value = XianyuScreenAnalysis(
+        screen_name="metadata_panel",
+        targets={"location_entry": TapTarget(x=800, y=2447, text="选择位置")},
+    )
+    flow.require_location_written_on_editor.side_effect = RuntimeError(
+        "Location is still unset on editor"
     )
     runner = XianyuPrepareRunner(
         source=source,
@@ -471,19 +479,25 @@ def test_prepare_first_publishable_listing_treats_location_search_as_best_effort
         flow=flow,
     )
 
-    result = runner.prepare_first_publishable_listing(
-        serial="device-1",
-        staging_root=tmp_path,
-    )
+    with pytest.raises(RuntimeError, match="Location is still unset on editor"):
+        runner.prepare_first_publishable_listing(
+            serial="device-1",
+            staging_root=tmp_path,
+        )
 
     flow.search_location_and_select_result.assert_called_once_with("device-1", "上海虹桥站")
+    flow.require_location_written_on_editor.assert_called_once_with("device-1")
     source.update_listing_status.assert_has_calls(
         [
             call("recA", "准备中"),
-            call("recA", "已就绪", failure_reason=None),
+            call(
+                "recA",
+                "准备失败",
+                failure_reason="Location is still unset on editor",
+                retry_count=1,
+            ),
         ]
     )
-    assert result.final_screen_name == "listing_form"
 
 
 def test_prepare_first_publishable_listing_marks_failure_and_reraises(tmp_path):
@@ -594,6 +608,10 @@ def test_prepare_first_publishable_listing_review_mode_marks_manual_publish_read
         screen_name="metadata_panel",
         targets={"submit_listing": TapTarget(x=1500, y=140, text="发布, 发布")},
     )
+    flow.require_location_written_on_editor.return_value = XianyuScreenAnalysis(
+        screen_name="metadata_panel",
+        targets={"submit_listing": TapTarget(x=1500, y=140, text="发布, 发布")},
+    )
     runner = XianyuPrepareRunner(
         source=source,
         media_sync=media_sync,
@@ -639,6 +657,9 @@ def test_prepare_first_publishable_listing_review_mode_fails_without_submit_butt
     flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.require_location_written_on_editor.return_value = XianyuScreenAnalysis(
+        screen_name="listing_form"
+    )
     runner = XianyuPrepareRunner(
         source=source,
         media_sync=media_sync,
@@ -690,6 +711,7 @@ def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tm
     flow.select_cover_image.return_value = final_editor
     flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.require_location_written_on_editor.return_value = final_editor
     flow.submit_listing_and_wait_for_result.return_value = XianyuScreenAnalysis(
         screen_name="publish_success",
         targets={
@@ -798,6 +820,10 @@ def test_prepare_first_publishable_listing_auto_publish_requires_listing_opt_in(
     )
     flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.require_location_written_on_editor.return_value = XianyuScreenAnalysis(
+        screen_name="metadata_panel",
+        targets={"submit_listing": TapTarget(x=1500, y=140, text="发布, 发布")},
+    )
     runner = XianyuPrepareRunner(
         source=source,
         media_sync=media_sync,
@@ -846,6 +872,10 @@ def test_prepare_first_publishable_listing_auto_publish_marks_publish_failure(tm
     )
     flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.require_location_written_on_editor.return_value = XianyuScreenAnalysis(
+        screen_name="metadata_panel",
+        targets={"submit_listing": TapTarget(x=1500, y=140, text="发布, 发布")},
+    )
     flow.submit_listing_and_wait_for_result.side_effect = RuntimeError(
         "Publish did not reach success screen: metadata_panel"
     )
