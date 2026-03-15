@@ -9,6 +9,10 @@ from uuid import uuid4
 from adbutils import AdbClient, adb
 from pydantic import BaseModel, ConfigDict, Field
 
+from minitap.mobile_use.mcp.android_debug_service import AndroidDebugService
+from minitap.mobile_use.scenarios.xianyu_publish.failure_artifacts import (
+    XianyuFailureArtifactRecorder,
+)
 from minitap.mobile_use.scenarios.xianyu_publish.feishu_source import FeishuBitableSource
 from minitap.mobile_use.scenarios.xianyu_publish.flow import XianyuPublishFlowService
 from minitap.mobile_use.scenarios.xianyu_publish.media_sync import XianyuMediaSyncService
@@ -54,6 +58,18 @@ class XianyuLiveBatchPublishResult(BaseModel):
     summary_logged: bool = False
     summary_log_error: str | None = None
     items: list[XianyuLiveBatchPublishItem] = Field(default_factory=list)
+
+
+class XianyuLiveQueueScheduleResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    interval_seconds: float
+    run_count: int
+    total_processed_count: int
+    total_success_count: int
+    total_failure_count: int
+    stopped_reason: str
+    batch_results: list[XianyuLiveBatchPublishResult] = Field(default_factory=list)
 
 
 def resolve_adb_serial(adb_client: AdbClient, requested_serial: str | None = None) -> str:
@@ -112,6 +128,7 @@ def prepare_first_publishable_listing_live(
     auto_publish_after_prepare: bool = False,
     batch_run_id: str | None = None,
     batch_ran_at: str | None = None,
+    failure_artifact_root: Path | None = None,
     components: XianyuLivePrepareComponents | None = None,
 ) -> XianyuPrepareListingResult:
     resolved_settings = settings or XianyuPublishSettings()
@@ -122,6 +139,9 @@ def prepare_first_publishable_listing_live(
     )
     resolved_staging_root = (staging_root or Path(".tmp") / "xianyu-prepare").resolve()
     resolved_staging_root.mkdir(parents=True, exist_ok=True)
+    resolved_failure_artifact_root = (
+        failure_artifact_root or resolved_staging_root.parent / "xianyu-failures"
+    ).resolve()
     live_components = components or build_live_prepare_components(
         resolved_settings,
         adb_client=resolved_adb_client,
@@ -152,6 +172,10 @@ def prepare_first_publishable_listing_live(
         "serial": resolved_serial,
         "staging_root": resolved_staging_root,
         "review_after_prepare": review_after_prepare,
+        "failure_recorder": XianyuFailureArtifactRecorder(
+            android_service=AndroidDebugService(adb_client=resolved_adb_client),
+            root=resolved_failure_artifact_root,
+        ),
     }
     if auto_publish_after_prepare:
         runner_kwargs["auto_publish_after_prepare"] = True
@@ -168,6 +192,10 @@ def format_live_prepare_result(result: XianyuPrepareListingResult) -> str:
 
 
 def format_live_batch_result(result: XianyuLiveBatchPublishResult) -> str:
+    return json.dumps(result.model_dump(), ensure_ascii=False, indent=2)
+
+
+def format_live_queue_schedule_result(result: XianyuLiveQueueScheduleResult) -> str:
     return json.dumps(result.model_dump(), ensure_ascii=False, indent=2)
 
 
@@ -291,3 +319,71 @@ def publish_listing_queue_live(
         else:
             result.summary_logged = True
     return result
+
+
+def run_publish_queue_schedule_live(
+    *,
+    settings: XianyuPublishSettings | None = None,
+    adb_client: AdbClient | None = None,
+    serial: str | None = None,
+    staging_root: Path | None = None,
+    preheat_max_steps: int = 10,
+    preheat_attempts: int = 2,
+    max_items: int = 1,
+    cooldown_seconds: float = 0.0,
+    stop_on_error: bool = False,
+    interval_seconds: float = 300.0,
+    max_runs: int = 0,
+    stop_when_idle: bool = False,
+    stop_on_batch_error: bool = False,
+    sleep_fn: Any | None = None,
+    components: XianyuLivePrepareComponents | None = None,
+) -> XianyuLiveQueueScheduleResult:
+    if max_runs < 0:
+        raise ValueError("max_runs must be >= 0")
+    if interval_seconds < 0:
+        raise ValueError("interval_seconds must be >= 0")
+
+    sleeper = sleep_fn or time.sleep
+    batch_results: list[XianyuLiveBatchPublishResult] = []
+    run_count = 0
+    stopped_reason = "max_runs_reached"
+
+    while True:
+        if max_runs and run_count >= max_runs:
+            break
+
+        batch_result = publish_listing_queue_live(
+            settings=settings,
+            adb_client=adb_client,
+            serial=serial,
+            staging_root=staging_root,
+            preheat_max_steps=preheat_max_steps,
+            preheat_attempts=preheat_attempts,
+            max_items=max_items,
+            cooldown_seconds=cooldown_seconds,
+            stop_on_error=stop_on_error,
+            components=components,
+        )
+        batch_results.append(batch_result)
+        run_count += 1
+
+        if stop_when_idle and batch_result.stopped_reason == "no_publishable_listing":
+            stopped_reason = "idle"
+            break
+        if stop_on_batch_error and batch_result.failure_count > 0:
+            stopped_reason = "batch_error"
+            break
+        if max_runs and run_count >= max_runs:
+            break
+        sleeper(interval_seconds)
+
+    return XianyuLiveQueueScheduleResult(
+        interval_seconds=interval_seconds,
+        run_count=run_count,
+        total_processed_count=sum(item.processed_count for item in batch_results),
+        total_success_count=sum(item.success_count for item in batch_results),
+        total_failure_count=sum(item.failure_count for item in batch_results),
+        stopped_reason=stopped_reason,
+        batch_results=batch_results,
+    )

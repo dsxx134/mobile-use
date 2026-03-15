@@ -364,6 +364,11 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `商品图片`
 - `发布状态`
 - `失败原因`
+- `最近失败时间`
+- `最近失败截图路径`
+- `最近失败界面快照路径`
+- `最近失败活动栈路径`
+- `最近失败前台应用`
 - `失败重试次数`
 - `失败重试上限`
 - `最近批次运行ID`
@@ -461,6 +466,15 @@ uv run python scripts/xianyu_publish_auto_live.py
 - If the success screen does not appear, it writes back:
   - `发布状态=发布失败`
   - `失败原因=<raised error>`
+- On prepare or publish failures reached through the live runner, the code now also captures local
+  debug artifacts and writes their paths back to the row:
+  - `最近失败时间`
+  - `最近失败截图路径`
+  - `最近失败界面快照路径`
+  - `最近失败活动栈路径`
+  - `最近失败前台应用`
+- These failure artifacts are intentionally stored as local filesystem paths, not Feishu
+  attachments. The current layout is under `.tmp/xianyu-failures/<record_id>/<timestamp-stage>/`.
 - The Feishu `闲鱼商品链接` field is a real hyperlink field, so the source layer now writes it as a
   `{text, link}` object instead of a bare string
 
@@ -508,6 +522,20 @@ uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seco
   - `最近批次运行结果`
 - The queue uses one shared batch id for the full run, so all processed rows can be grouped back to
   the same worker execution in Feishu.
+
+### Run the live scheduled batch loop
+
+```bash
+uv run python scripts/xianyu_publish_queue_schedule_live.py --interval-seconds 300 --max-items 1 --cooldown-seconds 3 --stop-when-idle
+```
+
+- This wrapper repeatedly calls the existing live batch worker on a fixed interval.
+- Use `--max-runs 0` for a long-lived loop, or a small positive number when you want a bounded dry
+  run.
+- Use `--stop-when-idle` when you want the loop to exit after the queue goes empty.
+- Use `--stop-on-batch-error` when you want the outer loop to stop after any failed batch.
+- On Windows, this script is suitable either for a long-lived console session or for wrapping
+  inside Task Scheduler.
 
 ### Current media-selection behavior
 

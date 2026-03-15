@@ -353,6 +353,50 @@ def test_update_listing_status_can_write_retry_count():
     }
 
 
+def test_update_listing_status_can_write_failure_artifact_fields():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"code": 0, "data": {"record": {"record_id": "recA"}}})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_listing_status(
+        "recA",
+        "准备失败",
+        failure_reason="price panel missing",
+        failure_captured_at="2026-03-15T12:00:00+08:00",
+        failure_screenshot_path="D:\\debug\\recA\\screen.png",
+        failure_hierarchy_path="D:\\debug\\recA\\hierarchy.xml",
+        failure_activity_dump_path="D:\\debug\\recA\\activities.txt",
+        failure_current_app="com.taobao.idlefish/com.taobao.idlefish.maincontainer.activity.MainActivity",
+    )
+
+    assert captured["payload"] == {
+        "fields": {
+            "发布状态": "准备失败",
+            "失败原因": "price panel missing",
+            "最近失败时间": "2026-03-15T12:00:00+08:00",
+            "最近失败截图路径": "D:\\debug\\recA\\screen.png",
+            "最近失败界面快照路径": "D:\\debug\\recA\\hierarchy.xml",
+            "最近失败活动栈路径": "D:\\debug\\recA\\activities.txt",
+            "最近失败前台应用": (
+                "com.taobao.idlefish/"
+                "com.taobao.idlefish.maincontainer.activity.MainActivity"
+            ),
+        }
+    }
+
+
 def test_update_listing_status_can_write_batch_run_fields():
     captured: dict[str, object] = {}
 
@@ -499,6 +543,55 @@ def test_update_publish_result_can_write_batch_run_fields():
             "最近批次运行ID": "batch-001",
             "最近批次运行时间": "2026-03-15T09:00:00+08:00",
             "最近批次运行结果": "已发布",
+        }
+    }
+
+
+def test_update_publish_result_can_write_failure_artifact_fields():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"code": 0, "data": {"record": {"record_id": "recA"}}})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_publish_result(
+        "recA",
+        status="发布失败",
+        failure_reason="Publish did not reach success screen: metadata_panel",
+        published_at=None,
+        listing_id=None,
+        listing_url=None,
+        retry_count=2,
+        failure_captured_at="2026-03-15T12:30:00+08:00",
+        failure_screenshot_path="D:\\debug\\recA\\publish\\screen.png",
+        failure_hierarchy_path="D:\\debug\\recA\\publish\\hierarchy.xml",
+        failure_activity_dump_path="D:\\debug\\recA\\publish\\activities.txt",
+        failure_current_app="com.taobao.idlefish/com.taobao.idlefish.publish.PublishActivity",
+    )
+
+    assert captured["payload"] == {
+        "fields": {
+            "发布状态": "发布失败",
+            "失败原因": "Publish did not reach success screen: metadata_panel",
+            "发布时间": None,
+            "闲鱼商品ID": None,
+            "闲鱼商品链接": None,
+            "失败重试次数": 2,
+            "最近失败时间": "2026-03-15T12:30:00+08:00",
+            "最近失败截图路径": "D:\\debug\\recA\\publish\\screen.png",
+            "最近失败界面快照路径": "D:\\debug\\recA\\publish\\hierarchy.xml",
+            "最近失败活动栈路径": "D:\\debug\\recA\\publish\\activities.txt",
+            "最近失败前台应用": "com.taobao.idlefish/com.taobao.idlefish.publish.PublishActivity",
         }
     }
 

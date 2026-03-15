@@ -5,11 +5,16 @@ import pytest
 from minitap.mobile_use.scenarios.xianyu_publish import live_prepare as live_prepare_module
 from minitap.mobile_use.scenarios.xianyu_publish.live_prepare import (
     XianyuLiveBatchPublishResult,
+    XianyuLiveQueueScheduleResult,
     XianyuLivePrepareComponents,
     build_live_prepare_components,
     publish_listing_queue_live,
     prepare_first_publishable_listing_live,
     resolve_adb_serial,
+    run_publish_queue_schedule_live,
+)
+from minitap.mobile_use.scenarios.xianyu_publish.failure_artifacts import (
+    XianyuFailureArtifactRecorder,
 )
 from minitap.mobile_use.scenarios.xianyu_publish.runner import (
     XianyuPrepareListingResult,
@@ -116,11 +121,12 @@ def test_prepare_first_publishable_listing_live_preheats_before_runner(tmp_path)
         call.open_home("tablet-1"),
         call.advance_to_listing_form("tablet-1", max_steps=12),
     ]
-    runner.prepare_first_publishable_listing.assert_called_once_with(
-        serial="tablet-1",
-        staging_root=tmp_path,
-        review_after_prepare=False,
-    )
+    runner.prepare_first_publishable_listing.assert_called_once()
+    runner_kwargs = runner.prepare_first_publishable_listing.call_args.kwargs
+    assert runner_kwargs["serial"] == "tablet-1"
+    assert runner_kwargs["staging_root"] == tmp_path
+    assert runner_kwargs["review_after_prepare"] is False
+    assert isinstance(runner_kwargs["failure_recorder"], XianyuFailureArtifactRecorder)
     assert result.final_screen_name == "metadata_panel"
 
 
@@ -159,11 +165,12 @@ def test_prepare_first_publishable_listing_live_retries_preheat_once(tmp_path):
         call.open_home("tablet-1"),
         call.advance_to_listing_form("tablet-1", max_steps=10),
     ]
-    runner.prepare_first_publishable_listing.assert_called_once_with(
-        serial="tablet-1",
-        staging_root=tmp_path,
-        review_after_prepare=False,
-    )
+    runner.prepare_first_publishable_listing.assert_called_once()
+    runner_kwargs = runner.prepare_first_publishable_listing.call_args.kwargs
+    assert runner_kwargs["serial"] == "tablet-1"
+    assert runner_kwargs["staging_root"] == tmp_path
+    assert runner_kwargs["review_after_prepare"] is False
+    assert isinstance(runner_kwargs["failure_recorder"], XianyuFailureArtifactRecorder)
     assert result.final_screen_name == "listing_form"
 
 
@@ -194,11 +201,12 @@ def test_prepare_first_publishable_listing_live_can_request_review_mode(tmp_path
         review_after_prepare=True,
     )
 
-    runner.prepare_first_publishable_listing.assert_called_once_with(
-        serial="tablet-1",
-        staging_root=tmp_path,
-        review_after_prepare=True,
-    )
+    runner.prepare_first_publishable_listing.assert_called_once()
+    runner_kwargs = runner.prepare_first_publishable_listing.call_args.kwargs
+    assert runner_kwargs["serial"] == "tablet-1"
+    assert runner_kwargs["staging_root"] == tmp_path
+    assert runner_kwargs["review_after_prepare"] is True
+    assert isinstance(runner_kwargs["failure_recorder"], XianyuFailureArtifactRecorder)
 
 
 def test_prepare_first_publishable_listing_live_can_request_auto_publish_mode(tmp_path):
@@ -228,12 +236,13 @@ def test_prepare_first_publishable_listing_live_can_request_auto_publish_mode(tm
         auto_publish_after_prepare=True,
     )
 
-    runner.prepare_first_publishable_listing.assert_called_once_with(
-        serial="tablet-1",
-        staging_root=tmp_path,
-        review_after_prepare=False,
-        auto_publish_after_prepare=True,
-    )
+    runner.prepare_first_publishable_listing.assert_called_once()
+    runner_kwargs = runner.prepare_first_publishable_listing.call_args.kwargs
+    assert runner_kwargs["serial"] == "tablet-1"
+    assert runner_kwargs["staging_root"] == tmp_path
+    assert runner_kwargs["review_after_prepare"] is False
+    assert runner_kwargs["auto_publish_after_prepare"] is True
+    assert isinstance(runner_kwargs["failure_recorder"], XianyuFailureArtifactRecorder)
 
 
 def test_prepare_first_publishable_listing_live_skips_preheat_when_no_candidates_exist(tmp_path):
@@ -581,3 +590,81 @@ def test_publish_listing_queue_live_keeps_result_when_summary_write_fails(tmp_pa
     assert result.success_count == 1
     assert result.summary_logged is False
     assert result.summary_log_error == "summary table missing"
+
+
+def test_run_publish_queue_schedule_live_repeats_batches_and_sleeps(tmp_path, monkeypatch):
+    settings = _make_settings(serial="tablet-1")
+    batch_results = [
+        XianyuLiveBatchPublishResult(
+            batch_run_id="batch-001",
+            batch_ran_at="2026-03-15T09:00:00+08:00",
+            requested_count=1,
+            processed_count=1,
+            success_count=1,
+            failure_count=0,
+            stopped_reason="limit_reached",
+        ),
+        XianyuLiveBatchPublishResult(
+            batch_run_id="batch-002",
+            batch_ran_at="2026-03-15T09:05:00+08:00",
+            requested_count=1,
+            processed_count=0,
+            success_count=0,
+            failure_count=0,
+            stopped_reason="no_publishable_listing",
+        ),
+    ]
+    publish_mock = Mock(side_effect=batch_results)
+    sleep_mock = Mock()
+    monkeypatch.setattr(live_prepare_module, "publish_listing_queue_live", publish_mock)
+
+    result = run_publish_queue_schedule_live(
+        settings=settings,
+        adb_client=Mock(),
+        staging_root=tmp_path,
+        interval_seconds=60,
+        max_runs=3,
+        stop_when_idle=True,
+        sleep_fn=sleep_mock,
+    )
+
+    assert isinstance(result, XianyuLiveQueueScheduleResult)
+    assert result.run_count == 2
+    assert result.total_processed_count == 1
+    assert result.total_success_count == 1
+    assert result.total_failure_count == 0
+    assert result.stopped_reason == "idle"
+    assert [item.batch_run_id for item in result.batch_results] == ["batch-001", "batch-002"]
+    sleep_mock.assert_called_once_with(60)
+
+
+def test_run_publish_queue_schedule_live_can_stop_on_batch_error(tmp_path, monkeypatch):
+    settings = _make_settings(serial="tablet-1")
+    publish_mock = Mock(
+        return_value=XianyuLiveBatchPublishResult(
+            batch_run_id="batch-001",
+            batch_ran_at="2026-03-15T09:00:00+08:00",
+            requested_count=1,
+            processed_count=1,
+            success_count=0,
+            failure_count=1,
+            stopped_reason="limit_reached",
+        )
+    )
+    sleep_mock = Mock()
+    monkeypatch.setattr(live_prepare_module, "publish_listing_queue_live", publish_mock)
+
+    result = run_publish_queue_schedule_live(
+        settings=settings,
+        adb_client=Mock(),
+        staging_root=tmp_path,
+        interval_seconds=60,
+        max_runs=5,
+        stop_on_batch_error=True,
+        sleep_fn=sleep_mock,
+    )
+
+    assert result.run_count == 1
+    assert result.total_failure_count == 1
+    assert result.stopped_reason == "batch_error"
+    sleep_mock.assert_not_called()

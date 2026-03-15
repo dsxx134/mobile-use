@@ -12,6 +12,7 @@ from minitap.mobile_use.scenarios.xianyu_publish.models import (
     XianyuListingReceipt,
     XianyuScreenAnalysis,
 )
+from minitap.mobile_use.scenarios.xianyu_publish.failure_artifacts import XianyuFailureArtifacts
 from minitap.mobile_use.scenarios.xianyu_publish.runner import (
     XianyuPrepareRunner,
     build_listing_body,
@@ -511,6 +512,15 @@ def test_prepare_first_publishable_listing_marks_failure_and_reraises(tmp_path):
         media_sync=media_sync,
         flow=flow,
     )
+    failure_recorder = Mock()
+    failure_recorder.capture.return_value = XianyuFailureArtifacts(
+        captured_at="2026-03-15T12:00:00+08:00",
+        artifact_dir="D:\\debug\\recA\\prepare",
+        screenshot_path="D:\\debug\\recA\\prepare\\screen.png",
+        hierarchy_path="D:\\debug\\recA\\prepare\\hierarchy.xml",
+        activity_dump_path="D:\\debug\\recA\\prepare\\activities.txt",
+        current_app="com.taobao.idlefish/com.taobao.idlefish.maincontainer.activity.MainActivity",
+    )
 
     with pytest.raises(RuntimeError, match="price panel missing"):
         runner.prepare_first_publishable_listing(
@@ -518,8 +528,15 @@ def test_prepare_first_publishable_listing_marks_failure_and_reraises(tmp_path):
             staging_root=tmp_path,
             batch_run_id="batch-001",
             batch_ran_at="2026-03-15T09:00:00+08:00",
+            failure_recorder=failure_recorder,
         )
 
+    failure_recorder.capture.assert_called_once_with(
+        serial="device-1",
+        record_id="recA",
+        stage="prepare",
+        error_message="price panel missing",
+    )
     source.update_listing_status.assert_has_calls(
         [
             call(
@@ -533,6 +550,14 @@ def test_prepare_first_publishable_listing_marks_failure_and_reraises(tmp_path):
                 "准备失败",
                 failure_reason="price panel missing",
                 retry_count=1,
+                failure_captured_at="2026-03-15T12:00:00+08:00",
+                failure_screenshot_path="D:\\debug\\recA\\prepare\\screen.png",
+                failure_hierarchy_path="D:\\debug\\recA\\prepare\\hierarchy.xml",
+                failure_activity_dump_path="D:\\debug\\recA\\prepare\\activities.txt",
+                failure_current_app=(
+                    "com.taobao.idlefish/"
+                    "com.taobao.idlefish.maincontainer.activity.MainActivity"
+                ),
                 batch_run_id="batch-001",
                 batch_ran_at="2026-03-15T09:00:00+08:00",
             ),
@@ -829,14 +854,30 @@ def test_prepare_first_publishable_listing_auto_publish_marks_publish_failure(tm
         media_sync=media_sync,
         flow=flow,
     )
+    failure_recorder = Mock()
+    failure_recorder.capture.return_value = XianyuFailureArtifacts(
+        captured_at="2026-03-15T12:30:00+08:00",
+        artifact_dir="D:\\debug\\recA\\publish",
+        screenshot_path="D:\\debug\\recA\\publish\\screen.png",
+        hierarchy_path="D:\\debug\\recA\\publish\\hierarchy.xml",
+        activity_dump_path="D:\\debug\\recA\\publish\\activities.txt",
+        current_app="com.taobao.idlefish/com.taobao.idlefish.publish.PublishActivity",
+    )
 
     with pytest.raises(RuntimeError, match="Publish did not reach success screen: metadata_panel"):
         runner.prepare_first_publishable_listing(
             serial="device-1",
             staging_root=tmp_path,
             auto_publish_after_prepare=True,
+            failure_recorder=failure_recorder,
         )
 
+    failure_recorder.capture.assert_called_once_with(
+        serial="device-1",
+        record_id="recA",
+        stage="publish",
+        error_message="Publish did not reach success screen: metadata_panel",
+    )
     source.update_listing_status.assert_has_calls(
         [
             call("recA", "准备中"),
@@ -851,4 +892,9 @@ def test_prepare_first_publishable_listing_auto_publish_marks_publish_failure(tm
         listing_id=None,
         listing_url=None,
         retry_count=1,
+        failure_captured_at="2026-03-15T12:30:00+08:00",
+        failure_screenshot_path="D:\\debug\\recA\\publish\\screen.png",
+        failure_hierarchy_path="D:\\debug\\recA\\publish\\hierarchy.xml",
+        failure_activity_dump_path="D:\\debug\\recA\\publish\\activities.txt",
+        failure_current_app="com.taobao.idlefish/com.taobao.idlefish.publish.PublishActivity",
     )

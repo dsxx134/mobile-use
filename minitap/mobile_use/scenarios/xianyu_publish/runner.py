@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from minitap.mobile_use.scenarios.xianyu_publish.failure_artifacts import XianyuFailureArtifacts
 from minitap.mobile_use.scenarios.xianyu_publish.models import ListingDraft
 from minitap.mobile_use.scenarios.xianyu_publish.settings import XianyuPublishSettings
 
@@ -106,6 +107,7 @@ class XianyuPrepareRunner:
         auto_publish_after_prepare: bool = False,
         batch_run_id: str | None = None,
         batch_ran_at: str | None = None,
+        failure_recorder: Any | None = None,
     ) -> XianyuPrepareListingResult:
         listing = self._source.pick_first_publishable_record()
         if listing is None:
@@ -177,11 +179,19 @@ class XianyuPrepareRunner:
                 review = self._build_prepare_review(final_analysis)
 
         except Exception as exc:
+            failure_kwargs = self._build_failure_kwargs(
+                failure_recorder=failure_recorder,
+                serial=serial,
+                record_id=listing.record_id,
+                stage="prepare",
+                error_message=str(exc),
+            )
             self._source.update_listing_status(
                 listing.record_id,
                 "准备失败",
                 failure_reason=str(exc),
                 retry_count=listing.retry_count + 1,
+                **failure_kwargs,
                 **batch_kwargs,
             )
             raise
@@ -246,6 +256,13 @@ class XianyuPrepareRunner:
                 else:
                     final_analysis = publish_analysis
             except Exception as exc:
+                failure_kwargs = self._build_failure_kwargs(
+                    failure_recorder=failure_recorder,
+                    serial=serial,
+                    record_id=staged_listing.record_id,
+                    stage="publish",
+                    error_message=str(exc),
+                )
                 self._source.update_publish_result(
                     staged_listing.record_id,
                     status="发布失败",
@@ -254,6 +271,7 @@ class XianyuPrepareRunner:
                     listing_id=None,
                     listing_url=None,
                     retry_count=staged_listing.retry_count + 1,
+                    **failure_kwargs,
                     **batch_kwargs,
                 )
                 raise
@@ -296,3 +314,36 @@ class XianyuPrepareRunner:
             submit_button_visible=submit_button_visible,
             ready_for_manual_publish=True,
         )
+
+    def _build_failure_kwargs(
+        self,
+        *,
+        failure_recorder: Any | None,
+        serial: str,
+        record_id: str,
+        stage: str,
+        error_message: str,
+    ) -> dict[str, str]:
+        if failure_recorder is None:
+            return {}
+
+        try:
+            artifacts = failure_recorder.capture(
+                serial=serial,
+                record_id=record_id,
+                stage=stage,
+                error_message=error_message,
+            )
+        except Exception:
+            return {}
+
+        if not isinstance(artifacts, XianyuFailureArtifacts):
+            return {}
+
+        return {
+            "failure_captured_at": artifacts.captured_at,
+            "failure_screenshot_path": artifacts.screenshot_path or "",
+            "failure_hierarchy_path": artifacts.hierarchy_path or "",
+            "failure_activity_dump_path": artifacts.activity_dump_path or "",
+            "failure_current_app": artifacts.current_app or "",
+        }

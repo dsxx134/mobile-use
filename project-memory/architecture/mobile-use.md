@@ -42,6 +42,10 @@ Updated: 2026-03-15
 - The live queue path now writes two levels of Feishu observability:
   - lightweight per-row batch metadata back onto listing rows
   - a dedicated `批次运行汇总` table for batch-level totals and readable per-item detail text
+- The live runner now also has a local failure-artifact side channel:
+  - capture a fresh Android screenshot through `AndroidDebugService.get_screen_data()`
+  - persist `screen.png`, `hierarchy.xml`, and `activities.txt` under `.tmp/xianyu-failures/...`
+  - write the resulting local paths back to the listing row in Feishu for operator triage
 - The Xianyu flow currently recognizes:
   - home tab
   - publish chooser
@@ -225,6 +229,12 @@ Updated: 2026-03-15
   - `批次明细` is stored as multi-line text instead of raw JSON
   - each line summarizes one processed row as `record_id | 成败 | 关键信息`
   - the formatter includes any available `商品ID`, public link, screen names, and failure reason
+- Scheduled production execution is now a thin wrapper around the existing batch worker, not a
+  second publish implementation:
+  - `run_publish_queue_schedule_live()` repeatedly calls `publish_listing_queue_live()`
+  - each inner run still owns its own batch id and summary row
+  - outer-loop stop policy is controlled by `max_runs`, `stop_when_idle`, and
+    `stop_on_batch_error`
 - Post-publish receipt extraction now uses Android system state rather than UI text:
   - while the app is on `com.taobao.idlefish.detail.DetailActivity`
   - call `adb shell dumpsys activity activities`

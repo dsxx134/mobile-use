@@ -54,5 +54,7 @@
 | xianyu-batch-summary-details-prefer-readable-text | 2026-03-15 | xianyu-batch-summary-details-prefer-readable-text.md |
 | xianyu-batch-summary-writeback-is-best-effort | 2026-03-15 | xianyu-batch-summary-writeback-is-best-effort.md |
 | xianyu-empty-queue-should-skip-device-preheat | 2026-03-15 | xianyu-empty-queue-should-skip-device-preheat.md |
+| xianyu-failure-artifacts-write-local-paths-back-to-bitable | 2026-03-15 | xianyu-failure-artifacts-write-local-paths-back-to-bitable.md |
+| xianyu-schedule-loop-reuses-batch-worker | 2026-03-15 | xianyu-schedule-loop-reuses-batch-worker.md |
 
-Total: 52
+Total: 54
