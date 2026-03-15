@@ -28,5 +28,6 @@
 | xianyu batch logging stays on listing rows | 2026-03-15 | 2026-03-15-xianyu-batch-logging-stays-on-listing-rows.md |
 | xianyu batch summary uses a dedicated table | 2026-03-15 | 2026-03-15-xianyu-batch-summary-uses-a-dedicated-table.md |
 | xianyu failure evidence stays local with path writeback | 2026-03-15 | 2026-03-15-xianyu-failure-evidence-stays-local-with-path-writeback.md |
+| xianyu mcp will live in a separate thin-wrapper repo | 2026-03-15 | 2026-03-15-xianyu-mcp-will-live-in-a-separate-thin-wrapper-repo.md |
 
-Total: 26
+Total: 27

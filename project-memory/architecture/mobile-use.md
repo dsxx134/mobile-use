@@ -235,6 +235,18 @@ Updated: 2026-03-15
   - each inner run still owns its own batch id and summary row
   - outer-loop stop policy is controlled by `max_runs`, `stop_when_idle`, and
     `stop_on_batch_error`
+- The current repo is now explicitly treated as the Xianyu execution core rather than the final
+  public MCP product surface.
+- Planned productization shape:
+  - keep `mobile-use` responsible for device automation, Feishu integration, and deterministic
+    Xianyu publish flows
+  - create a separate thin-wrapper repo that imports this core
+  - expose two MCP servers from that new repo:
+    - `xianyu_publish_mcp` for queue/prepare/publish/batch business operations
+    - `xianyu_debug_mcp` for screen/hierarchy/current-app/tap/swipe/failure-artifact debug
+      operations
+- Scheduling is intentionally not part of that future MCP contract; it will be owned by the caller
+  such as an external agent trigger or automation platform.
 - Post-publish receipt extraction now uses Android system state rather than UI text:
   - while the app is on `com.taobao.idlefish.detail.DetailActivity`
   - call `adb shell dumpsys activity activities`
