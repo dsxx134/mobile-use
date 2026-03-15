@@ -1,4 +1,3 @@
-import json
 import time
 from collections.abc import Callable
 from typing import Any
@@ -233,10 +232,8 @@ class FeishuBitableSource:
                     self.settings.batch_summary_success_count_field_name: success_count,
                     self.settings.batch_summary_failure_count_field_name: failure_count,
                     self.settings.batch_summary_stop_reason_field_name: stopped_reason,
-                    self.settings.batch_summary_items_field_name: json.dumps(
-                        items,
-                        ensure_ascii=False,
-                        separators=(",", ":"),
+                    self.settings.batch_summary_items_field_name: self._format_batch_summary_items(
+                        items
                     ),
                 }
             },
@@ -368,6 +365,44 @@ class FeishuBitableSource:
         if not text:
             raise ValueError(f"Missing required text field: {field_name}")
         return text
+
+    def _format_batch_summary_items(self, items: list[dict[str, Any]]) -> str:
+        if not items:
+            return "本批次没有处理任何记录。"
+
+        lines: list[str] = []
+        for index, item in enumerate(items, start=1):
+            record_id = self._extract_text_value(item.get("record_id")) or f"record-{index}"
+            status = "成功" if bool(item.get("success")) else "失败"
+            line_parts = [f"{index}. {record_id}", status]
+
+            listing_id = self._extract_text_value(item.get("listing_id"))
+            if listing_id:
+                line_parts.append(f"商品ID: {listing_id}")
+
+            listing_url = self._extract_text_value(item.get("listing_url"))
+            if listing_url:
+                line_parts.append(f"链接: {listing_url}")
+
+            final_screen_name = self._extract_text_value(item.get("final_screen_name"))
+            if final_screen_name:
+                line_parts.append(f"最终页: {final_screen_name}")
+
+            publish_screen_name = self._extract_text_value(item.get("publish_screen_name"))
+            if publish_screen_name:
+                line_parts.append(f"发布结果页: {publish_screen_name}")
+
+            detail_screen_name = self._extract_text_value(item.get("detail_screen_name"))
+            if detail_screen_name:
+                line_parts.append(f"详情页: {detail_screen_name}")
+
+            error = self._extract_text_value(item.get("error"))
+            if error:
+                line_parts.append(f"原因: {error}")
+
+            lines.append(" | ".join(line_parts))
+
+        return "\n".join(lines)
 
     def _resolve_retry_count(self, fields: dict[str, Any]) -> int:
         value = fields.get(self.settings.retry_count_field_name)

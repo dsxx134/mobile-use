@@ -51,7 +51,8 @@
 | xianyu-batch-worker-stops-on-limit-empty-queue-or-error | 2026-03-14 | xianyu-batch-worker-stops-on-limit-empty-queue-or-error.md |
 | xianyu-retry-budget-is-filtered-client-side | 2026-03-14 | xianyu-retry-budget-is-filtered-client-side.md |
 | xianyu-batch-log-reuses-row-writeback-fields | 2026-03-15 | xianyu-batch-log-reuses-row-writeback-fields.md |
+| xianyu-batch-summary-details-prefer-readable-text | 2026-03-15 | xianyu-batch-summary-details-prefer-readable-text.md |
 | xianyu-batch-summary-writeback-is-best-effort | 2026-03-15 | xianyu-batch-summary-writeback-is-best-effort.md |
 | xianyu-empty-queue-should-skip-device-preheat | 2026-03-15 | xianyu-empty-queue-should-skip-device-preheat.md |
 
-Total: 51
+Total: 52

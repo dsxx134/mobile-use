@@ -1,6 +1,6 @@
 # mobile-use
 
-Updated: 2026-03-14
+Updated: 2026-03-15
 Repo: `D:\github\mobile-use`
 Status: Active
 
@@ -54,6 +54,7 @@ Status: Active
 - Xianyu publish flow batch 31 completed on `feat/android-debug-mcp`: queue runs now stamp per-row batch metadata (`最近批次运行ID / 最近批次运行时间 / 最近批次运行结果`), the live batch result exposes that same batch id/timestamp, the worker reuses one batch id across the whole run, and the Feishu debug table was extended with the three new batch-log fields.
 - Xianyu publish flow batch 32 completed on `feat/android-debug-mcp`: live batch runs can now append one summary row into a dedicated Feishu table `批次运行汇总`, queue results expose `summary_logged / summary_log_error`, the worker script now builds shared live components so summary writeback happens in the real path, and the linked Feishu app was extended with the summary table plus its default fields.
 - Xianyu publish flow batch 33 completed on `feat/android-debug-mcp`: the summary table now uses its actual primary field discovered from Bitable metadata, the live queue exits with `no_publishable_listing` before any device preheat when Feishu has no candidate rows, and a fresh real run appended summary row `recvdTYjdXZ9N8` into `批次运行汇总`.
+- Xianyu publish flow batch 34 completed on `feat/android-debug-mcp`: the batch-summary `批次明细` column now stores readable multi-line review text instead of raw JSON, with one processed row per line plus status and any available `商品ID / 链接 / 页面 / 原因`, while empty batches render as `本批次没有处理任何记录。`.
 
 ## Operational Rule
 - Important milestones should be committed and pushed to GitHub instead of remaining only local.

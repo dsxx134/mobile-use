@@ -387,6 +387,10 @@ pipeline plus the first deterministic in-app publish navigation layer.
   - `失败条数`
   - `停止原因`
   - `批次明细`
+- `批次明细` now stores readable multi-line text instead of raw JSON, for example:
+  - `1. recA | 失败 | 原因: Publish blocked`
+  - `2. recB | 成功 | 商品ID: xyB`
+  - when no rows were processed: `本批次没有处理任何记录。`
 
 ### Smoke test the foundation settings
 
@@ -491,6 +495,9 @@ uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seco
   into the `批次运行汇总` table and reports:
   - `summary_logged`
   - `summary_log_error`
+- The `批次明细` column is optimized for human review instead of machine replay:
+  - one processed row per line
+  - includes `record_id`, success/failure state, and any available `商品ID / 链接 / 页面 / 原因`
 - The default is intentionally conservative:
   - `--max-items 1`
   - `--cooldown-seconds 3`

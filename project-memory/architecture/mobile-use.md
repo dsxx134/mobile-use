@@ -1,6 +1,6 @@
 # mobile-use architecture
 
-Updated: 2026-03-14
+Updated: 2026-03-15
 
 ## High-Level Structure
 - Entry surfaces:
@@ -39,6 +39,9 @@ Updated: 2026-03-14
 - The same runner now also has an opt-in auto-publish mode that reuses the exact same prepare
   slice, requires a visible `submit_listing` target, then submits once and waits for
   `publish_success` before writing Bitable publish state.
+- The live queue path now writes two levels of Feishu observability:
+  - lightweight per-row batch metadata back onto listing rows
+  - a dedicated `批次运行汇总` table for batch-level totals and readable per-item detail text
 - The Xianyu flow currently recognizes:
   - home tab
   - publish chooser
@@ -218,6 +221,10 @@ Updated: 2026-03-14
   actually a success-screen recognition gap rather than a location blocker: after the metadata
   scroll fix, the live tablet stayed on a reward-style `publish_success` page that the analyzer now
   classifies correctly.
+- The batch-summary table is now optimized for operator review, not replay:
+  - `批次明细` is stored as multi-line text instead of raw JSON
+  - each line summarizes one processed row as `record_id | 成败 | 关键信息`
+  - the formatter includes any available `商品ID`, public link, screen names, and failure reason
 - Post-publish receipt extraction now uses Android system state rather than UI text:
   - while the app is on `com.taobao.idlefish.detail.DetailActivity`
   - call `adb shell dumpsys activity activities`

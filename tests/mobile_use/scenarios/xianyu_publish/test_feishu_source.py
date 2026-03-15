@@ -588,8 +588,77 @@ def test_write_batch_run_summary_creates_record_in_summary_table():
             "失败条数": 1,
             "停止原因": "no_publishable_listing",
             "批次明细": (
-                '[{"record_id":"recA","success":false,"error":"Publish blocked"},'
-                '{"record_id":"recB","success":true,"listing_id":"xyB"}]'
+                "1. recA | 失败 | 原因: Publish blocked\n"
+                "2. recB | 成功 | 商品ID: xyB"
             ),
+        }
+    }
+
+
+def test_write_batch_run_summary_uses_empty_state_text_when_no_items():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path.endswith("/tables"):
+            return httpx.Response(
+                200,
+                json={
+                    "code": 0,
+                    "data": {
+                        "items": [{"table_id": "tbl_summary", "name": "批次运行汇总"}],
+                        "has_more": False,
+                    },
+                },
+            )
+        if request.method == "GET" and request.url.path.endswith("/fields"):
+            return httpx.Response(
+                200,
+                json={
+                    "code": 0,
+                    "data": {
+                        "items": [{"field_name": "多行文本", "is_primary": True}],
+                        "has_more": False,
+                    },
+                },
+            )
+
+        captured["create_payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json={"code": 0, "data": {"record": {"record_id": "recSummary"}}},
+        )
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.write_batch_run_summary(
+        batch_run_id="batch-empty",
+        batch_ran_at="2026-03-15T10:00:00+08:00",
+        requested_count=1,
+        processed_count=0,
+        success_count=0,
+        failure_count=0,
+        stopped_reason="no_publishable_listing",
+        items=[],
+    )
+
+    assert captured["create_payload"] == {
+        "fields": {
+            "多行文本": "batch-empty",
+            "批次运行ID": "batch-empty",
+            "批次运行时间": "2026-03-15T10:00:00+08:00",
+            "请求条数": 1,
+            "处理条数": 0,
+            "成功条数": 0,
+            "失败条数": 0,
+            "停止原因": "no_publishable_listing",
+            "批次明细": "本批次没有处理任何记录。",
         }
     }
