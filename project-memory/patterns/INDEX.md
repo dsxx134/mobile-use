@@ -14,6 +14,7 @@
 | xianyu-home-recovery-uses-explicit-main-activity | 2026-03-12 | xianyu-home-recovery-uses-explicit-main-activity.md |
 | xianyu-flow-starts-with-screen-analysis | 2026-03-12 | xianyu-flow-starts-with-screen-analysis.md |
 | xianyu-media-selection-should-switch-to-a-dedicated-album | 2026-03-13 | xianyu-media-selection-should-switch-to-a-dedicated-album.md |
+| xianyu-image-selection-should-clean-album-and-switch-by-record-id | 2026-03-15 | xianyu-image-selection-should-clean-album-and-switch-by-record-id.md |
 | xianyu-post-confirm-needs-album-picker-tail-polling | 2026-03-13 | xianyu-post-confirm-needs-album-picker-tail-polling.md |
 | xianyu-post-confirm-screen-is-photo-analysis | 2026-03-13 | xianyu-post-confirm-screen-is-photo-analysis.md |
 | xianyu-photo-analysis-needs-recognizable-product-images | 2026-03-13 | xianyu-photo-analysis-needs-recognizable-product-images.md |
@@ -58,4 +59,4 @@
 | xianyu-mcp-separates-publish-and-debug-services | 2026-03-15 | xianyu-mcp-separates-publish-and-debug-services.md |
 | xianyu-schedule-loop-reuses-batch-worker | 2026-03-15 | xianyu-schedule-loop-reuses-batch-worker.md |
 
-Total: 55
+Total: 56

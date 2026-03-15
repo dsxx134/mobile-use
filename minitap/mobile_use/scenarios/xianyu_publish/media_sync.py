@@ -68,6 +68,7 @@ class XianyuMediaSyncService:
         serial: str,
         remote_dir: str | None = None,
         scan_media: bool = True,
+        clean_remote_dir: bool = True,
     ) -> ListingMediaSyncResult:
         if not listing.local_image_paths:
             raise ValueError("ListingDraft has no local_image_paths to push")
@@ -76,6 +77,10 @@ class XianyuMediaSyncService:
         remote_base_dir = (remote_dir or self.settings.XIANYU_ANDROID_MEDIA_DIR).rstrip("/")
         remote_root = f"{remote_base_dir}/{listing.record_id}"
         remote_paths: list[str] = []
+
+        if clean_remote_dir:
+            device.shell(f'rm -rf "{remote_base_dir}"')
+            device.shell(f'mkdir -p "{remote_root}"')
 
         for local_path in listing.local_image_paths:
             remote_path = f"{remote_root}/{local_path.name}"

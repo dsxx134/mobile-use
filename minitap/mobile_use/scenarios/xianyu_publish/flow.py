@@ -228,6 +228,25 @@ class XianyuFlowAnalyzer:
             return target.model_copy(update={"text": text})
         return None
 
+    def _find_album_source_header_target(self, elements: Iterable[dict]) -> TapTarget | None:
+        ignored_texts = {
+            "关闭",
+            "预览",
+            "相册",
+            self._settings.album_source_label_text,
+            self._settings.album_select_text,
+            self._settings.album_confirm_text,
+        }
+        for element in elements:
+            text = _extract_text(element)
+            if text is None or text in ignored_texts or "·" in text:
+                continue
+            target = parse_android_bounds(element.get("bounds"))
+            if target is None or target.y > 220:
+                continue
+            return target.model_copy(update={"text": text})
+        return None
+
     def _find_multiline_option_target(
         self,
         elements: Iterable[dict],
@@ -810,18 +829,10 @@ class XianyuFlowAnalyzer:
         album_confirm = self._find_target(elements, exact_text=self._settings.album_confirm_text)
         selected_album_source = self._find_target(
             elements, exact_text=self._settings.preferred_album_name
-        ) or album_source
+        ) or album_source or self._find_album_source_header_target(elements)
         if (
             current_package == self._settings.xianyu_package_name
             and (album_select is not None or album_confirm is not None)
-            and any(
-                text in {
-                    self._settings.album_source_label_text,
-                    "相册",
-                    self._settings.preferred_album_name,
-                }
-                for text in visible_texts
-            )
         ):
             if selected_album_source is not None:
                 targets["album_source"] = selected_album_source
@@ -978,6 +989,13 @@ class XianyuPublishFlowService:
         if target is None:
             raise RuntimeError(f"Missing tap target for {target_name}")
         self._android.tap(serial, target.x, target.y)
+
+    def _find_album_source_option_target(
+        self,
+        elements: Iterable[dict],
+        album_name: str,
+    ) -> TapTarget | None:
+        return self._analyzer._find_target(elements, contains_text=f"{album_name}·")
 
     def _long_press_target(
         self,
@@ -1532,16 +1550,25 @@ class XianyuPublishFlowService:
             raise RuntimeError("Missing current album source target on album picker")
         self._tap_target(serial, source_target, "album_source")
 
-        source_menu = self._analyze(serial)
-        if source_menu.screen_name != "album_source_menu":
+        source_menu_screen = self._android.get_screen_data(serial)
+        source_menu = self._analyzer.detect_screen(source_menu_screen)
+        preferred_source = source_menu.targets.get("preferred_album_source")
+        if preferred_source is None:
+            source_menu_elements = source_menu_screen.get("ui_elements") or source_menu_screen.get(
+                "elements",
+                [],
+            )
+            preferred_source = self._find_album_source_option_target(
+                source_menu_elements,
+                target_album_name,
+            )
+
+        if preferred_source is None:
             raise RuntimeError(
                 "Expected album source menu after tapping source label, "
                 f"got {source_menu.screen_name}"
             )
 
-        preferred_source = source_menu.targets.get("preferred_album_source")
-        if preferred_source is None:
-            raise RuntimeError(f"Missing preferred album source target for {target_album_name}")
         self._tap_target(serial, preferred_source, "preferred_album_source")
 
         updated_picker = self._analyze(serial)

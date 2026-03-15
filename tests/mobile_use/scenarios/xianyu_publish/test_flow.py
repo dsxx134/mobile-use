@@ -4593,6 +4593,48 @@ def test_switch_album_source_opens_source_menu_and_chooses_preferred_album():
     ]
 
 
+def test_switch_album_source_can_fallback_to_dynamic_record_album_target():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "所有文件", "bounds": "[1810,85][2030,185]"},
+                    {"text": "选择", "bounds": "[1790,202][1947,319]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "所有文件", "bounds": "[1810,85][2030,185]"},
+                    {"text": "recA·1", "bounds": "[1600,650][2240,800]"},
+                    {"text": "选择", "bounds": "[1818,210][1918,310]"},
+                ],
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostActivity",
+                elements=[
+                    {"text": "recA", "bounds": "[1753,85][2088,185]"},
+                    {"text": "选择", "bounds": "[1818,210][1918,310]"},
+                ],
+            ),
+        ]
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(preferred_album_name="XianyuPublish"),
+        android_service=android_service,
+    )
+
+    result = flow.switch_album_source("device-1", preferred_album_name="recA")
+
+    assert result.screen_name == "album_picker"
+    assert result.targets["album_source"].text == "recA"
+    assert android_service.tap_calls == [
+        ("device-1", 1920, 135),
+        ("device-1", 1920, 725),
+    ]
+
+
 def test_select_cover_image_can_switch_to_preferred_album_before_selecting():
     android_service = FakeAndroidService(
         screens=[

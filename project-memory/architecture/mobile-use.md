@@ -68,6 +68,7 @@ Updated: 2026-03-15
   - `am start -n com.taobao.idlefish/com.taobao.idlefish.maincontainer.activity.MainActivity`
   - not just `app_start(package)`, which can reopen a non-home category page
 - Deterministic media selection is safer when the flow switches the picker from `所有文件` to a dedicated source folder such as `XianyuPublish`.
+- On the Huawei tablet, that dedicated source strategy only stays correct when the automation first clears `/sdcard/DCIM/XianyuPublish`, then pushes the current listing into `/sdcard/DCIM/XianyuPublish/{record_id}`, and finally switches the picker source by that visible `{record_id}` folder name rather than by the static root label `XianyuPublish`.
 - The post-confirm destination is currently a `photo_analysis` screen rather than the final listing form, so form filling must build on top of that state instead of assuming the form appears immediately.
 - The flow service now tolerates brief blank/loading snapshots after tapping `选择` and `确定` by polling until the next meaningful screen appears.
 - On the Huawei tablet, tapping `确定` can leave the app in a transient album-picker tail state that still shows `预览 (1)` and `确定`; `select_cover_image()` now treats that as transitional and waits until the flow leaves the picker.

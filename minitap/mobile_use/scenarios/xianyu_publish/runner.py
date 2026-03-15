@@ -138,7 +138,7 @@ class XianyuPrepareRunner:
             self._flow.advance_listing_form_to_album_picker(serial)
             post_image_analysis = self._flow.select_cover_image(
                 serial,
-                preferred_album_name=self._settings.preferred_album_name,
+                preferred_album_name=staged_listing.record_id,
             )
             if post_image_analysis.screen_name == "photo_analysis":
                 self._flow.advance_photo_analysis_to_publish_chooser(serial)

@@ -87,6 +87,30 @@ def test_push_listing_media_uses_device_sync_push_for_each_file(tmp_path):
     ]
 
 
+def test_push_listing_media_cleans_remote_album_before_pushing_current_listing(tmp_path):
+    adb_client = Mock()
+    device = Mock()
+    adb_client.device.return_value = device
+    service = XianyuMediaSyncService(
+        settings=_make_settings(),
+        adb_client=adb_client,
+        download_file=Mock(),
+    )
+    image_path = tmp_path / "recA" / "01_1.jpg"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    image_path.write_bytes(b"1")
+    listing = _make_listing().model_copy(update={"local_image_paths": [image_path]})
+
+    service.push_listing_media(listing, serial="device-1", scan_media=False)
+
+    device.shell.assert_has_calls(
+        [
+            call('rm -rf "/sdcard/DCIM/XianyuPublish"'),
+            call('mkdir -p "/sdcard/DCIM/XianyuPublish/recA"'),
+        ]
+    )
+
+
 def test_media_sync_broadcasts_media_scan_when_enabled(tmp_path):
     adb_client = Mock()
     device = Mock()
@@ -101,9 +125,18 @@ def test_media_sync_broadcasts_media_scan_when_enabled(tmp_path):
     image_path.write_bytes(b"1")
     listing = _make_listing().model_copy(update={"local_image_paths": [image_path]})
 
-    service.push_listing_media(listing, serial="device-1", scan_media=True)
+    service.push_listing_media(
+        listing,
+        serial="device-1",
+        scan_media=True,
+        clean_remote_dir=False,
+    )
 
-    device.shell.assert_called_once_with(
-        'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE '
-        '-d "file:///sdcard/DCIM/XianyuPublish/recA/01_1.jpg"'
+    device.shell.assert_has_calls(
+        [
+            call(
+                'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE '
+                '-d "file:///sdcard/DCIM/XianyuPublish/recA/01_1.jpg"'
+            )
+        ]
     )
