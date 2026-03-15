@@ -236,6 +236,32 @@ def test_prepare_first_publishable_listing_live_can_request_auto_publish_mode(tm
     )
 
 
+def test_prepare_first_publishable_listing_live_skips_preheat_when_no_candidates_exist(tmp_path):
+    settings = _make_settings(serial="tablet-1")
+    source = Mock()
+    source.pick_first_publishable_record.return_value = None
+    flow = Mock()
+    runner = Mock()
+    components = XianyuLivePrepareComponents(
+        source=source,
+        media_sync=Mock(),
+        flow=flow,
+        runner=runner,
+    )
+
+    with pytest.raises(ValueError, match="No publishable Xianyu listing found"):
+        prepare_first_publishable_listing_live(
+            settings=settings,
+            adb_client=Mock(),
+            staging_root=tmp_path,
+            components=components,
+        )
+
+    flow.open_home.assert_not_called()
+    flow.advance_to_listing_form.assert_not_called()
+    runner.prepare_first_publishable_listing.assert_not_called()
+
+
 def test_publish_listing_queue_live_processes_multiple_items_with_cooldown(tmp_path, monkeypatch):
     settings = _make_settings(serial="tablet-1")
     adb_client = Mock()
@@ -434,3 +460,124 @@ def test_publish_listing_queue_live_can_stop_on_first_error(tmp_path, monkeypatc
     assert result.items[0].success is False
     assert result.items[0].error == "Publish blocked"
     sleep_fn.assert_not_called()
+
+
+def test_publish_listing_queue_live_writes_summary_when_components_source_is_available(
+    tmp_path, monkeypatch
+):
+    settings = _make_settings(serial="tablet-1")
+    prepare_mock = Mock(
+        return_value=XianyuPrepareListingResult(
+            record_id="recA",
+            serial="tablet-1",
+            remote_media_paths=["/sdcard/DCIM/XianyuPublish/recA/01_image.png"],
+            body_text="A",
+            final_screen_name="listing_detail",
+            publish=XianyuPublishResult(
+                success=True,
+                screen_name="publish_success",
+                detail_screen_name="listing_detail",
+                published_at="2026-03-14T20:30:00+00:00",
+                listing_id="xyA",
+                listing_url="https://m.tb.cn/a",
+            ),
+        )
+    )
+    source = Mock()
+    components = XianyuLivePrepareComponents(
+        source=source,
+        media_sync=Mock(),
+        flow=Mock(),
+        runner=Mock(),
+    )
+    monkeypatch.setattr(
+        live_prepare_module,
+        "prepare_first_publishable_listing_live",
+        prepare_mock,
+    )
+
+    result = publish_listing_queue_live(
+        settings=settings,
+        adb_client=Mock(),
+        staging_root=tmp_path,
+        max_items=1,
+        cooldown_seconds=0,
+        components=components,
+        batch_run_id="batch-001",
+        batch_ran_at="2026-03-15T09:00:00+08:00",
+    )
+
+    source.write_batch_run_summary.assert_called_once_with(
+        batch_run_id="batch-001",
+        batch_ran_at="2026-03-15T09:00:00+08:00",
+        requested_count=1,
+        processed_count=1,
+        success_count=1,
+        failure_count=0,
+        stopped_reason="limit_reached",
+        items=[
+            {
+                "attempt": 1,
+                "success": True,
+                "record_id": "recA",
+                "final_screen_name": "listing_detail",
+                "publish_screen_name": "publish_success",
+                "detail_screen_name": "listing_detail",
+                "listing_id": "xyA",
+                "listing_url": "https://m.tb.cn/a",
+                "error": None,
+            }
+        ],
+    )
+    assert result.summary_logged is True
+    assert result.summary_log_error is None
+
+
+def test_publish_listing_queue_live_keeps_result_when_summary_write_fails(tmp_path, monkeypatch):
+    settings = _make_settings(serial="tablet-1")
+    prepare_mock = Mock(
+        return_value=XianyuPrepareListingResult(
+            record_id="recA",
+            serial="tablet-1",
+            remote_media_paths=["/sdcard/DCIM/XianyuPublish/recA/01_image.png"],
+            body_text="A",
+            final_screen_name="listing_detail",
+            publish=XianyuPublishResult(
+                success=True,
+                screen_name="publish_success",
+                detail_screen_name="listing_detail",
+                published_at="2026-03-14T20:30:00+00:00",
+                listing_id="xyA",
+                listing_url="https://m.tb.cn/a",
+            ),
+        )
+    )
+    source = Mock()
+    source.write_batch_run_summary.side_effect = RuntimeError("summary table missing")
+    components = XianyuLivePrepareComponents(
+        source=source,
+        media_sync=Mock(),
+        flow=Mock(),
+        runner=Mock(),
+    )
+    monkeypatch.setattr(
+        live_prepare_module,
+        "prepare_first_publishable_listing_live",
+        prepare_mock,
+    )
+
+    result = publish_listing_queue_live(
+        settings=settings,
+        adb_client=Mock(),
+        staging_root=tmp_path,
+        max_items=1,
+        cooldown_seconds=0,
+        components=components,
+        batch_run_id="batch-001",
+        batch_ran_at="2026-03-15T09:00:00+08:00",
+    )
+
+    assert result.processed_count == 1
+    assert result.success_count == 1
+    assert result.summary_logged is False
+    assert result.summary_log_error == "summary table missing"

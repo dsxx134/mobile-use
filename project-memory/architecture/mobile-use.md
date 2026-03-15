@@ -251,6 +251,15 @@ Updated: 2026-03-14
   - the queue passes both values through `prepare_first_publishable_listing_live()`
   - `XianyuPrepareRunner` stamps them on every row status/result writeback
   - the row keeps the latest `最近批次运行ID / 最近批次运行时间 / 最近批次运行结果`
+- Queue summary logging now adds a second, coarser layer on top of that row stamping:
+  - the live queue script builds shared Feishu-backed components
+  - after the queue result is computed, the source best-effort appends one row into
+    `批次运行汇总`
+  - that row stores batch id/time, counts, stop reason, and serialized item details
+  - summary writeback failures do not invalidate the publish run; they surface as
+    `summary_logged=False` plus `summary_log_error`
+  - before any device preheat, the live queue now probes Feishu once for candidate rows and exits
+    early with `no_publishable_listing` when the queue is empty
 - Post-publish navigation is now split into two deterministic branches:
   - classic success page: tap `看看宝贝`
   - reward-style success page: press `Back` once

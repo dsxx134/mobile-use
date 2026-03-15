@@ -51,6 +51,8 @@ class XianyuLiveBatchPublishResult(BaseModel):
     success_count: int
     failure_count: int
     stopped_reason: str
+    summary_logged: bool = False
+    summary_log_error: str | None = None
     items: list[XianyuLiveBatchPublishItem] = Field(default_factory=list)
 
 
@@ -124,6 +126,9 @@ def prepare_first_publishable_listing_live(
         resolved_settings,
         adb_client=resolved_adb_client,
     )
+
+    if live_components.source.pick_first_publishable_record() is None:
+        raise ValueError("No publishable Xianyu listing found")
 
     if preheat_attempts < 1:
         raise ValueError("preheat_attempts must be at least 1")
@@ -258,7 +263,7 @@ def publish_listing_queue_live(
 
     success_count = sum(1 for item in items if item.success)
     failure_count = sum(1 for item in items if not item.success)
-    return XianyuLiveBatchPublishResult(
+    result = XianyuLiveBatchPublishResult(
         batch_run_id=resolved_batch_run_id,
         batch_ran_at=resolved_batch_ran_at,
         requested_count=max_items,
@@ -268,3 +273,21 @@ def publish_listing_queue_live(
         stopped_reason=stopped_reason,
         items=items,
     )
+    summary_source = components.source if components is not None else None
+    if summary_source is not None:
+        try:
+            summary_source.write_batch_run_summary(
+                batch_run_id=result.batch_run_id,
+                batch_ran_at=result.batch_ran_at,
+                requested_count=result.requested_count,
+                processed_count=result.processed_count,
+                success_count=result.success_count,
+                failure_count=result.failure_count,
+                stopped_reason=result.stopped_reason,
+                items=[item.model_dump() for item in result.items],
+            )
+        except Exception as exc:
+            result.summary_log_error = str(exc)
+        else:
+            result.summary_logged = True
+    return result

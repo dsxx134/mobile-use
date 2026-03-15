@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from minitap.mobile_use.scenarios.xianyu_publish.live_prepare import (
+    build_live_prepare_components,
     format_live_batch_result,
     publish_listing_queue_live,
 )
@@ -52,6 +53,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     settings = XianyuPublishSettings()
+    components = build_live_prepare_components(settings)
     result = publish_listing_queue_live(
         settings=settings,
         serial=args.serial,
@@ -60,6 +62,7 @@ def main() -> None:
         max_items=args.max_items,
         cooldown_seconds=args.cooldown_seconds,
         stop_on_error=args.stop_on_error,
+        components=components,
     )
     print(format_live_batch_result(result))
 

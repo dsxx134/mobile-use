@@ -501,3 +501,95 @@ def test_update_publish_result_can_write_batch_run_fields():
             "最近批次运行结果": "已发布",
         }
     }
+
+
+def test_write_batch_run_summary_creates_record_in_summary_table():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path.endswith("/tables"):
+            captured["list_tables_params"] = dict(request.url.params)
+            return httpx.Response(
+                200,
+                json={
+                    "code": 0,
+                    "data": {
+                        "items": [
+                            {"table_id": "tbl_main", "name": "闲鱼自动发布联调"},
+                            {"table_id": "tbl_summary", "name": "批次运行汇总"},
+                        ],
+                        "has_more": False,
+                    },
+                },
+            )
+        if request.method == "GET" and request.url.path.endswith("/fields"):
+            captured["list_fields_params"] = dict(request.url.params)
+            return httpx.Response(
+                200,
+                json={
+                    "code": 0,
+                    "data": {
+                        "items": [
+                            {"field_name": "多行文本", "is_primary": True},
+                            {"field_name": "批次运行ID", "is_primary": False},
+                        ],
+                        "has_more": False,
+                    },
+                },
+            )
+
+        captured["create_method"] = request.method
+        captured["create_path"] = request.url.path
+        captured["create_payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json={"code": 0, "data": {"record": {"record_id": "recSummary"}}},
+        )
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.write_batch_run_summary(
+        batch_run_id="batch-001",
+        batch_ran_at="2026-03-15T09:00:00+08:00",
+        requested_count=3,
+        processed_count=2,
+        success_count=1,
+        failure_count=1,
+        stopped_reason="no_publishable_listing",
+        items=[
+            {"record_id": "recA", "success": False, "error": "Publish blocked"},
+            {"record_id": "recB", "success": True, "listing_id": "xyB"},
+        ],
+    )
+
+    assert captured["list_tables_params"] == {"page_size": "100"}
+    assert captured["list_fields_params"] == {"page_size": "100"}
+    assert captured["create_method"] == "POST"
+    assert (
+        captured["create_path"]
+        == "/open-apis/bitable/v1/apps/app_token/tables/tbl_summary/records"
+    )
+    assert captured["create_payload"] == {
+        "fields": {
+            "多行文本": "batch-001",
+            "批次运行ID": "batch-001",
+            "批次运行时间": "2026-03-15T09:00:00+08:00",
+            "请求条数": 3,
+            "处理条数": 2,
+            "成功条数": 1,
+            "失败条数": 1,
+            "停止原因": "no_publishable_listing",
+            "批次明细": (
+                '[{"record_id":"recA","success":false,"error":"Publish blocked"},'
+                '{"record_id":"recB","success":true,"listing_id":"xyB"}]'
+            ),
+        }
+    }

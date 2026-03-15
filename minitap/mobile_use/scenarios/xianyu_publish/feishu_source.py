@@ -1,3 +1,4 @@
+import json
 import time
 from collections.abc import Callable
 from typing import Any
@@ -65,6 +66,8 @@ class FeishuBitableSource:
             http_client=self._http_client,
         )
         self._token_provider = token_provider or self._auth_client.get_tenant_access_token
+        self._table_id_cache: dict[str, str] = {}
+        self._primary_field_name_cache: dict[str, str] = {}
 
     def build_pending_filter(self) -> dict[str, Any]:
         return {
@@ -197,6 +200,48 @@ class FeishuBitableSource:
 
         self._update_record_fields(record_id, fields)
 
+    def write_batch_run_summary(
+        self,
+        *,
+        batch_run_id: str,
+        batch_ran_at: str,
+        requested_count: int,
+        processed_count: int,
+        success_count: int,
+        failure_count: int,
+        stopped_reason: str,
+        items: list[dict[str, Any]],
+    ) -> None:
+        table_id = self._resolve_table_id_by_name(self.settings.batch_summary_table_name)
+        if table_id is None:
+            raise ValueError(
+                f"Missing Xianyu batch summary table: {self.settings.batch_summary_table_name}"
+            )
+        primary_field_name = self._resolve_primary_field_name(table_id)
+
+        app_token = self._require_setting("XIANYU_BITABLE_APP_TOKEN")
+        self._request_json(
+            "POST",
+            f"/bitable/v1/apps/{app_token}/tables/{table_id}/records",
+            json={
+                "fields": {
+                    primary_field_name: batch_run_id,
+                    self.settings.batch_summary_run_id_field_name: batch_run_id,
+                    self.settings.batch_summary_ran_at_field_name: batch_ran_at,
+                    self.settings.batch_summary_requested_count_field_name: requested_count,
+                    self.settings.batch_summary_processed_count_field_name: processed_count,
+                    self.settings.batch_summary_success_count_field_name: success_count,
+                    self.settings.batch_summary_failure_count_field_name: failure_count,
+                    self.settings.batch_summary_stop_reason_field_name: stopped_reason,
+                    self.settings.batch_summary_items_field_name: json.dumps(
+                        items,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                }
+            },
+        )
+
     def _request_json(
         self,
         method: str,
@@ -264,6 +309,45 @@ class FeishuBitableSource:
             f"/bitable/v1/apps/{app_token}/tables/{table_id}/records/{record_id}",
             json={"fields": fields},
         )
+
+    def _resolve_table_id_by_name(self, table_name: str) -> str | None:
+        cached = self._table_id_cache.get(table_name)
+        if cached is not None:
+            return cached
+
+        app_token = self._require_setting("XIANYU_BITABLE_APP_TOKEN")
+        payload = self._request_json(
+            "GET",
+            f"/bitable/v1/apps/{app_token}/tables",
+            params={"page_size": 100},
+        )
+        for item in payload.get("items", []):
+            if item.get("name") == table_name:
+                table_id = item.get("table_id")
+                if isinstance(table_id, str) and table_id:
+                    self._table_id_cache[table_name] = table_id
+                    return table_id
+        return None
+
+    def _resolve_primary_field_name(self, table_id: str) -> str:
+        cached = self._primary_field_name_cache.get(table_id)
+        if cached is not None:
+            return cached
+
+        app_token = self._require_setting("XIANYU_BITABLE_APP_TOKEN")
+        payload = self._request_json(
+            "GET",
+            f"/bitable/v1/apps/{app_token}/tables/{table_id}/fields",
+            params={"page_size": 100},
+        )
+        for item in payload.get("items", []):
+            if item.get("is_primary"):
+                field_name = item.get("field_name")
+                if isinstance(field_name, str) and field_name:
+                    self._primary_field_name_cache[table_id] = field_name
+                    return field_name
+
+        return self.settings.batch_summary_primary_field_name
 
     def _require_setting(self, field_name: str) -> str:
         value = getattr(self.settings, field_name)

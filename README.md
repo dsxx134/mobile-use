@@ -375,6 +375,19 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `闲鱼商品链接`
 - `发布时间`
 
+### Default batch-summary table
+
+- Table name: `批次运行汇总`
+- Fields:
+  - `批次运行ID`
+  - `批次运行时间`
+  - `请求条数`
+  - `处理条数`
+  - `成功条数`
+  - `失败条数`
+  - `停止原因`
+  - `批次明细`
+
 ### Smoke test the foundation settings
 
 ```bash
@@ -465,6 +478,8 @@ uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seco
   - it reaches `--max-items`
   - there are no more publishable rows
   - `--stop-on-error` is set and one listing fails
+- When there are no publishable rows, the live queue now exits before device preheat instead of
+  waking the tablet just to discover an empty queue
 - The JSON result summarizes:
   - batch run id
   - batch run timestamp
@@ -472,6 +487,10 @@ uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seco
   - success count
   - failure count
   - per-item record ids, publish screens, ids, links, and errors
+- When the queue runner is assembled with live Feishu components, it also appends one summary row
+  into the `批次运行汇总` table and reports:
+  - `summary_logged`
+  - `summary_log_error`
 - The default is intentionally conservative:
   - `--max-items 1`
   - `--cooldown-seconds 3`
