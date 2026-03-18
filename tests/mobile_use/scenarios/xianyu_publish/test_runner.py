@@ -1,6 +1,7 @@
 from datetime import datetime
 from datetime import UTC
-from unittest.mock import Mock, call
+from pathlib import Path
+from unittest.mock import ANY, Mock, call
 
 import pytest
 
@@ -119,13 +120,57 @@ def test_prepare_first_publishable_listing_runs_feishu_media_and_flow_chain_in_o
         call.flow.select_cover_image("device-1", preferred_album_name="recA"),
         call.flow.advance_photo_analysis_to_publish_chooser("device-1"),
         call.flow.advance_to_listing_form("device-1"),
-        call.source.update_listing_status("recA", "已就绪", failure_reason=None),
+        call.source.update_listing_status(
+            "recA",
+            "已就绪",
+            failure_reason=None,
+            log_path=ANY,
+        ),
     ]
     assert result.record_id == "recA"
     assert result.serial == "device-1"
     assert result.remote_media_paths == ["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"]
     assert result.body_text == "二手显示器\n\n成色很好，支持验货"
     assert result.final_screen_name == "listing_form"
+
+
+def test_prepare_first_publishable_listing_writes_log_path(tmp_path):
+    listing = _make_listing()
+    source = Mock()
+    source.pick_first_publishable_record.return_value = listing
+    source.get_attachment_download_urls.return_value = {"ft-1": "https://files.example/1.jpg"}
+    media_sync = Mock()
+    media_sync.download_listing_media.return_value = listing
+    media_sync.push_listing_media.return_value = ListingMediaSyncResult(
+        serial="device-1",
+        remote_dir="/sdcard/DCIM/XianyuPublish/recA",
+        remote_paths=["/sdcard/DCIM/XianyuPublish/recA/01_1.jpg"],
+        pushed_count=1,
+    )
+    flow = Mock()
+    flow.advance_to_listing_form.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.advance_listing_form_to_album_picker.return_value = XianyuScreenAnalysis(
+        screen_name="album_picker"
+    )
+    flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
+    runner = XianyuPrepareRunner(
+        source=source,
+        media_sync=media_sync,
+        flow=flow,
+        log_root=tmp_path,
+    )
+
+    runner.prepare_first_publishable_listing(
+        serial="device-1",
+        staging_root=tmp_path,
+    )
+
+    log_path = source.update_listing_status.call_args_list[-1].kwargs.get("log_path")
+    assert isinstance(log_path, str)
+    assert str(tmp_path) in log_path
+    assert Path(log_path).exists()
 
 
 def test_prepare_first_publishable_listing_raises_when_no_publishable_record_exists(tmp_path):
@@ -185,7 +230,12 @@ def test_prepare_first_publishable_listing_skips_bridge_when_image_flow_returns_
     source.update_listing_status.assert_has_calls(
         [
             call("recA", "准备中"),
-            call("recA", "已就绪", failure_reason=None),
+            call(
+                "recA",
+                "已就绪",
+                failure_reason=None,
+                log_path=ANY,
+            ),
         ]
     )
     flow.advance_photo_analysis_to_publish_chooser.assert_not_called()
@@ -286,7 +336,12 @@ def test_prepare_first_publishable_listing_applies_optional_metadata_fields(tmp_
         call.flow.set_item_category("device-1", "家居摆件"),
         call.flow.set_item_condition("device-1", "几乎全新"),
         call.flow.set_item_source("device-1", "闲置"),
-        call.source.update_listing_status("recA", "已就绪", failure_reason=None),
+        call.source.update_listing_status(
+            "recA",
+            "已就绪",
+            failure_reason=None,
+            log_path=ANY,
+        ),
     ]
     assert result.final_screen_name == "metadata_panel"
 
@@ -330,7 +385,12 @@ def test_prepare_first_publishable_listing_treats_item_source_as_best_effort(tmp
     source.update_listing_status.assert_has_calls(
         [
             call("recA", "准备中"),
-            call("recA", "已就绪", failure_reason=None),
+            call(
+                "recA",
+                "已就绪",
+                failure_reason=None,
+                log_path=ANY,
+            ),
         ]
     )
     assert result.final_screen_name == "listing_form"
@@ -375,7 +435,12 @@ def test_prepare_first_publishable_listing_treats_category_as_best_effort(tmp_pa
     source.update_listing_status.assert_has_calls(
         [
             call("recA", "准备中"),
-            call("recA", "已就绪", failure_reason=None),
+            call(
+                "recA",
+                "已就绪",
+                failure_reason=None,
+                log_path=ANY,
+            ),
         ]
     )
     assert result.final_screen_name == "metadata_panel"
@@ -448,6 +513,7 @@ def test_prepare_first_publishable_listing_applies_optional_location_search_quer
             "recA",
             "已就绪",
             failure_reason=None,
+            log_path=ANY,
             location_search_query="上海虹桥站 新虹街道申贵路1500号",
         ),
     ]
@@ -503,6 +569,7 @@ def test_prepare_first_publishable_listing_fails_when_location_search_raises(tmp
                 "准备失败",
                 failure_reason="Location search failed",
                 retry_count=1,
+                log_path=ANY,
             ),
         ]
     )
@@ -572,6 +639,7 @@ def test_prepare_first_publishable_listing_marks_failure_and_reraises(tmp_path):
                 "准备失败",
                 failure_reason="price panel missing",
                 retry_count=1,
+                log_path=ANY,
                 failure_captured_at="2026-03-15T12:00:00+08:00",
                 failure_screenshot_path="D:\\debug\\recA\\prepare\\screen.png",
                 failure_hierarchy_path="D:\\debug\\recA\\prepare\\hierarchy.xml",
@@ -635,7 +703,12 @@ def test_prepare_first_publishable_listing_review_mode_marks_manual_publish_read
     source.update_listing_status.assert_has_calls(
         [
             call("recA", "准备中"),
-            call("recA", "待人工发布", failure_reason=None),
+            call(
+                "recA",
+                "待人工发布",
+                failure_reason=None,
+                log_path=ANY,
+            ),
         ]
     )
     assert result.review is not None
@@ -689,6 +762,7 @@ def test_prepare_first_publishable_listing_review_mode_fails_without_submit_butt
                 "准备失败",
                 failure_reason="Publish submit button is not visible after prepare",
                 retry_count=1,
+                log_path=ANY,
             ),
         ]
     )
@@ -777,6 +851,7 @@ def test_prepare_first_publishable_listing_auto_publish_writes_publish_result(tm
         "recA",
         status="已发布",
         failure_reason=None,
+        log_path=ANY,
         published_at="2026-03-14T20:30:00+00:00",
         listing_id="1022496357535",
         listing_url="https://m.tb.cn/h.ifJqS57?tk=9y8uUxYazY4",
@@ -849,6 +924,7 @@ def test_prepare_first_publishable_listing_auto_publish_requires_listing_opt_in(
         "recA",
         status="发布失败",
         failure_reason="Auto publish is not enabled for this listing",
+        log_path=ANY,
         published_at=None,
         listing_id=None,
         listing_url=None,
@@ -926,6 +1002,7 @@ def test_prepare_first_publishable_listing_auto_publish_marks_publish_failure(tm
         "recA",
         status="发布失败",
         failure_reason="Publish did not reach success screen: metadata_panel",
+        log_path=ANY,
         published_at=None,
         listing_id=None,
         listing_url=None,

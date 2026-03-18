@@ -146,6 +146,7 @@ class FeishuBitableSource:
         status: str,
         *,
         failure_reason: str | None = None,
+        log_path: str | None = None,
         location_search_query: str | None = None,
         failure_captured_at: str | None = None,
         failure_screenshot_path: str | None = None,
@@ -159,7 +160,9 @@ class FeishuBitableSource:
     ) -> None:
         fields = {
             self.settings.status_field_name: status,
-            self.settings.failure_reason_field_name: failure_reason,
+            self.settings.failure_reason_field_name: (
+                log_path if log_path is not None else failure_reason
+            ),
         }
         if location_search_query is not None:
             fields[self.settings.location_search_query_field_name] = location_search_query
@@ -181,6 +184,7 @@ class FeishuBitableSource:
         *,
         status: str,
         failure_reason: str | None = None,
+        log_path: str | None = None,
         published_at: str | None = None,
         listing_id: str | None = None,
         listing_url: str | None = None,
@@ -196,7 +200,9 @@ class FeishuBitableSource:
     ) -> None:
         fields = {
             self.settings.status_field_name: status,
-            self.settings.failure_reason_field_name: failure_reason,
+            self.settings.failure_reason_field_name: (
+                log_path if log_path is not None else failure_reason
+            ),
             self.settings.published_at_field_name: published_at,
             self.settings.listing_id_field_name: listing_id,
             self.settings.listing_url_field_name: self._format_url_field(listing_url),

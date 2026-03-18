@@ -322,6 +322,38 @@ def test_update_listing_status_can_write_failure_reason():
     }
 
 
+def test_update_listing_status_uses_log_path_when_provided():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"code": 0, "data": {"record": {"record_id": "recA"}}})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(include_retry_fields=True),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_listing_status(
+        "recA",
+        "准备失败",
+        failure_reason="price panel missing",
+        log_path="D:\\logs\\recA\\prepare.log",
+    )
+
+    assert captured["payload"] == {
+        "fields": {
+            "发布状态": "准备失败",
+            "日志路径": "D:\\logs\\recA\\prepare.log",
+        }
+    }
+
+
 def test_update_listing_status_can_write_retry_count():
     captured: dict[str, object] = {}
 
@@ -552,6 +584,44 @@ def test_update_publish_result_can_write_published_at_and_optional_fields():
                 "text": "https://2.taobao.com/item.htm?id=xy123",
                 "link": "https://2.taobao.com/item.htm?id=xy123",
             },
+        }
+    }
+
+
+def test_update_publish_result_uses_log_path_when_provided():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"code": 0, "data": {"record": {"record_id": "recA"}}})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(include_retry_fields=True),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_publish_result(
+        "recA",
+        status="发布失败",
+        failure_reason="location missing",
+        published_at=None,
+        listing_id=None,
+        listing_url=None,
+        log_path="D:\\logs\\recA\\publish.log",
+    )
+
+    assert captured["payload"] == {
+        "fields": {
+            "发布状态": "发布失败",
+            "日志路径": "D:\\logs\\recA\\publish.log",
+            "发布时间": None,
+            "闲鱼商品ID": None,
+            "闲鱼商品链接": None,
         }
     }
 
