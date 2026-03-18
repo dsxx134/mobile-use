@@ -67,6 +67,7 @@ class FeishuBitableSource:
         self._token_provider = token_provider or self._auth_client.get_tenant_access_token
         self._table_id_cache: dict[str, str] = {}
         self._primary_field_name_cache: dict[str, str] = {}
+        self._table_field_name_cache: dict[str, set[str]] = {}
 
     def build_pending_filter(self) -> dict[str, Any]:
         return {
@@ -314,10 +315,27 @@ class FeishuBitableSource:
     def _update_record_fields(self, record_id: str, fields: dict[str, Any]) -> None:
         app_token = self._require_setting("XIANYU_BITABLE_APP_TOKEN")
         table_id = self._require_setting("XIANYU_BITABLE_TABLE_ID")
+        prepared_fields = self._filter_cached_fields(table_id, fields)
+        try:
+            self._request_json(
+                "PUT",
+                f"/bitable/v1/apps/{app_token}/tables/{table_id}/records/{record_id}",
+                json={"fields": prepared_fields},
+            )
+            return
+        except ValueError as exc:
+            if "FieldNameNotFound" not in str(exc):
+                raise
+
+        available_fields = self._refresh_table_field_names(table_id)
+        filtered_fields = {name: value for name, value in fields.items() if name in available_fields}
+        if not filtered_fields:
+            raise ValueError("Feishu request failed: FieldNameNotFound")
+
         self._request_json(
             "PUT",
             f"/bitable/v1/apps/{app_token}/tables/{table_id}/records/{record_id}",
-            json={"fields": fields},
+            json={"fields": filtered_fields},
         )
 
     def _resolve_table_id_by_name(self, table_name: str) -> str | None:
@@ -358,6 +376,27 @@ class FeishuBitableSource:
                     return field_name
 
         return self.settings.batch_summary_primary_field_name
+
+    def _filter_cached_fields(self, table_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+        cached = self._table_field_name_cache.get(table_id)
+        if cached is None:
+            return fields
+        return {name: value for name, value in fields.items() if name in cached}
+
+    def _refresh_table_field_names(self, table_id: str) -> set[str]:
+        app_token = self._require_setting("XIANYU_BITABLE_APP_TOKEN")
+        payload = self._request_json(
+            "GET",
+            f"/bitable/v1/apps/{app_token}/tables/{table_id}/fields",
+            params={"page_size": 100},
+        )
+        names: set[str] = set()
+        for item in payload.get("items", []):
+            field_name = item.get("field_name")
+            if isinstance(field_name, str) and field_name:
+                names.add(field_name)
+        self._table_field_name_cache[table_id] = names
+        return names
 
     def _require_setting(self, field_name: str) -> str:
         value = getattr(self.settings, field_name)

@@ -459,6 +459,64 @@ def test_update_listing_status_can_write_batch_run_fields():
     }
 
 
+def test_update_listing_status_retries_when_batch_fields_missing():
+    captured: dict[str, object] = {"put_payloads": []}
+    put_calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal put_calls
+        if request.method == "PUT":
+            payload = json.loads(request.content.decode("utf-8"))
+            captured["put_payloads"].append(payload)
+            put_calls += 1
+            if put_calls == 1:
+                return httpx.Response(200, json={"code": 1254040, "msg": "FieldNameNotFound"})
+            return httpx.Response(
+                200,
+                json={"code": 0, "data": {"record": {"record_id": "recA"}}},
+            )
+        if request.method == "GET" and request.url.path.endswith("/fields"):
+            return httpx.Response(
+                200,
+                json={
+                    "code": 0,
+                    "data": {
+                        "items": [
+                            {"field_name": "发布状态", "is_primary": False},
+                            {"field_name": "日志路径", "is_primary": False},
+                        ],
+                        "has_more": False,
+                    },
+                },
+            )
+        return httpx.Response(500, json={"code": 500, "msg": "unexpected"})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(include_retry_fields=True),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_listing_status(
+        "recA",
+        "准备中",
+        batch_run_id="batch-001",
+        batch_ran_at="2026-03-15T09:00:00+08:00",
+    )
+
+    assert len(captured["put_payloads"]) == 2
+    assert captured["put_payloads"][-1] == {
+        "fields": {
+            "发布状态": "准备中",
+            "日志路径": None,
+        }
+    }
+
+
 def test_update_publish_result_can_write_published_at_and_optional_fields():
     captured: dict[str, object] = {}
 

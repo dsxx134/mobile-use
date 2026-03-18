@@ -1970,6 +1970,19 @@ class XianyuPublishFlowService:
             if analysis.screen_name == "location_search_screen":
                 return analysis
 
+            if analysis.screen_name == "publish_chooser":
+                target = analysis.targets.get("publish_idle_item")
+                if target is None:
+                    raise RuntimeError("Missing publish option target on Xianyu chooser screen")
+                self._tap_target(serial, target, "publish_idle_item")
+                analysis = self._wait_for_screen_transition(
+                    serial,
+                    transient_screen_names={"publish_chooser"},
+                )
+                if analysis.screen_name == "location_search_screen":
+                    return analysis
+                continue
+
             if analysis.screen_name in {"listing_form", "metadata_panel"}:
                 analysis = self.advance_listing_form_to_location_panel(
                     serial,
