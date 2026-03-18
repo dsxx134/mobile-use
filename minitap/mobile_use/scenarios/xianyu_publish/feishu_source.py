@@ -162,7 +162,7 @@ class FeishuBitableSource:
         }
         if location_search_query is not None:
             fields[self.settings.location_search_query_field_name] = location_search_query
-        if retry_count is not None:
+        if retry_count is not None and self.settings.retry_count_field_name:
             fields[self.settings.retry_count_field_name] = retry_count
         self._apply_batch_run_fields(
             fields,
@@ -200,7 +200,7 @@ class FeishuBitableSource:
             self.settings.listing_id_field_name: listing_id,
             self.settings.listing_url_field_name: self._format_url_field(listing_url),
         }
-        if retry_count is not None:
+        if retry_count is not None and self.settings.retry_count_field_name:
             fields[self.settings.retry_count_field_name] = retry_count
         self._apply_batch_run_fields(
             fields,
@@ -418,6 +418,8 @@ class FeishuBitableSource:
         return "\n".join(lines)
 
     def _resolve_retry_count(self, fields: dict[str, Any]) -> int:
+        if not self.settings.retry_count_field_name:
+            return 0
         value = fields.get(self.settings.retry_count_field_name)
         if value is None:
             return 0
@@ -446,6 +448,8 @@ class FeishuBitableSource:
             fields[self.settings.failure_current_app_field_name] = failure_current_app
 
     def _resolve_retry_limit(self, fields: dict[str, Any]) -> int:
+        if not self.settings.retry_limit_field_name:
+            return max(self.settings.default_retry_limit, 0)
         value = fields.get(self.settings.retry_limit_field_name)
         if value is None:
             return max(self.settings.default_retry_limit, 0)

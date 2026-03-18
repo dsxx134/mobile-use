@@ -1,6 +1,6 @@
 # mobile-use
 
-Updated: 2026-03-17
+Updated: 2026-03-18
 Repo: `D:\github\mobile-use`
 Status: Active
 
@@ -59,6 +59,7 @@ Status: Active
 - Xianyu publish flow batch 36 completed on `feat/android-debug-mcp`: the media-sync layer now clears the dedicated Android automation album before each push, the prepare runner switches the picker source by the current `record_id` folder instead of a static album label, and fresh live probes moved the prepare path past image selection to a later `metadata_entry` blocker instead of the previous wrong-image/source-selection failure.
 - Xianyu publish flow batch 37 completed on `feat/android-debug-mcp`: assistant rows such as `AI帮你写/AI帮你润色` are now explicit forbidden tap targets, location clearance became a hard gate for review/auto-publish and preset-address runs, and a fresh live prepare of `recvdW9TpWffs2` reached `metadata_panel` again after the metadata-entry recovery instead of stalling in the assistant helper or the old listing-form tail.
 - Xianyu publish flow batch 38 completed on `feat/android-debug-mcp`: location panel detection now accepts panels that omit `请选择宝贝所在地`, search-result selections are normalized and written back to `预设地址`, the location gate accepts a captured search result even if the form still shows `选择位置`, and Bitable failure logging is consolidated to the single `失败原因` field while local artifacts remain on disk.
+- Xianyu publish flow batch 39 completed on `feat/android-debug-mcp`: Feishu logging is now consolidated to the single `日志路径` field, retry count/limit fields are optional when the table omits them, public share-link capture now tolerates multiline or variant copy-link labels and polls the clipboard before failing, and a stable publish CLI (`scripts/xianyu_publish_cli.py`) now emits structured JSON with an exit code of `2` when any listing fails.
 - Xianyu MCP productization direction was aligned on 2026-03-15: do not turn the current repo into the final end-user MCP package. Instead, keep `mobile-use` as the execution core, then create a separate thin-wrapper repo under the user's GitHub account that depends on this core and exposes two MCP services in one repo: `xianyu_publish_mcp` for business actions and `xianyu_debug_mcp` for debugging actions. Scheduling will stay outside the MCP layer and be driven by the calling agent or external automation.
 
 ## Operational Rule

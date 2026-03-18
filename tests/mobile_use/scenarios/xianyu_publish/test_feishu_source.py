@@ -7,18 +7,20 @@ from minitap.mobile_use.scenarios.xianyu_publish.models import FeishuAttachment
 from minitap.mobile_use.scenarios.xianyu_publish.settings import XianyuPublishSettings
 
 
-def _make_settings() -> XianyuPublishSettings:
+def _make_settings(*, include_retry_fields: bool = False) -> XianyuPublishSettings:
     return XianyuPublishSettings(
         FEISHU_APP_ID="cli_xxx",
         FEISHU_APP_SECRET="secret",
         XIANYU_BITABLE_APP_TOKEN="app_token",
         XIANYU_BITABLE_TABLE_ID="tbl_token",
+        retry_count_field_name="失败重试次数" if include_retry_fields else None,
+        retry_limit_field_name="失败重试上限" if include_retry_fields else None,
     )
 
 
 def test_build_filter_for_pending_publishable_records():
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         token_provider=lambda: "tenant-token",
     )
 
@@ -46,7 +48,7 @@ def test_build_filter_for_pending_publishable_records():
 
 def test_pick_first_publishable_record_maps_fields_to_listing_draft():
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         token_provider=lambda: "tenant-token",
     )
     records = [
@@ -88,7 +90,7 @@ def test_pick_first_publishable_record_maps_fields_to_listing_draft():
 
 def test_pick_first_publishable_record_skips_retry_exhausted_rows():
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         token_provider=lambda: "tenant-token",
     )
     records = [
@@ -203,7 +205,7 @@ def test_download_attachment_file_uses_bearer_token(tmp_path):
         base_url="https://open.feishu.cn/open-apis",
     )
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         http_client=client,
         token_provider=lambda: "tenant-token",
     )
@@ -245,7 +247,7 @@ def test_list_candidate_records_uses_search_endpoint_with_filter_body():
         base_url="https://open.feishu.cn/open-apis",
     )
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         http_client=client,
         token_provider=lambda: "tenant-token",
     )
@@ -280,7 +282,7 @@ def test_update_listing_status_writes_status_field():
         base_url="https://open.feishu.cn/open-apis",
     )
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         http_client=client,
         token_provider=lambda: "tenant-token",
     )
@@ -290,7 +292,7 @@ def test_update_listing_status_writes_status_field():
     assert captured["method"] == "PUT"
     assert captured["path"] == "/open-apis/bitable/v1/apps/app_token/tables/tbl_token/records/recA"
     assert captured["authorization"] == "Bearer tenant-token"
-    assert captured["payload"] == {"fields": {"发布状态": "准备中", "失败原因": None}}
+    assert captured["payload"] == {"fields": {"发布状态": "准备中", "日志路径": None}}
 
 
 def test_update_listing_status_can_write_failure_reason():
@@ -305,7 +307,7 @@ def test_update_listing_status_can_write_failure_reason():
         base_url="https://open.feishu.cn/open-apis",
     )
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         http_client=client,
         token_provider=lambda: "tenant-token",
     )
@@ -315,7 +317,7 @@ def test_update_listing_status_can_write_failure_reason():
     assert captured["payload"] == {
         "fields": {
             "发布状态": "准备失败",
-            "失败原因": "price panel missing",
+            "日志路径": "price panel missing",
         }
     }
 
@@ -332,7 +334,7 @@ def test_update_listing_status_can_write_retry_count():
         base_url="https://open.feishu.cn/open-apis",
     )
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         http_client=client,
         token_provider=lambda: "tenant-token",
     )
@@ -347,7 +349,7 @@ def test_update_listing_status_can_write_retry_count():
     assert captured["payload"] == {
         "fields": {
             "发布状态": "准备失败",
-            "失败原因": "price panel missing",
+            "日志路径": "price panel missing",
             "失败重试次数": 2,
         }
     }
@@ -365,7 +367,7 @@ def test_update_listing_status_can_write_location_search_query():
         base_url="https://open.feishu.cn/open-apis",
     )
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         http_client=client,
         token_provider=lambda: "tenant-token",
     )
@@ -380,7 +382,7 @@ def test_update_listing_status_can_write_location_search_query():
     assert captured["payload"] == {
         "fields": {
             "发布状态": "已就绪",
-            "失败原因": None,
+            "日志路径": None,
             "预设地址": "上海虹桥站 新虹街道申贵路1500号",
         }
     }
@@ -398,7 +400,7 @@ def test_update_listing_status_ignores_failure_artifact_fields():
         base_url="https://open.feishu.cn/open-apis",
     )
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         http_client=client,
         token_provider=lambda: "tenant-token",
     )
@@ -417,7 +419,7 @@ def test_update_listing_status_ignores_failure_artifact_fields():
     assert captured["payload"] == {
         "fields": {
             "发布状态": "准备失败",
-            "失败原因": "price panel missing",
+            "日志路径": "price panel missing",
         }
     }
 
@@ -434,7 +436,7 @@ def test_update_listing_status_can_write_batch_run_fields():
         base_url="https://open.feishu.cn/open-apis",
     )
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         http_client=client,
         token_provider=lambda: "tenant-token",
     )
@@ -449,7 +451,7 @@ def test_update_listing_status_can_write_batch_run_fields():
     assert captured["payload"] == {
         "fields": {
             "发布状态": "准备中",
-            "失败原因": None,
+            "日志路径": None,
             "最近批次运行ID": "batch-001",
             "最近批次运行时间": "2026-03-15T09:00:00+08:00",
             "最近批次运行结果": "准备中",
@@ -469,7 +471,7 @@ def test_update_publish_result_can_write_published_at_and_optional_fields():
         base_url="https://open.feishu.cn/open-apis",
     )
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         http_client=client,
         token_provider=lambda: "tenant-token",
     )
@@ -485,7 +487,7 @@ def test_update_publish_result_can_write_published_at_and_optional_fields():
     assert captured["payload"] == {
         "fields": {
             "发布状态": "已发布",
-            "失败原因": None,
+            "日志路径": None,
             "发布时间": "2026-03-14T20:15:00+08:00",
             "闲鱼商品ID": "xy123",
             "闲鱼商品链接": {
@@ -508,7 +510,7 @@ def test_update_publish_result_can_write_retry_count():
         base_url="https://open.feishu.cn/open-apis",
     )
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         http_client=client,
         token_provider=lambda: "tenant-token",
     )
@@ -523,7 +525,7 @@ def test_update_publish_result_can_write_retry_count():
     assert captured["payload"] == {
         "fields": {
             "发布状态": "发布失败",
-            "失败原因": "location missing",
+            "日志路径": "location missing",
             "发布时间": None,
             "闲鱼商品ID": None,
             "闲鱼商品链接": None,
@@ -544,7 +546,7 @@ def test_update_publish_result_can_write_batch_run_fields():
         base_url="https://open.feishu.cn/open-apis",
     )
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         http_client=client,
         token_provider=lambda: "tenant-token",
     )
@@ -561,7 +563,7 @@ def test_update_publish_result_can_write_batch_run_fields():
     assert captured["payload"] == {
         "fields": {
             "发布状态": "已发布",
-            "失败原因": None,
+            "日志路径": None,
             "发布时间": "2026-03-15T09:05:00+08:00",
             "闲鱼商品ID": "xy123",
             "闲鱼商品链接": None,
@@ -584,7 +586,7 @@ def test_update_publish_result_ignores_failure_artifact_fields():
         base_url="https://open.feishu.cn/open-apis",
     )
     source = FeishuBitableSource(
-        settings=_make_settings(),
+        settings=_make_settings(include_retry_fields=True),
         http_client=client,
         token_provider=lambda: "tenant-token",
     )
@@ -607,7 +609,7 @@ def test_update_publish_result_ignores_failure_artifact_fields():
     assert captured["payload"] == {
         "fields": {
             "发布状态": "发布失败",
-            "失败原因": "Publish did not reach success screen: metadata_panel",
+            "日志路径": "Publish did not reach success screen: metadata_panel",
             "发布时间": None,
             "闲鱼商品ID": None,
             "闲鱼商品链接": None,

@@ -2664,6 +2664,12 @@ class XianyuPublishFlowService:
         for _ in range(max_polls):
             screen = self._android.get_screen_data(serial)
             copy_target = self._analyzer._find_target(screen["elements"], exact_text="复制链接")
+            if copy_target is None:
+                copy_target = self._analyzer._find_target(
+                    screen["elements"], contains_text="复制链接"
+                )
+            if copy_target is None:
+                copy_target = self._analyzer._find_target(screen["elements"], contains_text="复制")
             if copy_target is not None:
                 break
             self._sleep(0.8)
@@ -2672,10 +2678,15 @@ class XianyuPublishFlowService:
             raise RuntimeError("Could not find copy-link target on the share sheet")
 
         self._tap_target(serial, copy_target, "share_copy_link")
-        self._sleep(0.8)
-        clipboard = self._android.get_clipboard_text(serial)
-        clipboard_text = str(clipboard.get("text", ""))
-        public_url = extract_public_url_from_share_text(clipboard_text)
+        public_url = None
+        clipboard_text = ""
+        for _ in range(max_polls):
+            self._sleep(0.8)
+            clipboard = self._android.get_clipboard_text(serial)
+            clipboard_text = str(clipboard.get("text", ""))
+            public_url = extract_public_url_from_share_text(clipboard_text)
+            if public_url is not None:
+                break
 
         self._android.press_back(serial)
         final_analysis = self._wait_for_non_loading_screen(serial)
@@ -2686,6 +2697,9 @@ class XianyuPublishFlowService:
             )
 
         if public_url is None:
-            raise RuntimeError("Clipboard did not contain a public http url after copy-link")
+            raise RuntimeError(
+                "Clipboard did not contain a public http url after copy-link: "
+                f"{clipboard_text!r}"
+            )
 
         return public_url

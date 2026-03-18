@@ -5828,6 +5828,48 @@ def test_copy_public_listing_url_from_current_detail_taps_share_copy_and_returns
     assert android_service.back_calls == ["device-1"]
 
 
+def test_copy_public_listing_url_from_current_detail_accepts_multiline_copy_text():
+    android_service = FakeAndroidService(
+        screens=[
+            _make_screen(
+                activity="com.taobao.idlefish.detail.DetailActivity",
+                elements=_listing_detail_elements(),
+            ),
+            _make_screen(
+                activity="com.idlefish.flutterbridge.flutterboost.boost.FishFlutterBoostTransparencyActivity",
+                elements=[
+                    {"text": "分享至", "bounds": "[650,980][950,1040]"},
+                    {
+                        "text": "复制链接\n分享出去",
+                        "clickable": "true",
+                        "bounds": "[310,1410][650,1540]",
+                    },
+                ],
+            ),
+            _make_screen(
+                activity="com.taobao.idlefish.detail.DetailActivity",
+                elements=_listing_detail_elements(),
+            ),
+        ],
+        advance_on_tap_calls={1},
+    )
+    android_service.clipboard_text = (
+        "【闲鱼】https://m.tb.cn/h.ifJqS57?tk=9y8uUxYazY4 CZ005 "
+        "「快来捡漏【海信34g6k-pro】」"
+    )
+    flow = XianyuPublishFlowService(
+        settings=XianyuPublishSettings(),
+        android_service=android_service,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    url = flow.copy_public_listing_url_from_current_detail("device-1")
+
+    assert url == "https://m.tb.cn/h.ifJqS57?tk=9y8uUxYazY4"
+    assert android_service.tap_calls == [("device-1", 1515, 135), ("device-1", 480, 1475)]
+    assert android_service.back_calls == ["device-1"]
+
+
 def test_copy_public_listing_url_from_current_detail_raises_when_clipboard_has_no_http_url():
     android_service = FakeAndroidService(
         screens=[
