@@ -70,25 +70,30 @@ class FeishuBitableSource:
         self._table_field_name_cache: dict[str, set[str]] = {}
 
     def build_pending_filter(self) -> dict[str, Any]:
-        return {
-            "conjunction": "and",
-            "conditions": [
+        conditions = [
+            {
+                "field_name": self.settings.status_field_name,
+                "operator": "is",
+                "value": ["待发布"],
+            },
+            {
+                "field_name": self.settings.attachment_field_name,
+                "operator": "isNotEmpty",
+                "value": [],
+            },
+        ]
+        if self.settings.allow_publish_field_name:
+            conditions.insert(
+                0,
                 {
                     "field_name": self.settings.allow_publish_field_name,
                     "operator": "is",
                     "value": [True],
                 },
-                {
-                    "field_name": self.settings.status_field_name,
-                    "operator": "is",
-                    "value": ["待发布"],
-                },
-                {
-                    "field_name": self.settings.attachment_field_name,
-                    "operator": "isNotEmpty",
-                    "value": [],
-                },
-            ],
+            )
+        return {
+            "conjunction": "and",
+            "conditions": conditions,
         }
 
     def list_candidate_records(self) -> list[dict[str, Any]]:
@@ -289,6 +294,12 @@ class FeishuBitableSource:
         retry_count = self._resolve_retry_count(fields)
         retry_limit = self._resolve_retry_limit(fields)
 
+        allow_auto_publish = True
+        auto_publish_field = self.settings.auto_publish_field_name
+        if auto_publish_field:
+            if auto_publish_field in fields:
+                value = fields.get(auto_publish_field)
+                allow_auto_publish = True if value is None else bool(value)
         return ListingDraft(
             record_id=record["record_id"],
             title=self._get_required_text_field(fields, self.settings.title_field_name),
@@ -303,7 +314,7 @@ class FeishuBitableSource:
             location_search_query=self._get_optional_text_field(
                 fields, self.settings.location_search_query_field_name
             ),
-            allow_auto_publish=bool(fields.get(self.settings.auto_publish_field_name)),
+            allow_auto_publish=allow_auto_publish,
             retry_count=retry_count,
             retry_limit=retry_limit,
         )

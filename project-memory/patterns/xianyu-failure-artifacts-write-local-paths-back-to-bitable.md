@@ -8,12 +8,8 @@ Updated: 2026-03-18
   - `hierarchy.xml`
   - `activities.txt`
 - Store them under `.tmp/xianyu-failures/<record_id>/<timestamp-stage>/`.
-- Write the local paths back to the listing row in these text fields:
-  - `最近失败时间`
-  - `最近失败截图路径`
-  - `最近失败界面快照路径`
-  - `最近失败活动栈路径`
-  - `最近失败前台应用`
+- Always create a run log file at `.tmp/xianyu-logs/<record_id>/<timestamp>-<stage>.log`
+  and write its path back to the listing row via the single `日志路径` field.
 
 ## Why
 - Keeps failure triage cheap and deterministic.
@@ -24,3 +20,7 @@ Updated: 2026-03-18
 - Bitable logging is now consolidated to the single `日志路径` field.
 - Failure artifacts are still captured locally, but their paths are no longer written to the
   separate failure columns.
+
+## Update (2026-03-18)
+- The `日志路径` field now always points to the per-run `.tmp/xianyu-logs/...` file that records
+  status transitions, errors, and (when available) the artifact directory for triage.

@@ -7,7 +7,11 @@ from minitap.mobile_use.scenarios.xianyu_publish.models import FeishuAttachment
 from minitap.mobile_use.scenarios.xianyu_publish.settings import XianyuPublishSettings
 
 
-def _make_settings(*, include_retry_fields: bool = False) -> XianyuPublishSettings:
+def _make_settings(
+    *,
+    include_retry_fields: bool = False,
+    include_publish_fields: bool = False,
+) -> XianyuPublishSettings:
     return XianyuPublishSettings(
         FEISHU_APP_ID="cli_xxx",
         FEISHU_APP_SECRET="secret",
@@ -15,6 +19,8 @@ def _make_settings(*, include_retry_fields: bool = False) -> XianyuPublishSettin
         XIANYU_BITABLE_TABLE_ID="tbl_token",
         retry_count_field_name="失败重试次数" if include_retry_fields else None,
         retry_limit_field_name="失败重试上限" if include_retry_fields else None,
+        allow_publish_field_name="是否允许发布" if include_publish_fields else None,
+        auto_publish_field_name="允许自动发布" if include_publish_fields else None,
     )
 
 
@@ -29,11 +35,6 @@ def test_build_filter_for_pending_publishable_records():
     assert filter_payload["conjunction"] == "and"
     assert filter_payload["conditions"] == [
         {
-            "field_name": "是否允许发布",
-            "operator": "is",
-            "value": [True],
-        },
-        {
             "field_name": "发布状态",
             "operator": "is",
             "value": ["待发布"],
@@ -46,9 +47,24 @@ def test_build_filter_for_pending_publishable_records():
     ]
 
 
+def test_build_filter_includes_allow_publish_when_configured():
+    source = FeishuBitableSource(
+        settings=_make_settings(include_publish_fields=True),
+        token_provider=lambda: "tenant-token",
+    )
+
+    filter_payload = source.build_pending_filter()
+
+    assert filter_payload["conditions"][0] == {
+        "field_name": "是否允许发布",
+        "operator": "is",
+        "value": [True],
+    }
+
+
 def test_pick_first_publishable_record_maps_fields_to_listing_draft():
     source = FeishuBitableSource(
-        settings=_make_settings(include_retry_fields=True),
+        settings=_make_settings(include_retry_fields=True, include_publish_fields=True),
         token_provider=lambda: "tenant-token",
     )
     records = [
@@ -163,6 +179,29 @@ def test_pick_first_publishable_record_extracts_text_from_feishu_text_arrays():
     assert listing.condition == "几乎全新"
     assert listing.item_source == "闲置"
     assert listing.location_search_query == "上海虹桥站"
+
+
+def test_pick_first_publishable_record_defaults_auto_publish_when_field_missing():
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        token_provider=lambda: "tenant-token",
+    )
+    records = [
+        {
+            "record_id": "recA",
+            "fields": {
+                "商品标题": "二手显示器",
+                "商品描述": "成色很好",
+                "售价": 199,
+                "商品图片": [{"file_token": "ft-1", "name": "1.jpg", "size": 111}],
+            },
+        }
+    ]
+
+    listing = source.pick_first_publishable_record(records)
+
+    assert listing is not None
+    assert listing.allow_auto_publish is True
 
 
 def test_get_attachment_download_urls_prefers_attachment_urls_in_order():
