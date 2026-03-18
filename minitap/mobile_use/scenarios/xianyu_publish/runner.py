@@ -112,6 +112,7 @@ class XianyuPrepareRunner:
         )
         review: XianyuPrepareReview | None = None
         publish: XianyuPublishResult | None = None
+        selected_location_value: str | None = None
         try:
             download_urls = self._source.get_attachment_download_urls(listing.attachments)
             staged_listing = self._media_sync.download_listing_media(
@@ -157,14 +158,22 @@ class XianyuPrepareRunner:
                     if not _is_optional_item_source_visibility_error(exc):
                         raise
             if staged_listing.location_search_query:
-                final_analysis = self._flow.search_location_and_select_result(
-                    serial,
-                    staged_listing.location_search_query,
+                final_analysis, selected_location_value = (
+                    self._flow.search_location_and_select_result_with_value(
+                        serial,
+                        staged_listing.location_search_query,
+                    )
                 )
-                final_analysis = self._flow.require_location_written_on_editor(serial)
+                final_analysis = self._flow.require_location_written_on_editor(
+                    serial,
+                    selected_location=selected_location_value,
+                )
 
             if review_after_prepare or auto_publish_after_prepare:
-                final_analysis = self._flow.require_location_written_on_editor(serial)
+                final_analysis = self._flow.require_location_written_on_editor(
+                    serial,
+                    selected_location=selected_location_value,
+                )
                 review = self._build_prepare_review(final_analysis)
 
         except Exception as exc:
@@ -269,10 +278,14 @@ class XianyuPrepareRunner:
             if review_after_prepare:
                 next_status = self._settings.manual_review_status
 
+            location_kwargs: dict[str, str] = {}
+            if selected_location_value is not None:
+                location_kwargs["location_search_query"] = selected_location_value
             self._source.update_listing_status(
                 staged_listing.record_id,
                 next_status,
                 failure_reason=None,
+                **location_kwargs,
                 **batch_kwargs,
             )
 

@@ -353,7 +353,40 @@ def test_update_listing_status_can_write_retry_count():
     }
 
 
-def test_update_listing_status_can_write_failure_artifact_fields():
+def test_update_listing_status_can_write_location_search_query():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(200, json={"code": 0, "data": {"record": {"record_id": "recA"}}})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://open.feishu.cn/open-apis",
+    )
+    source = FeishuBitableSource(
+        settings=_make_settings(),
+        http_client=client,
+        token_provider=lambda: "tenant-token",
+    )
+
+    source.update_listing_status(
+        "recA",
+        "已就绪",
+        failure_reason=None,
+        location_search_query="上海虹桥站 新虹街道申贵路1500号",
+    )
+
+    assert captured["payload"] == {
+        "fields": {
+            "发布状态": "已就绪",
+            "失败原因": None,
+            "预设地址": "上海虹桥站 新虹街道申贵路1500号",
+        }
+    }
+
+
+def test_update_listing_status_ignores_failure_artifact_fields():
     captured: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -385,14 +418,6 @@ def test_update_listing_status_can_write_failure_artifact_fields():
         "fields": {
             "发布状态": "准备失败",
             "失败原因": "price panel missing",
-            "最近失败时间": "2026-03-15T12:00:00+08:00",
-            "最近失败截图路径": "D:\\debug\\recA\\screen.png",
-            "最近失败界面快照路径": "D:\\debug\\recA\\hierarchy.xml",
-            "最近失败活动栈路径": "D:\\debug\\recA\\activities.txt",
-            "最近失败前台应用": (
-                "com.taobao.idlefish/"
-                "com.taobao.idlefish.maincontainer.activity.MainActivity"
-            ),
         }
     }
 
@@ -547,7 +572,7 @@ def test_update_publish_result_can_write_batch_run_fields():
     }
 
 
-def test_update_publish_result_can_write_failure_artifact_fields():
+def test_update_publish_result_ignores_failure_artifact_fields():
     captured: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -587,11 +612,6 @@ def test_update_publish_result_can_write_failure_artifact_fields():
             "闲鱼商品ID": None,
             "闲鱼商品链接": None,
             "失败重试次数": 2,
-            "最近失败时间": "2026-03-15T12:30:00+08:00",
-            "最近失败截图路径": "D:\\debug\\recA\\publish\\screen.png",
-            "最近失败界面快照路径": "D:\\debug\\recA\\publish\\hierarchy.xml",
-            "最近失败活动栈路径": "D:\\debug\\recA\\publish\\activities.txt",
-            "最近失败前台应用": "com.taobao.idlefish/com.taobao.idlefish.publish.PublishActivity",
         }
     }
 

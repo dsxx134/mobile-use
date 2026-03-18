@@ -145,6 +145,7 @@ class FeishuBitableSource:
         status: str,
         *,
         failure_reason: str | None = None,
+        location_search_query: str | None = None,
         failure_captured_at: str | None = None,
         failure_screenshot_path: str | None = None,
         failure_hierarchy_path: str | None = None,
@@ -159,14 +160,8 @@ class FeishuBitableSource:
             self.settings.status_field_name: status,
             self.settings.failure_reason_field_name: failure_reason,
         }
-        self._apply_failure_artifact_fields(
-            fields,
-            failure_captured_at=failure_captured_at,
-            failure_screenshot_path=failure_screenshot_path,
-            failure_hierarchy_path=failure_hierarchy_path,
-            failure_activity_dump_path=failure_activity_dump_path,
-            failure_current_app=failure_current_app,
-        )
+        if location_search_query is not None:
+            fields[self.settings.location_search_query_field_name] = location_search_query
         if retry_count is not None:
             fields[self.settings.retry_count_field_name] = retry_count
         self._apply_batch_run_fields(
@@ -205,14 +200,6 @@ class FeishuBitableSource:
             self.settings.listing_id_field_name: listing_id,
             self.settings.listing_url_field_name: self._format_url_field(listing_url),
         }
-        self._apply_failure_artifact_fields(
-            fields,
-            failure_captured_at=failure_captured_at,
-            failure_screenshot_path=failure_screenshot_path,
-            failure_hierarchy_path=failure_hierarchy_path,
-            failure_activity_dump_path=failure_activity_dump_path,
-            failure_current_app=failure_current_app,
-        )
         if retry_count is not None:
             fields[self.settings.retry_count_field_name] = retry_count
         self._apply_batch_run_fields(

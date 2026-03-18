@@ -45,7 +45,7 @@ Updated: 2026-03-15
 - The live runner now also has a local failure-artifact side channel:
   - capture a fresh Android screenshot through `AndroidDebugService.get_screen_data()`
   - persist `screen.png`, `hierarchy.xml`, and `activities.txt` under `.tmp/xianyu-failures/...`
-  - write the resulting local paths back to the listing row in Feishu for operator triage
+  - failure artifacts remain local; Bitable logging is consolidated to the single `失败原因` field
 - The Xianyu flow currently recognizes:
   - home tab
   - publish chooser
@@ -216,12 +216,11 @@ Updated: 2026-03-15
   `价格设置`, `发货方式`, and `选择位置` can now start from that state directly.
 - Category support is intentionally scoped to the chips already visible on the metadata panel.
   This branch does not yet traverse a deeper category tree or category search flow.
-- Final location persistence is still unresolved on this app/device pair. Real-device probes showed
-  that tapping a common address, a search result, or a district row can return to the listing form
-  without a stable, visible location confirmation in either the form row or the reopened
-  `location_panel`. The flow can now survive the picker tail and drive the search UI, but the
-  runner still does not treat location as a deterministic writeback even when driven from the new
-  `预设地址` field.
+- Location persistence is still not visible in the editor UI on this app/device pair. Real-device
+  probes show that a search selection can return to the listing form while the row still renders
+  `选择位置`. The flow now captures the tapped search-result text and the runner treats that value
+  as the authoritative writeback, normalizing it into a single-line string and writing it back to
+  `预设地址`.
 - A later live auto-publish pass proved that at least one previously observed submit failure was
   actually a success-screen recognition gap rather than a location blocker: after the metadata
   scroll fix, the live tablet stayed on a reward-style `publish_success` page that the analyzer now
@@ -339,7 +338,8 @@ Updated: 2026-03-15
 - `XianyuPublishFlowService.require_location_written_on_editor()` now acts as the publish-facing
   location gate:
   - it reuses the existing metadata reveal scroll on `metadata_panel`
-  - it treats a visible `选择位置` row as proof that location is still unset
+  - it treats a visible `选择位置` row as proof that location is still unset unless a captured
+    search-result value is supplied
   - review and auto-publish paths now call this gate before they continue
 - Real-device auto-publish now reaches the final submit tap, and the next deterministic blocker is
   an in-app modal: `无法发布宝贝 / 系统无法定位您所在的行政区...`. This dialog is now treated as an

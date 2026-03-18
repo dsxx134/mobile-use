@@ -30,5 +30,8 @@
 | xianyu failure evidence stays local with path writeback | 2026-03-15 | 2026-03-15-xianyu-failure-evidence-stays-local-with-path-writeback.md |
 | xianyu mcp will live in a separate thin-wrapper repo | 2026-03-15 | 2026-03-15-xianyu-mcp-will-live-in-a-separate-thin-wrapper-repo.md |
 | xianyu review and auto publish now require location clearance | 2026-03-15 | 2026-03-15-xianyu-review-and-auto-publish-now-require-location-clearance.md |
+| xianyu location writeback uses search result text | 2026-03-17 | 2026-03-17-xianyu-location-writeback-uses-search-result-text.md |
+| xianyu log fields consolidated to a single column | 2026-03-17 | 2026-03-17-xianyu-log-fields-consolidated.md |
+| xianyu description selector accepts listing form | 2026-03-18 | 2026-03-18-xianyu-description-selector-accepts-listing-form.md |
 
-Total: 28
+Total: 31

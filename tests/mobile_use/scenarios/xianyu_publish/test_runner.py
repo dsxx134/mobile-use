@@ -402,8 +402,9 @@ def test_prepare_first_publishable_listing_applies_optional_location_search_quer
     flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="listing_form")
-    flow.search_location_and_select_result.return_value = XianyuScreenAnalysis(
-        screen_name="listing_form"
+    flow.search_location_and_select_result_with_value.return_value = (
+        XianyuScreenAnalysis(screen_name="listing_form"),
+        "上海虹桥站 新虹街道申贵路1500号",
     )
     flow.require_location_written_on_editor.return_value = XianyuScreenAnalysis(
         screen_name="listing_form"
@@ -438,14 +439,22 @@ def test_prepare_first_publishable_listing_applies_optional_location_search_quer
         call.flow.fill_description("device-1", "二手显示器\n\n成色很好，支持验货"),
         call.flow.advance_listing_form_to_album_picker("device-1"),
         call.flow.select_cover_image("device-1", preferred_album_name="recA"),
-        call.flow.search_location_and_select_result("device-1", "上海虹桥站"),
-        call.flow.require_location_written_on_editor("device-1"),
-        call.source.update_listing_status("recA", "已就绪", failure_reason=None),
+        call.flow.search_location_and_select_result_with_value("device-1", "上海虹桥站"),
+        call.flow.require_location_written_on_editor(
+            "device-1",
+            selected_location="上海虹桥站 新虹街道申贵路1500号",
+        ),
+        call.source.update_listing_status(
+            "recA",
+            "已就绪",
+            failure_reason=None,
+            location_search_query="上海虹桥站 新虹街道申贵路1500号",
+        ),
     ]
     assert result.final_screen_name == "listing_form"
 
 
-def test_prepare_first_publishable_listing_fails_when_location_stays_unset(tmp_path):
+def test_prepare_first_publishable_listing_fails_when_location_search_raises(tmp_path):
     listing = _make_listing(location_search_query="上海虹桥站")
     source = Mock()
     source.pick_first_publishable_record.return_value = listing
@@ -466,12 +475,8 @@ def test_prepare_first_publishable_listing_fails_when_location_stays_unset(tmp_p
     flow.select_cover_image.return_value = XianyuScreenAnalysis(screen_name="listing_form")
     flow.fill_description.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
     flow.fill_price.return_value = XianyuScreenAnalysis(screen_name="metadata_panel")
-    flow.search_location_and_select_result.return_value = XianyuScreenAnalysis(
-        screen_name="metadata_panel",
-        targets={"location_entry": TapTarget(x=800, y=2447, text="选择位置")},
-    )
-    flow.require_location_written_on_editor.side_effect = RuntimeError(
-        "Location is still unset on editor"
+    flow.search_location_and_select_result_with_value.side_effect = RuntimeError(
+        "Location search failed"
     )
     runner = XianyuPrepareRunner(
         source=source,
@@ -479,21 +484,24 @@ def test_prepare_first_publishable_listing_fails_when_location_stays_unset(tmp_p
         flow=flow,
     )
 
-    with pytest.raises(RuntimeError, match="Location is still unset on editor"):
+    with pytest.raises(RuntimeError, match="Location search failed"):
         runner.prepare_first_publishable_listing(
             serial="device-1",
             staging_root=tmp_path,
         )
 
-    flow.search_location_and_select_result.assert_called_once_with("device-1", "上海虹桥站")
-    flow.require_location_written_on_editor.assert_called_once_with("device-1")
+    flow.search_location_and_select_result_with_value.assert_called_once_with(
+        "device-1",
+        "上海虹桥站",
+    )
+    flow.require_location_written_on_editor.assert_not_called()
     source.update_listing_status.assert_has_calls(
         [
             call("recA", "准备中"),
             call(
                 "recA",
                 "准备失败",
-                failure_reason="Location is still unset on editor",
+                failure_reason="Location search failed",
                 retry_count=1,
             ),
         ]

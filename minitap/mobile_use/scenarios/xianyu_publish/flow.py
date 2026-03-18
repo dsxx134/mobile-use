@@ -162,6 +162,19 @@ def normalize_item_source(source: str) -> str:
     return normalized
 
 
+def normalize_location_value(text: str | None) -> str | None:
+    if text is None:
+        return None
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return None
+    if lines[0] in {"所在地", "宝贝所在地"}:
+        lines = lines[1:]
+    if not lines:
+        return None
+    return " ".join(lines)
+
+
 def _normalize_target_suffix(text: str) -> str:
     normalized = re.sub(r"[^\w\u4e00-\u9fff]+", "_", text.strip())
     return normalized.strip("_")
@@ -703,13 +716,13 @@ class XianyuFlowAnalyzer:
             current_package == self._settings.xianyu_package_name
             and location_back is not None
             and location_search is not None
-            and location_region_entry is not None
             and any(text == "宝贝所在地" for text in visible_texts)
             and any(text == "常用地址" for text in visible_texts)
         ):
             targets["location_back"] = location_back
             targets["location_search"] = location_search
-            targets["location_region_entry"] = location_region_entry
+            if location_region_entry is not None:
+                targets["location_region_entry"] = location_region_entry
             return XianyuScreenAnalysis(
                 screen_name="location_panel",
                 current_package=current_package,
@@ -1337,6 +1350,10 @@ class XianyuPublishFlowService:
         else:
             return None
         post_set = self._wait_for_non_loading_screen(serial)
+        if post_set.screen_name in {"listing_form", "metadata_panel"}:
+            if self._description_text_is_visible(post_set, description):
+                return post_set
+            return None
         if post_set.screen_name != "description_editor":
             return None
         if not self._description_text_is_visible(post_set, description):
@@ -1986,6 +2003,7 @@ class XianyuPublishFlowService:
         serial: str,
         *,
         max_swipes: int = 2,
+        selected_location: str | None = None,
     ) -> XianyuScreenAnalysis:
         analysis = self._analyze(serial)
         if analysis.screen_name == "metadata_panel":
@@ -2001,7 +2019,7 @@ class XianyuPublishFlowService:
                 f"{analysis.screen_name}"
             )
 
-        if analysis.targets.get("location_entry") is not None:
+        if analysis.targets.get("location_entry") is not None and not selected_location:
             raise RuntimeError("Location is still unset on editor")
 
         return analysis
@@ -2081,7 +2099,7 @@ class XianyuPublishFlowService:
 
         raise RuntimeError("Location path exhausted without returning to listing form")
 
-    def search_location_and_select_result(
+    def search_location_and_select_result_with_value(
         self,
         serial: str,
         query: str,
@@ -2089,7 +2107,7 @@ class XianyuPublishFlowService:
         result_index: int = 0,
         max_steps: int = 4,
         max_result_polls: int = 6,
-    ) -> XianyuScreenAnalysis:
+    ) -> tuple[XianyuScreenAnalysis, str]:
         normalized_query = query.strip()
         if not normalized_query:
             raise ValueError("Location search query cannot be empty")
@@ -2123,8 +2141,31 @@ class XianyuPublishFlowService:
             result_target = analysis.targets.get(target_name)
         if result_target is None:
             raise RuntimeError(f"Missing location search result target: {target_name}")
+
+        selected_location = normalize_location_value(result_target.text)
+        if not selected_location:
+            raise RuntimeError("Location search result target has no usable text")
+
         self._tap_target(serial, result_target, target_name)
-        return self._wait_for_non_loading_screen(serial)
+        return self._wait_for_non_loading_screen(serial), selected_location
+
+    def search_location_and_select_result(
+        self,
+        serial: str,
+        query: str,
+        *,
+        result_index: int = 0,
+        max_steps: int = 4,
+        max_result_polls: int = 6,
+    ) -> XianyuScreenAnalysis:
+        analysis, _ = self.search_location_and_select_result_with_value(
+            serial,
+            query,
+            result_index=result_index,
+            max_steps=max_steps,
+            max_result_polls=max_result_polls,
+        )
+        return analysis
 
     def advance_listing_form_to_metadata_panel(
         self,

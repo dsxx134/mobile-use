@@ -1,6 +1,6 @@
 # xianyu failure artifacts write local paths back to bitable
 
-Updated: 2026-03-15
+Updated: 2026-03-17
 
 ## Pattern
 - On live Xianyu prepare/publish failure, capture:
@@ -19,3 +19,8 @@ Updated: 2026-03-15
 - Keeps failure triage cheap and deterministic.
 - Avoids building Feishu attachment upload just to make failures inspectable.
 - Preserves the raw UI evidence that explains why the row failed.
+
+## Update (2026-03-17)
+- Bitable logging is now consolidated to the single `失败原因` field.
+- Failure artifacts are still captured locally, but their paths are no longer written to the
+  separate failure columns.
