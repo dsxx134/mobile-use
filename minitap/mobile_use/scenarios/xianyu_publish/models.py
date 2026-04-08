@@ -1,0 +1,77 @@
+from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class FeishuAttachment(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    file_token: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1)
+    size: int | None = Field(default=None, ge=0)
+    tmp_url: str | None = None
+    url: str | None = None
+    file_type: str | None = None
+
+
+class ListingDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: str = Field(..., min_length=1)
+    title: str = Field(..., min_length=1)
+    description: str = Field(..., min_length=1)
+    price: float = Field(..., ge=0)
+    original_price: str | float | int | None = None
+    stock: str | int | None = None
+    attachments: list[FeishuAttachment]
+    category: str | None = None
+    condition: str | None = None
+    item_source: str | None = None
+    location_search_query: str | None = None
+    coin_discount: str | None = None
+    shipping_method: str | None = None
+    shipping_time: str | None = None
+    allow_auto_publish: bool = False
+    retry_count: int = Field(default=0, ge=0)
+    retry_limit: int | None = Field(default=None, ge=0)
+    local_image_paths: list[Path] = Field(default_factory=list)
+
+    @field_validator("attachments")
+    @classmethod
+    def validate_attachments(cls, attachments: list[FeishuAttachment]) -> list[FeishuAttachment]:
+        if not attachments:
+            raise ValueError("ListingDraft requires at least one attachment")
+        return attachments
+
+
+class ListingStatusFilter(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pending_status: str = Field(default="待发布")
+    allow_publish: bool = True
+
+
+class TapTarget(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    x: int = Field(..., ge=0)
+    y: int = Field(..., ge=0)
+    text: str | None = None
+    bounds: str | None = None
+
+
+class XianyuScreenAnalysis(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    screen_name: str
+    current_package: str | None = None
+    current_activity: str | None = None
+    visible_texts: list[str] = Field(default_factory=list)
+    targets: dict[str, TapTarget] = Field(default_factory=dict)
+
+
+class XianyuListingReceipt(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item_id: str = Field(..., min_length=1)
+    deep_link: str = Field(..., min_length=1)

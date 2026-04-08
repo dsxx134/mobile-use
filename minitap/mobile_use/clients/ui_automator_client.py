@@ -26,6 +26,18 @@ logger = get_logger(__name__)
 MAESTRO_PACKAGE = "dev.mobile.maestro"
 
 
+def _xpath_literal(value: str) -> str:
+    """Quote a Python string for use as an XPath literal."""
+    if '"' not in value:
+        return f'"{value}"'
+    if "'" not in value:
+        return f"'{value}'"
+
+    parts = value.split('"')
+    joined = ', \'"\', '.join(f'"{part}"' for part in parts)
+    return f"concat({joined})"
+
+
 class UIAutomatorScreenData(BaseModel):
     """Screen data response from UIAutomator2."""
 
@@ -250,6 +262,52 @@ class UIAutomatorClient:
             device.send_keys(text)
         finally:
             device.set_fastinput_ime(False)
+
+    def set_focused_text(self, text: str) -> None:
+        """Set text on the currently focused EditText without switching IMEs."""
+        device = self._ensure_connected()
+        focused_edit_text = device(className="android.widget.EditText", focused=True)
+        if not focused_edit_text.exists:
+            raise RuntimeError("No focused EditText found on the current screen")
+        focused_edit_text.set_text(text)
+
+    def set_clipboard_text(self, text: str) -> None:
+        """Set clipboard text on the connected device."""
+        device = self._ensure_connected()
+        device.set_clipboard(text)
+
+    def get_clipboard_text(self) -> str:
+        """Read clipboard text from the connected device."""
+        device = self._ensure_connected()
+        return str(device.clipboard)
+
+    def set_text_by_description(self, description: str, text: str) -> None:
+        """Set text on a node selected by exact content description."""
+        device = self._ensure_connected()
+        target = device(description=description)
+        if not target.exists:
+            raise RuntimeError(f"No node found with description: {description!r}")
+        target.set_text(text)
+
+    def set_text_on_description_child(
+        self,
+        description: str,
+        text: str,
+        *,
+        child_index: int = 1,
+    ) -> None:
+        """Set text on a child node under an exact content-description match."""
+        device = self._ensure_connected()
+        xpath = (
+            f"//*[@content-desc={_xpath_literal(description)}]/*[{child_index}]"
+        )
+        target = device.xpath(xpath)
+        if not target.exists:
+            raise RuntimeError(
+                "No child node found under description selector: "
+                f"{description!r} child_index={child_index}"
+            )
+        target.set_text(text)
 
     def get_hierarchy(self) -> str:
         """

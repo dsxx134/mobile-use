@@ -1,0 +1,498 @@
+from datetime import UTC
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict
+
+from minitap.mobile_use.scenarios.xianyu_publish.failure_artifacts import XianyuFailureArtifacts
+from minitap.mobile_use.scenarios.xianyu_publish.models import ListingDraft
+from minitap.mobile_use.scenarios.xianyu_publish.settings import XianyuPublishSettings
+
+
+class XianyuPrepareReview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    screen_name: str
+    submit_button_visible: bool
+    ready_for_manual_publish: bool
+
+
+class XianyuPublishResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    success: bool
+    screen_name: str
+    detail_screen_name: str | None = None
+    detail_deep_link: str | None = None
+    published_at: str | None = None
+    listing_id: str | None = None
+    listing_url: str | None = None
+
+
+class XianyuPrepareListingResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: str
+    serial: str
+    remote_media_paths: list[str]
+    body_text: str
+    final_screen_name: str
+    review: XianyuPrepareReview | None = None
+    publish: XianyuPublishResult | None = None
+
+
+def build_listing_body(listing: ListingDraft) -> str:
+    title = listing.title.strip()
+    description = listing.description.strip()
+
+    if description.startswith(title):
+        return description
+    return f"{title}\n\n{description}"
+
+
+def _is_optional_item_source_visibility_error(error: RuntimeError) -> bool:
+    message = str(error)
+    return "metadata_source_option_" in message and "target on metadata panel" in message
+
+
+def _is_optional_category_visibility_error(error: RuntimeError) -> bool:
+    message = str(error)
+    return "metadata_category_option_" in message and "target on metadata panel" in message
+
+
+def _is_optional_shipping_time_visibility_error(error: RuntimeError) -> bool:
+    message = str(error)
+    return "shipping_time_entry target" in message
+
+
+class XianyuPrepareRunner:
+    def __init__(
+        self,
+        *,
+        source: Any,
+        media_sync: Any,
+        flow: Any,
+        settings: XianyuPublishSettings | None = None,
+        now_fn: Any | None = None,
+        log_root: Path | None = None,
+    ) -> None:
+        self._source = source
+        self._media_sync = media_sync
+        self._flow = flow
+        self._settings = settings or XianyuPublishSettings()
+        self._now_fn = now_fn or (lambda: datetime.now(UTC))
+        self._log_root = (log_root or Path(".tmp") / "xianyu-logs").resolve()
+
+    def _build_batch_kwargs(
+        self,
+        batch_run_id: str | None,
+        batch_ran_at: str | None,
+    ) -> dict[str, str]:
+        batch_kwargs: dict[str, str] = {}
+        if batch_run_id is not None:
+            batch_kwargs["batch_run_id"] = batch_run_id
+        if batch_ran_at is not None:
+            batch_kwargs["batch_ran_at"] = batch_ran_at
+        return batch_kwargs
+
+    def prepare_first_publishable_listing(
+        self,
+        *,
+        serial: str,
+        staging_root: Path,
+        review_after_prepare: bool = False,
+        auto_publish_after_prepare: bool = False,
+        batch_run_id: str | None = None,
+        batch_ran_at: str | None = None,
+        failure_recorder: Any | None = None,
+    ) -> XianyuPrepareListingResult:
+        listing = self._source.pick_first_publishable_record()
+        if listing is None:
+            raise ValueError("No publishable Xianyu listing found")
+
+        log_path = self._create_run_log(
+            record_id=listing.record_id,
+            serial=serial,
+            stage="prepare",
+        )
+        self._append_run_log(
+            log_path,
+            [
+                "status=准备中",
+                f"batch_run_id={batch_run_id or ''}",
+                f"batch_ran_at={batch_ran_at or ''}",
+            ],
+        )
+        batch_kwargs = self._build_batch_kwargs(batch_run_id, batch_ran_at)
+        self._source.update_listing_status(
+            listing.record_id,
+            "准备中",
+            **batch_kwargs,
+        )
+        review: XianyuPrepareReview | None = None
+        publish: XianyuPublishResult | None = None
+        selected_location_value: str | None = None
+        try:
+            download_urls = self._source.get_attachment_download_urls(listing.attachments)
+            staged_listing = self._media_sync.download_listing_media(
+                listing,
+                download_urls,
+                staging_root,
+            )
+            media_result = self._media_sync.push_listing_media(staged_listing, serial=serial)
+
+            self._flow.advance_to_listing_form(serial)
+            body_text = build_listing_body(staged_listing)
+            final_analysis = self._flow.fill_price_panel_fields(
+                serial,
+                price=staged_listing.price,
+                original_price=staged_listing.original_price,
+                stock=staged_listing.stock,
+            )
+            final_analysis = self._flow.fill_description(serial, body_text)
+
+            self._flow.advance_listing_form_to_album_picker(serial)
+            post_image_analysis = self._flow.select_cover_image(
+                serial,
+                preferred_album_name=staged_listing.record_id,
+            )
+            if post_image_analysis.screen_name == "photo_analysis":
+                self._flow.advance_photo_analysis_to_publish_chooser(serial)
+                final_analysis = self._flow.advance_to_listing_form(serial)
+            elif post_image_analysis.screen_name not in {"listing_form", "metadata_panel"}:
+                raise RuntimeError(
+                    "Unsupported post-image screen for prepare runner: "
+                    f"{post_image_analysis.screen_name}"
+                )
+            else:
+                final_analysis = post_image_analysis
+
+            if staged_listing.category:
+                try:
+                    final_analysis = self._flow.set_item_category(serial, staged_listing.category)
+                except RuntimeError as exc:
+                    if not _is_optional_category_visibility_error(exc):
+                        raise
+            if staged_listing.condition:
+                final_analysis = self._flow.set_item_condition(serial, staged_listing.condition)
+            if staged_listing.item_source:
+                try:
+                    final_analysis = self._flow.set_item_source(serial, staged_listing.item_source)
+                except RuntimeError as exc:
+                    if not _is_optional_item_source_visibility_error(exc):
+                        raise
+            if staged_listing.shipping_method:
+                final_analysis = self._flow.set_shipping_method(
+                    serial,
+                    staged_listing.shipping_method,
+                )
+            if staged_listing.coin_discount:
+                final_analysis = self._flow.set_coin_discount(
+                    serial,
+                    staged_listing.coin_discount,
+                )
+            if staged_listing.shipping_time:
+                try:
+                    final_analysis = self._flow.set_shipping_time(
+                        serial,
+                        staged_listing.shipping_time,
+                    )
+                except RuntimeError as exc:
+                    if _is_optional_shipping_time_visibility_error(exc):
+                        self._append_run_log(
+                            log_path,
+                            [
+                                "shipping_time_skipped=missing_entry",
+                                f"shipping_time_value={staged_listing.shipping_time}",
+                            ],
+                        )
+                    else:
+                        raise
+            if staged_listing.location_search_query:
+                final_analysis, selected_location_value = (
+                    self._flow.search_location_and_select_result_with_value(
+                        serial,
+                        staged_listing.location_search_query,
+                    )
+                )
+                final_analysis = self._flow.require_location_written_on_editor(
+                    serial,
+                    selected_location=selected_location_value,
+                )
+
+            if review_after_prepare or auto_publish_after_prepare:
+                final_analysis = self._flow.require_location_written_on_editor(
+                    serial,
+                    selected_location=selected_location_value,
+                )
+                review = self._build_prepare_review(final_analysis)
+
+        except Exception as exc:
+            failure_kwargs, artifact_dir = self._build_failure_kwargs(
+                failure_recorder=failure_recorder,
+                serial=serial,
+                record_id=listing.record_id,
+                stage="prepare",
+                error_message=str(exc),
+            )
+            self._append_run_log(
+                log_path,
+                [
+                    "status=准备失败",
+                    f"error={exc}",
+                    f"artifact_dir={artifact_dir or ''}",
+                ],
+            )
+            self._source.update_listing_status(
+                listing.record_id,
+                "准备失败",
+                failure_reason=str(exc),
+                retry_count=listing.retry_count + 1,
+                log_path=log_path,
+                **failure_kwargs,
+                **batch_kwargs,
+            )
+            raise
+
+        if auto_publish_after_prepare:
+            try:
+                if not staged_listing.allow_auto_publish:
+                    raise RuntimeError("Auto publish is not enabled for this listing")
+
+                self._append_run_log(log_path, ["status=发布中"])
+                self._source.update_listing_status(
+                    staged_listing.record_id,
+                    "发布中",
+                    failure_reason=None,
+                    **batch_kwargs,
+                )
+                publish_analysis = self._flow.submit_listing_and_wait_for_result(serial)
+                detail_screen_name: str | None = None
+                detail_deep_link: str | None = None
+                listing_id: str | None = None
+                listing_url: str | None = None
+                try:
+                    detail_analysis = self._flow.advance_publish_success_to_listing_detail(serial)
+                    detail_screen_name = detail_analysis.screen_name
+                except RuntimeError:
+                    detail_screen_name = None
+                if detail_screen_name is None:
+                    try:
+                        receipt = self._flow.extract_listing_receipt_from_activity_dump(serial)
+                        if receipt is not None:
+                            detail_deep_link = receipt.deep_link
+                            listing_id = receipt.item_id
+                    except RuntimeError:
+                        pass
+                if detail_screen_name is not None:
+                    try:
+                        receipt = self._flow.extract_listing_receipt_from_current_detail(serial)
+                        if receipt is not None:
+                            detail_deep_link = receipt.deep_link
+                            listing_id = receipt.item_id
+                    except RuntimeError:
+                        pass
+                    try:
+                        listing_url = self._flow.copy_public_listing_url_from_current_detail(
+                            serial
+                        )
+                    except RuntimeError:
+                        pass
+                published_at = self._now_fn().isoformat()
+                self._source.update_publish_result(
+                    staged_listing.record_id,
+                    status="已发布",
+                    failure_reason=None,
+                    published_at=published_at,
+                    listing_id=listing_id,
+                    listing_url=listing_url,
+                    retry_count=0,
+                    log_path=log_path,
+                    **batch_kwargs,
+                )
+                self._append_run_log(
+                    log_path,
+                    [
+                        "status=已发布",
+                        f"published_at={published_at}",
+                        f"listing_id={listing_id or ''}",
+                        f"listing_url={listing_url or ''}",
+                    ],
+                )
+                publish = XianyuPublishResult(
+                    success=True,
+                    screen_name=publish_analysis.screen_name,
+                    detail_screen_name=detail_screen_name,
+                    detail_deep_link=detail_deep_link,
+                    published_at=published_at,
+                    listing_id=listing_id,
+                    listing_url=listing_url,
+                )
+                if detail_screen_name is not None:
+                    final_analysis = detail_analysis
+                else:
+                    final_analysis = publish_analysis
+            except Exception as exc:
+                failure_kwargs, artifact_dir = self._build_failure_kwargs(
+                    failure_recorder=failure_recorder,
+                    serial=serial,
+                    record_id=staged_listing.record_id,
+                    stage="publish",
+                    error_message=str(exc),
+                )
+                self._append_run_log(
+                    log_path,
+                    [
+                        "status=发布失败",
+                        f"error={exc}",
+                        f"artifact_dir={artifact_dir or ''}",
+                    ],
+                )
+                self._source.update_publish_result(
+                    staged_listing.record_id,
+                    status="发布失败",
+                    failure_reason=str(exc),
+                    published_at=None,
+                    listing_id=None,
+                    listing_url=None,
+                    retry_count=staged_listing.retry_count + 1,
+                    log_path=log_path,
+                    **failure_kwargs,
+                    **batch_kwargs,
+                )
+                raise
+        else:
+            next_status = "已就绪"
+            if review_after_prepare:
+                next_status = self._settings.manual_review_status
+
+            location_kwargs: dict[str, str] = {}
+            if selected_location_value is not None:
+                location_kwargs["location_search_query"] = selected_location_value
+            self._append_run_log(
+                log_path,
+                [
+                    f"status={next_status}",
+                    f"final_screen={final_analysis.screen_name}",
+                    f"location_value={selected_location_value or ''}",
+                ],
+            )
+            self._source.update_listing_status(
+                staged_listing.record_id,
+                next_status,
+                failure_reason=None,
+                log_path=log_path,
+                **location_kwargs,
+                **batch_kwargs,
+            )
+
+        return XianyuPrepareListingResult(
+            record_id=staged_listing.record_id,
+            serial=serial,
+            remote_media_paths=media_result.remote_paths,
+            body_text=body_text,
+            final_screen_name=final_analysis.screen_name,
+            review=review,
+            publish=publish,
+        )
+
+    def _build_prepare_review(self, final_analysis: Any) -> XianyuPrepareReview:
+        screen_name = final_analysis.screen_name
+        if screen_name not in {"listing_form", "metadata_panel"}:
+            raise RuntimeError(
+                "Prepare review requires a supported editor screen, got "
+                f"{screen_name}"
+            )
+
+        submit_button_visible = final_analysis.targets.get("submit_listing") is not None
+        if not submit_button_visible:
+            raise RuntimeError("Publish submit button is not visible after prepare")
+
+        return XianyuPrepareReview(
+            screen_name=screen_name,
+            submit_button_visible=submit_button_visible,
+            ready_for_manual_publish=True,
+        )
+
+    def _build_failure_kwargs(
+        self,
+        *,
+        failure_recorder: Any | None,
+        serial: str,
+        record_id: str,
+        stage: str,
+        error_message: str,
+    ) -> tuple[dict[str, str], str | None]:
+        if failure_recorder is None:
+            return {}, None
+
+        try:
+            artifacts = failure_recorder.capture(
+                serial=serial,
+                record_id=record_id,
+                stage=stage,
+                error_message=error_message,
+            )
+        except Exception:
+            return {}, None
+
+        if not isinstance(artifacts, XianyuFailureArtifacts):
+            return {}, None
+
+        return (
+            {
+                "failure_captured_at": artifacts.captured_at,
+                "failure_screenshot_path": artifacts.screenshot_path or "",
+                "failure_hierarchy_path": artifacts.hierarchy_path or "",
+                "failure_activity_dump_path": artifacts.activity_dump_path or "",
+                "failure_current_app": artifacts.current_app or "",
+            },
+            artifacts.artifact_dir,
+        )
+
+    def _create_run_log(
+        self,
+        *,
+        record_id: str,
+        serial: str,
+        stage: str,
+    ) -> str | None:
+        try:
+            captured_at = self._now_fn().isoformat()
+            timestamp = (
+                captured_at.replace(":", "")
+                .replace("-", "")
+                .replace("+", "p")
+                .replace(".", "")
+            )
+            log_dir = self._log_root / record_id
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_path = log_dir / f"{timestamp}-{stage}.log"
+            log_path.write_text(
+                "\n".join(
+                    [
+                        f"created_at={captured_at}",
+                        f"record_id={record_id}",
+                        f"serial={serial}",
+                        f"stage={stage}",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            return str(log_path)
+        except Exception:
+            return None
+
+    def _append_run_log(self, log_path: str | None, lines: list[str]) -> None:
+        if not log_path or not lines:
+            return
+        try:
+            path = Path(log_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as handle:
+                for line in lines:
+                    handle.write(f"{line}\n")
+        except Exception:
+            return

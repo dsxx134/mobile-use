@@ -230,7 +230,7 @@ To run mobile-use, simply pass your command as an argument.
 **Example 1: Basic Command**
 
 ```bash
-python ./src/mobile_use/main.py "Go to settings and tell me my current battery level"
+uv run mobile-use "Go to settings and tell me my current battery level"
 ```
 
 **Example 2: Data Scraping**
@@ -238,13 +238,519 @@ python ./src/mobile_use/main.py "Go to settings and tell me my current battery l
 Extract specific information and get it back in a structured format. For instance, to get a list of your unread emails:
 
 ```bash
-python ./src/mobile_use/main.py \
+uv run mobile-use \
   "Open Gmail, find all unread emails, and list their sender and subject line" \
   --output-description "A JSON list of objects, each with 'sender' and 'subject' keys"
 ```
 
 > [!NOTE]
 > If you haven't configured a specific model, mobile-use will prompt you to choose one from the available options.
+
+## Android Debug MCP
+
+The repository also ships a local Android debugging MCP server for device inspection and
+automation debugging. It reuses the same `adbutils` and `UIAutomatorClient` stack as the
+main Android controller, so debug snapshots stay aligned with production automation.
+
+### Requirements
+
+- `adb` available in your `PATH`
+- A connected Android device or emulator
+- Optional: `scrcpy` for live mirroring while debugging
+- Optional: `uiautodev` for independent hierarchy inspection
+
+### Start the MCP server
+
+```bash
+uv run mobile-use-android-debug-mcp
+```
+
+### Smoke test the local setup
+
+```bash
+uv run python scripts/android_debug_mcp_smoke.py
+```
+
+### Intended use
+
+- Debug Android UI flows before encoding them into deterministic automations
+- Inspect screenshots, hierarchy XML, and foreground app state from one MCP endpoint
+- Support Xianyu publishing automation with a repo-local Android debugging toolchain
+
+## Xianyu Publish Foundation
+
+This branch also includes the first business-layer foundation for Xianyu publishing. It does
+not submit listings inside the Xianyu app yet. Instead, it now covers the upstream data/media
+pipeline plus the first deterministic in-app publish navigation layer.
+
+### What is implemented
+
+- `feishu_source`: reads candidate listing records from Feishu Bitable and normalizes them into
+  a `ListingDraft`
+- `media_sync`: downloads Feishu attachment assets into a local staging directory and pushes them
+  onto an Android device directory through `adbutils`
+- `flow`: recognizes key Xianyu publish screens and can deterministically advance from the
+  Xianyu home tab into the portrait listing form, metadata panel, album picker, description
+  editor, sale-price panel, and shipping panel
+
+### Deterministic flow coverage
+
+- Recovers the app with an explicit Xianyu main-activity launch instead of relying on the generic
+  package launcher
+- Recognizes:
+  - Xianyu home tab
+  - publish chooser
+  - portrait listing form
+  - expanded metadata/spec panel
+  - description editor
+  - sale-price keypad panel
+  - shipping bottom sheet
+  - Android media permission dialog
+  - album picker
+  - album source menu
+  - post-confirm photo analysis screen
+  - the `宝贝` empty-state page inside Xianyu space
+- Can:
+  - tap `卖闲置`
+  - tap `发闲置`
+  - force the Huawei tablet into portrait mode before entering the real publish form
+  - continue through the draft-resume dialog when `发闲置` reopens an unfinished listing
+  - poll through the post-`继续` tail until the dialog really clears
+  - extract the portrait publish-form targets from real-device `content-desc` semantics
+  - enter the dedicated description editor from the portrait form
+  - fill description text and return to the portrait form
+  - open the sale-price bottom sheet from the portrait form
+  - clear and enter a sale price through the on-screen keypad
+  - confirm the price and return to the portrait form
+  - open the shipping bottom sheet from the portrait form
+  - switch between verified mail shipping modes and return to the portrait form
+  - open the root location chooser from the portrait form
+  - enter the hierarchical location region picker by tapping `请选择宝贝所在地`
+  - open the dedicated location search screen from `宝贝所在地`
+  - fill the focused address search field with direct `EditText.set_text()`
+  - tap a visible location search result row and return to the next Xianyu screen
+  - scroll a top-slice `metadata_panel` to reveal lower rows like `选择位置` before opening the
+    location flow
+  - expand the portrait form into the metadata/spec panel
+  - set a currently visible category chip from the metadata/spec panel
+  - set the verified `成色` chip options
+  - set the verified `商品来源` chip options
+  - accept the media permission dialog
+  - reopen the album picker directly from the portrait form by tapping `添加图片`
+  - switch the album source to a dedicated folder like `XianyuPublish`
+  - select one image and confirm it
+  - continue through image preview and image edit screens back into the form
+  - bridge from the Xianyu space analysis flow back into the standard publish chooser
+  - run a deterministic `XianyuPrepareRunner` that prepares one publishable Bitable record into the form with media, merged title+description body, and price
+
+### Required environment variables
+
+- `FEISHU_APP_ID`
+- `FEISHU_APP_SECRET`
+- `XIANYU_BITABLE_APP_TOKEN`
+- `XIANYU_BITABLE_TABLE_ID`
+- Optional: `XIANYU_ANDROID_SERIAL` (used by the live prepare script when multiple Android devices are attached)
+- Optional: `XIANYU_ANDROID_MEDIA_DIR` (defaults to `/sdcard/DCIM/XianyuPublish`)
+
+### Default Bitable field mapping
+
+- `商品标题`
+- `商品描述`
+- `售价`
+- `分类`
+- `成色`
+- `商品来源`
+- `预设地址`
+- `商品图片`
+- `发布状态`
+- `失败原因`
+- `最近失败时间`
+- `最近失败截图路径`
+- `最近失败界面快照路径`
+- `最近失败活动栈路径`
+- `最近失败前台应用`
+- `失败重试次数`
+- `失败重试上限`
+- `最近批次运行ID`
+- `最近批次运行时间`
+- `最近批次运行结果`
+- `是否允许发布`
+- `允许自动发布`
+- `闲鱼商品ID`
+- `闲鱼商品链接`
+- `发布时间`
+
+### Default batch-summary table
+
+- Table name: `批次运行汇总`
+- Fields:
+  - `批次运行ID`
+  - `批次运行时间`
+  - `请求条数`
+  - `处理条数`
+  - `成功条数`
+  - `失败条数`
+  - `停止原因`
+  - `批次明细`
+- `批次明细` now stores readable multi-line text instead of raw JSON, for example:
+  - `1. recA | 失败 | 原因: Publish blocked`
+  - `2. recB | 成功 | 商品ID: xyB`
+  - when no rows were processed: `本批次没有处理任何记录。`
+
+### Smoke test the foundation settings
+
+```bash
+uv run python scripts/xianyu_publish_foundation_smoke.py
+```
+
+### Smoke test the current Xianyu screen recognizer
+
+```bash
+uv run python scripts/xianyu_publish_flow_smoke.py
+```
+
+### Run the live Feishu-backed prepare runner
+
+```bash
+uv run python scripts/xianyu_prepare_runner_live.py
+```
+
+- The script reads credentials and table settings from `.env`
+- It uses `XIANYU_ANDROID_SERIAL` by default, or `--serial <device>` when you want to override it
+- It preheats Xianyu back to the portrait `发闲置` form before running the deterministic prepare slice
+- It prints the prepared record id, pushed media paths, merged body text, and final screen as JSON
+
+### Run the live review runner without submitting
+
+```bash
+uv run python scripts/xianyu_publish_review_live.py
+```
+
+- This script runs the same deterministic prepare slice, then checks that the editor is still in a
+  supported pre-submit state and that the visible `发布` target is present
+- When that review passes, the Bitable row is written back as `待人工发布`
+- The script does not tap the final `发布` button
+
+### Run the live auto-publish runner
+
+```bash
+uv run python scripts/xianyu_publish_auto_live.py
+```
+
+- This script runs the same deterministic prepare slice and then taps the visible `发布` target
+- The Bitable row must still satisfy `是否允许发布=true` and now also requires `允许自动发布=true`
+- It writes `发布中` before tapping submit
+- If the analyzer reaches the success screen, it writes back:
+  - `发布状态=已发布`
+  - `发布时间=<iso timestamp>`
+  - `闲鱼商品ID=<itemId>` when `DetailActivity` receipt extraction succeeds
+  - `闲鱼商品链接=<https short link>` when the detail share sheet copy-link flow succeeds
+- Xianyu can also show a reward-style success page with `发布成功` and `再发一件`; the analyzer now
+  treats that variant as the same `publish_success` outcome
+- After a successful submit, the flow now also has a best-effort bridge into the published item
+  detail page:
+  - tap `看看宝贝` on the classic success page
+  - or press `Back` once from the reward-style success page
+- On the Huawei tablet, the current receipt extraction source is
+  `adb shell dumpsys activity activities`, where the resumed `DetailActivity` exposes an
+  `Intent { dat=fleamarket://awesome_detail?...itemId=... }` line
+- The current public item URL source is the detail-page share sheet:
+  - tap `分享按钮`
+  - tap `复制链接`
+  - read the clipboard
+  - extract the first `https://...` URL such as `https://m.tb.cn/...`
+- The live script result can now include:
+  - `publish.listing_id`
+  - `publish.detail_deep_link`
+  - `publish.listing_url`
+- If the success screen does not appear, it writes back:
+  - `发布状态=发布失败`
+  - `失败原因=<raised error>`
+- On prepare or publish failures reached through the live runner, the code now also captures local
+  debug artifacts and writes their paths back to the row:
+  - `最近失败时间`
+  - `最近失败截图路径`
+  - `最近失败界面快照路径`
+  - `最近失败活动栈路径`
+  - `最近失败前台应用`
+- These failure artifacts are intentionally stored as local filesystem paths, not Feishu
+  attachments. The current layout is under `.tmp/xianyu-failures/<record_id>/<timestamp-stage>/`.
+- The Feishu `闲鱼商品链接` field is a real hyperlink field, so the source layer now writes it as a
+  `{text, link}` object instead of a bare string
+
+### Run the live batch publish worker
+
+```bash
+uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seconds 5
+```
+
+- This worker repeatedly reuses the same live auto-publish path, one listing at a time
+- It only pulls rows that still satisfy the base publish queue filter:
+  - `是否允许发布=true`
+  - `发布状态=待发布`
+  - `商品图片` is not empty
+- It also skips rows whose retry budget is already exhausted:
+  - `失败重试次数 >= 失败重试上限`
+  - when the row does not define `失败重试上限`, the code falls back to the local default `3`
+- It stops when one of these happens:
+  - it reaches `--max-items`
+  - there are no more publishable rows
+  - `--stop-on-error` is set and one listing fails
+- When there are no publishable rows, the live queue now exits before device preheat instead of
+  waking the tablet just to discover an empty queue
+- The JSON result summarizes:
+  - batch run id
+  - batch run timestamp
+  - processed count
+  - success count
+  - failure count
+  - per-item record ids, publish screens, ids, links, and errors
+- When the queue runner is assembled with live Feishu components, it also appends one summary row
+  into the `批次运行汇总` table and reports:
+  - `summary_logged`
+  - `summary_log_error`
+- The `批次明细` column is optimized for human review instead of machine replay:
+  - one processed row per line
+  - includes `record_id`, success/failure state, and any available `商品ID / 链接 / 页面 / 原因`
+- The default is intentionally conservative:
+  - `--max-items 1`
+  - `--cooldown-seconds 3`
+  - `失败重试上限 3`
+- Every processed row now also receives lightweight batch-writeback fields:
+  - `最近批次运行ID`
+  - `最近批次运行时间`
+  - `最近批次运行结果`
+- The queue uses one shared batch id for the full run, so all processed rows can be grouped back to
+  the same worker execution in Feishu.
+
+### Run the live scheduled batch loop
+
+```bash
+uv run python scripts/xianyu_publish_queue_schedule_live.py --interval-seconds 300 --max-items 1 --cooldown-seconds 3 --stop-when-idle
+```
+
+- This wrapper repeatedly calls the existing live batch worker on a fixed interval.
+- Use `--max-runs 0` for a long-lived loop, or a small positive number when you want a bounded dry
+  run.
+- Use `--stop-when-idle` when you want the loop to exit after the queue goes empty.
+- Use `--stop-on-batch-error` when you want the outer loop to stop after any failed batch.
+- On Windows, this script is suitable either for a long-lived console session or for wrapping
+  inside Task Scheduler.
+
+### Current media-selection behavior
+
+- The preferred publish path on the Huawei tablet is now portrait mode:
+  - force portrait
+  - tap `卖闲置`
+  - tap `发闲置`
+  - if Xianyu has an unfinished draft, tap `继续`
+  - land on the standard listing form
+- On the real portrait form, key controls such as `发布`, `添加图片`, and the large description tile
+  are exposed through `content-desc` values like `发布, 发布` and `描述, 描述一下宝贝的品牌型号、货品来源…`
+- On this Huawei tablet, tapping `发闲置` does not always enter the form directly; an unfinished
+  draft can surface a blocking dialog with `放弃` and `继续`, and the deterministic path is to tap
+  `继续`
+- After tapping `继续`, the dialog can linger for one or two snapshots; the flow now polls until
+  that tail clears instead of tapping `继续` twice
+- The live prepare entrypoint now retries the initial form preheat once when that Huawei-tablet
+  start sequence flakes into a transient `unknown` state
+- The controlled auto-publish path reuses that same prepare slice, but it only proceeds when the
+  Feishu row explicitly opts in through `允许自动发布`
+- The description path now uses a dedicated editor state with a `完成` control
+- On this Huawei tablet, `input_text()` can already return from that editor back to `listing_form`;
+  the flow now detects that and avoids stale `完成` taps that can accidentally open `价格设置`
+- When the editor is opened from a scrolled `metadata_panel`, tapping the description tile can
+  leave one tail snapshot on `metadata_panel` before the app finally enters `description_editor`;
+  the flow now polls through that tail instead of failing early
+- The portrait form also exposes a tappable `价格设置` row; on the Huawei tablet it opens a
+  dedicated bottom-sheet keypad with `删除`, `确定`, and digit targets rather than a text IME
+- Sale price entry is now deterministic:
+  - tap `价格设置`
+  - clear the previous value with `删除`
+  - tap digits plus `.` on the keypad
+  - tap `确定`
+  - wait until the portrait form is visible again
+- Real-device verification confirmed that entering `399.9` through the keypad returns to
+  `listing_form` and renders the price row as `¥399.90`
+- The portrait form also exposes a `发货方式` row; on the Huawei tablet it opens a bottom-sheet
+  selector with a multiline `邮寄` block plus left-side radio icons for the mail modes
+- Shipping selection is now deterministic for the verified mail modes:
+  - `包邮`
+  - `不包邮-按距离付费`
+  - `不包邮-固定邮费`
+  - `无需邮寄`
+- On this Huawei tablet, tapping the multiline mail text is not enough; the actual selectable
+  targets are the left-side radio icons
+- After tapping `确定`, the shipping panel can briefly linger or collapse into a status-only
+  `unknown` overlay before the portrait form returns; the flow now polls through both transitions
+- `买家自提` is still outside the deterministic support set for now because its visible text target
+  did not prove reliably selectable during real-device probing
+- The portrait form also exposes a `选择位置` row; the flow now recognizes both the root
+  `宝贝所在地` chooser and the hierarchical `所在地` region picker
+- The location bridge also works from a scrolled `metadata_panel` state when the lower
+  `选择位置` row is visible on screen
+- When the editor is still at the upper `metadata_panel` slice and lower rows are off-screen, the
+  flow now performs one portrait-oriented upward swipe inside the editor before retrying
+- The root `宝贝所在地` chooser also exposes a dedicated `搜索地址` path
+- On this Huawei tablet, that search page does not reliably accept the existing FastInputIME
+  `send_keys()` path even though the field is focused
+- Real-device probing showed that the screen exposes a focused `android.widget.EditText` with
+  `hint="搜索地址"`, and using direct `EditText.set_text()` is what actually surfaces visible
+  result rows such as `上海虹桥站\n新虹街道申贵路1500号`
+- The flow now treats that page as `location_search_screen` and can:
+  - tap `搜索地址`
+  - set text on the focused field
+  - tap a visible result row
+  - return to the next Xianyu screen
+- After setting the search text, visible result rows can still arrive one or two snapshots later;
+  the flow now polls inside the search screen until the requested result target appears
+- Controlled submission is intentionally narrow:
+  - require the final editor state to still be `listing_form` or `metadata_panel`
+  - require the visible `发布` target
+  - tap it once
+  - keep polling until the analyzer reaches `publish_success`
+  - otherwise fail the row as `发布失败`
+- The stable path into region selection is:
+  - tap `选择位置`
+  - wait for `宝贝所在地`
+  - tap the full `请选择宝贝所在地` row
+  - enter the `所在地` region picker
+- Real-device probing also showed that selecting a top-level region such as `上海` does not yet
+  finish location selection; it narrows the same hierarchical picker and still needs another step
+- After the final district tap, the app can briefly keep the `location_region_picker` overlay
+  visible on top of the listing form before it settles. The flow now polls through that tail
+  instead of treating the first post-tap frame as a hard failure.
+- Final location writeback is still not treated as deterministic yet; real-device probing did not
+  produce a stable, visible confirmation on the listing form after selecting either a common
+  address row, a search result row, or a region row
+- The portrait form also exposes a large metadata section row such as `分类/ISBN码/成色` or
+  richer variants like `分类/盒袋状态/盒卡状态/等\n款式`
+- On the Huawei tablet, expanding that row does not open the old publish chooser; it opens a
+  stable metadata/spec page that still shows the main `发闲置` header plus chip-style options
+- The flow now treats that state as `metadata_panel` instead of misclassifying it as
+  `publish_chooser`
+- A scrolled editor state can still belong to the same `metadata_panel` even when upper-form
+  controls like `添加图片` are no longer visible, as long as metadata chips plus lower rows such as
+  `价格设置`, `发货方式`, or `选择位置` remain on screen
+- Real-device verification confirmed that tapping a chip such as `几乎全新` changes the visible
+  text from `可选几乎全新, 几乎全新` to `已选中几乎全新, 几乎全新`
+- The currently verified deterministic metadata fields are:
+  - visible `分类` chips on the current metadata panel, such as `家居摆件` and `生活百科`
+  - `成色`: `全新`, `几乎全新`, `轻微使用痕迹`, `明显使用痕迹`
+  - `商品来源`: `盒机转赠`, `盒机直发`, `淘宝转卖`, `闲置`
+- Category support in this branch is intentionally limited to the chips already visible on the
+  expanded metadata panel; it does not yet drive a deeper category tree or search flow
+- From that portrait form, tapping `添加图片` opens the album picker directly without going back
+  through the older publish chooser path
+- On the current app build, image selection can continue through extra media-processing screens:
+  - `selected_media_preview` with `下一步 (1)`
+  - `media_edit_screen` with tools like `裁剪` and a `完成` button
+- On the Huawei tablet, tapping `完成` on that media edit screen can return directly to
+  `listing_form`, sometimes with auto-filled metadata rows like `分类` or `ISBN码`
+- On a fresh device session, the first FastInputIME text entry can trigger a one-time
+  `com.github.uiautomator/.AdbKeyboard` installation and briefly switch foreground away from Xianyu;
+  after that warm-up, subsequent text entry is stable
+- For deterministic selection, push listing images into a dedicated device folder such as
+  `XIANYU_ANDROID_MEDIA_DIR=/sdcard/DCIM/XianyuPublish`
+- The flow can switch the picker from `所有文件` into `XianyuPublish` before tapping `选择`
+- After tapping `确定`, real devices can briefly linger on an album-picker tail state that still
+  shows `预览 (1)` and `确定`; the flow now polls until that transient state clears
+- Once the tail state clears, the current app version lands on a `photo_analysis` screen before
+  any final listing form appears
+- On recognizable product images, that `photo_analysis` screen can surface a detected-item branch
+  such as `1个宝贝` plus a computed price range, but the automation still does not advance into
+  the final edit form yet
+- On the Huawei tablet, the Xianyu space flow is partly visual-only: dismissing the analysis
+  overlay and tapping the `发宝贝` button currently use normalized ratio taps rather than
+  accessibility targets
+- The flow can now bridge `photo_analysis -> 宝贝空态页 -> 发宝贝 -> 发布选择器`, which gives the
+  automation a deterministic way to escape the space overlay back into the standard chooser
+- The older landscape space-analysis path is still useful for investigation, but it is no longer
+  the preferred way to reach the publish form
+- The current app/device pair does not expose a separate title input on the portrait `发闲置` form,
+  so the prepare runner folds `ListingDraft.title` into the description body as the first line,
+  followed by a blank line and the original description text when needed
+
+### Current prepare-runner behavior
+
+- `XianyuPrepareRunner` currently orchestrates the deterministic business slice:
+  - pick the first publishable Bitable record
+  - mark the record `准备中`
+  - parse real Feishu text-array fields into plain strings
+  - derive authenticated attachment download URLs directly from record metadata
+  - download staged media into a record-scoped local directory
+  - push the staged files into `XIANYU_ANDROID_MEDIA_DIR/<record_id>`
+  - reach the portrait listing form
+  - reopen the album picker
+  - switch to `XianyuPublish`
+  - select the first prepared image
+  - if needed, bridge back from `photo_analysis` into the portrait form
+  - fill the merged title+description body
+  - fill the sale price
+  - optionally apply a visible category chip
+  - optionally apply `成色`
+  - best-effort apply `商品来源` when the source chips are visible
+  - best-effort apply a preset Bitable location search query such as `上海虹桥站`
+  - mark the record `已就绪` when the prepared form is reached again
+  - mark the record `准备失败` with `失败原因` if any step raises
+- The same runner now also supports a review mode that:
+  - keeps the final action non-submitting
+  - verifies the final editor state is still `listing_form` or `metadata_panel`
+  - verifies the visible `submit_listing` target still exists
+  - writes the row back as `待人工发布` when that pre-submit review passes
+- For live Feishu-backed runs, callers should construct `XianyuMediaSyncService` with
+  `download_file=source.download_attachment_file`
+- That live assembly is now codified in `scripts/xianyu_prepare_runner_live.py`, which resolves
+  the Android serial, preheats the tablet back to the portrait form, and prints the prepared
+  result as JSON
+- The non-submitting review assembly is now codified in `scripts/xianyu_publish_review_live.py`
+- Real-device verification on `E2P6R22708000602` confirmed a full prepare-runner pass that ended
+  on `listing_form` with body text and price filled
+- A fresh live Feishu-backed probe on `E2P6R22708000602` also confirmed an end-to-end prepare run
+  that reached `metadata_panel`, pushed `/sdcard/DCIM/XianyuPublish/recvdOzzR38eVi/01_image.png`,
+  and wrote the row back as `已就绪`
+- A fresh live review probe on `E2P6R22708000602` also confirmed the same row can now be prepared,
+  reviewed with a visible `发布` target on `metadata_panel`, and written back as `待人工发布`
+- Real-device verification also confirmed that the current metadata page is recognized as
+  `metadata_panel`, and that `set_item_condition('几乎全新')` and `set_item_source('闲置')`
+  both end on visible selected-chip states
+- A fresh real-device probe also confirmed that `set_item_category('生活百科')` stays on
+  `metadata_panel` and flips the selected category target from `家居摆件` to `生活百科`
+- The runner intentionally stops once the form is prepared and visible again; it does not yet claim:
+  - category selection
+  - stable location persistence
+  - final publish submission
+- The default optional Bitable field for that best-effort search path is `预设地址`
+- The current writeback statuses used by the runner are `准备中`, `已就绪`, `待人工发布`, and `准备失败`
+- Failure writeback now also increments `失败重试次数`
+- Successful auto-publish writeback resets `失败重试次数` to `0`
+- Queue-triggered row updates now also stamp the latest batch metadata so operators can see the
+  most recent worker run directly from the listing row
+
+### Current boundary
+
+- The flow can now reach the portrait listing form, fill description text, set the sale price,
+  set the verified mail shipping mode, set verified metadata chips for
+  `分类/成色/商品来源`,
+  drive a best-effort preset `预设地址 -> 搜索地址`,
+  reopen the album picker from `添加图片`, prepare one publishable Bitable record into the
+  form through `XianyuPrepareRunner`, tap the final `发布` button in controlled auto-publish
+  mode, and write the resulting status back into Bitable
+- The analyzer now also has a basic `publish_success` screen shape for future auto-submit work,
+  including the reward-style `发布成功 + 再发一件` variant surfaced on the Huawei tablet
+- On the current Huawei tablet, both `fill_description()` and `fill_price()` can legitimately
+  settle on `metadata_panel` instead of the upper `listing_form`; the runner now treats either
+  editor state as a valid prepared outcome
+- When the editor is scrolled into the metadata section, the flow now keeps that state classified
+  as `metadata_panel` and can still open `价格设置`, `发货方式`, and `选择位置` from it
+- Stable location persistence and deeper category navigation are still the next layer
+- The location search helper can now drive the dedicated search UI and visible result rows, but it
+  still returns to a form whose visible location row remains `选择位置`
+- Real-device auto-publish has now reached and stayed on a live `publish_success` result page on
+  the Huawei tablet; the analyzer recognizes both the classic success page and the reward-style
+  `发布成功 + 再发一件` variant
+- The flow can now also bridge from post-publish success into a recognizable item detail page, but
+  stable `闲鱼商品ID / 闲鱼商品链接` extraction is still pending a deterministic source
 
 ## 🔎 Agentic System Overview
 
