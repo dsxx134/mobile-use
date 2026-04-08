@@ -8,7 +8,7 @@ class DrissionBrowserSession:
     def __init__(
         self,
         *,
-        local_port: str = "9222",
+        local_port: str | None = "9222",
         browser_path_resolver: Callable[[], str] | None = None,
         options_factory: Callable[[], Any] | None = None,
         chromium_factory: Callable[[Any], Any] | None = None,
@@ -29,6 +29,8 @@ class DrissionBrowserSession:
             options.set_browser_path(browser_path)
         if self.local_port and hasattr(options, "set_local_port"):
             options.set_local_port(self.local_port)
+        elif hasattr(options, "auto_port"):
+            options.auto_port()
 
         browser = self.chromium_factory(options)
         tab = browser.latest_tab

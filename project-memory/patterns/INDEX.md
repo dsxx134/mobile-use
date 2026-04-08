@@ -75,5 +75,7 @@
 | recovered-config-should-drive-runtime-defaults | 2026-04-09 | recovered-config-should-drive-runtime-defaults.md |
 | goofish-search-may-still-hit-rgv587-after-bootstrap | 2026-04-09 | goofish-search-may-still-hit-rgv587-after-bootstrap.md |
 | collector-cli-can-fallback-to-saved-gather-inputs | 2026-04-09 | collector-cli-can-fallback-to-saved-gather-inputs.md |
+| drission-auto-port-can-bootstrap-browser-cookies-without-9222 | 2026-04-09 | drission-auto-port-can-bootstrap-browser-cookies-without-9222.md |
+| chrome-profiles-may-still-only-yield-minimal-goofish-cookies | 2026-04-09 | chrome-profiles-may-still-only-yield-minimal-goofish-cookies.md |
 
-Total: 73
+Total: 75

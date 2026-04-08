@@ -41,7 +41,7 @@ def build_collector_service(db_path: Path | str) -> CollectorService:
     transport = CollectorHttpClient(proxy_state=proxy_state)
     signer = MtopSigner()
     proxy_config = app_config_repo.load_gather_config()
-    browser_port = os.environ.get("XIANYU_COLLECTOR_BROWSER_PORT", "9222")
+    browser_port = os.environ.get("XIANYU_COLLECTOR_BROWSER_PORT") or None
     cookie_provider = FallbackCookieProvider(
         [
             SavedCookieProvider(app_config_repo.load_saved_cookie_string()),
