@@ -73,5 +73,7 @@
 | promote-worktree-feature-by-syncing-full-diff | 2026-04-08 | promote-worktree-feature-by-syncing-full-diff.md |
 | vendor-recovered-subsystems-under-mobile-use-collectors | 2026-04-09 | vendor-recovered-subsystems-under-mobile-use-collectors.md |
 | recovered-config-should-drive-runtime-defaults | 2026-04-09 | recovered-config-should-drive-runtime-defaults.md |
+| goofish-search-may-still-hit-rgv587-after-bootstrap | 2026-04-09 | goofish-search-may-still-hit-rgv587-after-bootstrap.md |
+| collector-cli-can-fallback-to-saved-gather-inputs | 2026-04-09 | collector-cli-can-fallback-to-saved-gather-inputs.md |
 
-Total: 71
+Total: 73

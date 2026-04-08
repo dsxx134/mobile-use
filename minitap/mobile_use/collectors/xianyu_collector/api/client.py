@@ -48,6 +48,22 @@ MULTI_SPEC_HEADERS = {
 }
 
 
+class GoofishApiError(RuntimeError):
+    """Base exception for upstream Goofish collector failures."""
+
+
+class GoofishBurstError(GoofishApiError):
+    """Raised when upstream returns an anti-burst / anti-bot response."""
+
+
+class GoofishSystemError(GoofishApiError):
+    """Raised when upstream asks the client to retry later."""
+
+
+class GoofishLoginRedirectError(GoofishApiError):
+    """Raised when upstream responds with a login redirect payload."""
+
+
 class GoofishApiClient:
     def __init__(
         self,
@@ -184,7 +200,7 @@ class GoofishApiClient:
         sign, timestamp = self.signer.sign(cookies, payload)
         params = self._build_params(endpoint, sign=sign, timestamp=timestamp)
         headers = MULTI_SPEC_HEADERS if endpoint == MULTI_SPEC_ENDPOINT else DEFAULT_HEADERS
-        return self.transport.request(
+        response = self.transport.request(
             "POST",
             endpoint.url,
             headers=headers,
@@ -194,6 +210,8 @@ class GoofishApiClient:
             timeout=10,
             proxy_config=proxy_config or ProxyConfig(),
         )
+        self._raise_for_upstream_error(response)
+        return response
 
     @staticmethod
     def _build_params(endpoint: EndpointSpec, *, sign: str, timestamp: int) -> dict[str, str]:
@@ -224,3 +242,22 @@ class GoofishApiClient:
             if expanded:
                 return expanded
         return url
+
+    @staticmethod
+    def _raise_for_upstream_error(response: Any) -> None:
+        payload = response.json()
+        ret = payload.get("ret") or []
+        ret_text = " | ".join(ret) if isinstance(ret, list) else str(ret)
+        data = payload.get("data")
+        login_url = ""
+        if isinstance(data, dict):
+            candidate = data.get("url") or data.get("h5url") or ""
+            login_url = str(candidate)
+
+        if "RGV587" in ret_text or "被挤爆" in ret_text:
+            extra = f" | redirect={login_url}" if login_url else ""
+            raise GoofishBurstError(f"{ret_text}{extra}")
+        if "系统错误请稍候再试" in ret_text:
+            raise GoofishSystemError(ret_text)
+        if login_url and "passport.goofish.com" in login_url:
+            raise GoofishLoginRedirectError(login_url)

@@ -1,3 +1,4 @@
+from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishBurstError
 from minitap.mobile_use.collectors.xianyu_collector.cli import main
 from minitap.mobile_use.collectors.xianyu_collector.models import GatherConditionConfig
 from minitap.mobile_use.collectors.xianyu_collector.repository.app_config_repo import AppConfigRepository
@@ -223,3 +224,102 @@ def test_cli_collect_shop_uses_saved_shop_recent_publish_filter(tmp_path, capsys
     kwargs = fake_service.calls[0][1]
     assert kwargs["recent_publish_filter"] == "72小时内发布"
     assert "saved=3" in capsys.readouterr().out
+
+
+def test_cli_collect_keyword_falls_back_to_saved_gather_type_input(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_gather_type_input(0, "gemini\nclaude")
+    fake_service = FakeService()
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "collect",
+            "keyword",
+        ],
+        service_factory=lambda _db_path: fake_service,
+    )
+
+    assert exit_code == 0
+    kwargs = fake_service.calls[0][1]
+    assert kwargs["keywords"] == ["gemini", "claude"]
+    assert "saved=2" in capsys.readouterr().out
+
+
+def test_cli_collect_manual_falls_back_to_saved_gather_type_input(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_gather_type_input(1, "https://www.goofish.com/item?id=2001\nhttps://www.goofish.com/item?id=2002")
+    fake_service = FakeService()
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "collect",
+            "manual",
+        ],
+        service_factory=lambda _db_path: fake_service,
+    )
+
+    assert exit_code == 0
+    kwargs = fake_service.calls[0][1]
+    assert kwargs["urls"] == [
+        "https://www.goofish.com/item?id=2001",
+        "https://www.goofish.com/item?id=2002",
+    ]
+    assert "saved=1" in capsys.readouterr().out
+
+
+def test_cli_collect_shop_falls_back_to_saved_gather_type_input(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_gather_type_input(2, "https://www.goofish.com/?userId=seller-a\nhttps://www.goofish.com/?userId=seller-b")
+    fake_service = FakeService()
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "collect",
+            "shop",
+        ],
+        service_factory=lambda _db_path: fake_service,
+    )
+
+    assert exit_code == 0
+    kwargs = fake_service.calls[0][1]
+    assert kwargs["shop_urls"] == [
+        "https://www.goofish.com/?userId=seller-a",
+        "https://www.goofish.com/?userId=seller-b",
+    ]
+    assert "saved=3" in capsys.readouterr().out
+
+
+def test_cli_collect_keyword_returns_nonzero_when_service_raises_collector_error(tmp_path, capsys):
+    class FailingService(FakeService):
+        def collect_keyword(self, **kwargs):
+            raise GoofishBurstError("RGV587_ERROR::SM::哎哟喂,被挤爆啦,请稍后重试!")
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_path / "collector.db"),
+            "collect",
+            "keyword",
+            "--keyword",
+            "gemini",
+        ],
+        service_factory=lambda _db_path: FailingService(),
+    )
+
+    assert exit_code == 2
+    assert "collector error" in capsys.readouterr().out

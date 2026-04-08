@@ -13,3 +13,4 @@ llm-config.override.jsonc
 .ios_udid
 
 *.DS_Store
+.gitnexus

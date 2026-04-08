@@ -14,6 +14,8 @@ Status: Active
 - On 2026-04-09, the recovered Xianyu collector was integrated into `mobile-use` under `minitap/mobile_use/collectors/xianyu_collector/` with its own CLI entrypoint and mirrored tests.
 - On 2026-04-09, the collector integration passed `45` collector tests and the combined Xianyu suite (`mcp + publish + collector`) passed `276` tests in `mobile-use`.
 - On 2026-04-09, the collector began applying recovered `gradeConfig` defaults at runtime: generic gather filters, multi-spec toggle, keyword success cap, and shop recency preset.
+- On 2026-04-09, a live collector test against `gemini` using a copied legacy DB proved that anonymous bootstrap can obtain signing cookies, but the real search API in the current environment still returns `RGV587_ERROR::SM` with a mini-login redirect payload, so successful signing does not yet guarantee a usable collection session.
+- On 2026-04-09, the collector CLI gained fallback to saved `gather_type_{n}` inputs and now surfaces upstream `ret` / redirect failures as explicit non-zero CLI errors instead of reporting false empty results.
 - On 2026-04-08, the latest local Xianyu automation implementation was traced to the repo-local worktree branch `feat/android-debug-mcp`, not the placeholder repo `E:\github2.0\xianyu`.
 - On 2026-04-08, `D:\github\mobile-use` main worktree was synced with the full Xianyu automation diff from `feat/android-debug-mcp`, including code, tests, docs, and project-memory updates.
 - The latest local Xianyu automation commit identified during that migration is `f4d0fee` from 2026-03-20, which is newer than the pushed `origin/feat/android-debug-mcp` tip from 2026-03-18.

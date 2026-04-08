@@ -38,5 +38,6 @@
 | latest xianyu automation is promoted from feat/android-debug-mcp | 2026-04-08 | 2026-04-08-latest-xianyu-automation-is-promoted-from-feat-android-debug-mcp.md |
 | xianyu collector lives as an isolated subpackage | 2026-04-09 | 2026-04-09-xianyu-collector-lives-as-an-isolated-subpackage.md |
 | xianyu collector applies recovered gradeConfig by default | 2026-04-09 | 2026-04-09-xianyu-collector-applies-recovered-grade-config-by-default.md |
+| xianyu collector surfaces upstream ret errors | 2026-04-09 | 2026-04-09-xianyu-collector-surfaces-upstream-ret-errors.md |
 
-Total: 36
+Total: 37

@@ -1,4 +1,11 @@
-from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishApiClient
+import pytest
+
+from minitap.mobile_use.collectors.xianyu_collector.api.client import (
+    GoofishApiClient,
+    GoofishBurstError,
+    GoofishLoginRedirectError,
+    GoofishSystemError,
+)
 from minitap.mobile_use.collectors.xianyu_collector.session.saved_cookie_provider import SavedCookieProvider
 from minitap.mobile_use.collectors.xianyu_collector.signing.mtop_signer import MtopSigner
 from minitap.mobile_use.collectors.xianyu_collector.transport.proxy_config import ProxyConfig
@@ -133,3 +140,43 @@ def test_get_user_id_from_url_resolves_encoded_user_id_via_user_head_endpoint():
     _method, url, kwargs = transport.calls[0]
     assert url == "https://h5api.m.goofish.com/h5/mtop.idle.web.user.page.head/1.0/"
     assert kwargs["data"]["data"] == '{"self":false,"userId":"abc=="}'
+
+
+def test_search_items_raises_burst_error_when_ret_contains_rgv587():
+    client, _transport = build_client(
+        {
+            "ret": ["RGV587_ERROR::SM::哎哟喂,被挤爆啦,请稍后重试!"],
+            "data": {
+                "url": "https://passport.goofish.com/mini_login.htm?foo=bar",
+            },
+        }
+    )
+
+    with pytest.raises(GoofishBurstError, match="RGV587_ERROR::SM"):
+        client.search_items(page=1, keyword="gemini")
+
+
+def test_search_items_raises_login_redirect_error_when_payload_points_to_passport():
+    client, _transport = build_client(
+        {
+            "ret": [],
+            "data": {
+                "url": "https://passport.goofish.com/mini_login.htm?foo=bar",
+            },
+        }
+    )
+
+    with pytest.raises(GoofishLoginRedirectError, match="passport.goofish.com"):
+        client.search_items(page=1, keyword="gemini")
+
+
+def test_get_item_detail_raises_system_error_when_ret_contains_retryable_system_error():
+    client, _transport = build_client(
+        {
+            "ret": ["FAIL_SYS::系统错误请稍候再试"],
+            "data": {},
+        }
+    )
+
+    with pytest.raises(GoofishSystemError, match="系统错误请稍候再试"):
+        client.get_item_detail("555")
