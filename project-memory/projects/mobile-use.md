@@ -1,6 +1,6 @@
 # mobile-use
 
-Updated: 2026-04-08
+Updated: 2026-04-09
 Repo: `D:\github\mobile-use`
 Status: Active
 
@@ -8,8 +8,12 @@ Status: Active
 - Python package and CLI for natural-language mobile automation.
 - Core execution model is a LangGraph multi-agent pipeline with device controllers and tool execution.
 - Current business extension target is Xianyu publishing automation driven by Feishu Bitable.
+- The repo now also vendors a separate API-driven Xianyu collector subsystem for keyword/manual/shop collection.
 
 ## Current Milestones
+- On 2026-04-09, the recovered Xianyu collector was integrated into `mobile-use` under `minitap/mobile_use/collectors/xianyu_collector/` with its own CLI entrypoint and mirrored tests.
+- On 2026-04-09, the collector integration passed `45` collector tests and the combined Xianyu suite (`mcp + publish + collector`) passed `276` tests in `mobile-use`.
+- On 2026-04-09, the collector began applying recovered `gradeConfig` defaults at runtime: generic gather filters, multi-spec toggle, keyword success cap, and shop recency preset.
 - On 2026-04-08, the latest local Xianyu automation implementation was traced to the repo-local worktree branch `feat/android-debug-mcp`, not the placeholder repo `E:\github2.0\xianyu`.
 - On 2026-04-08, `D:\github\mobile-use` main worktree was synced with the full Xianyu automation diff from `feat/android-debug-mcp`, including code, tests, docs, and project-memory updates.
 - The latest local Xianyu automation commit identified during that migration is `f4d0fee` from 2026-03-20, which is newer than the pushed `origin/feat/android-debug-mcp` tip from 2026-03-18.

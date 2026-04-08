@@ -36,5 +36,7 @@
 | xianyu optional form fields for coin discount and shipping time | 2026-03-18 | 2026-03-18-xianyu-optional-form-fields.md |
 | xianyu metadata entry skips item spec row | 2026-03-19 | 2026-03-19-xianyu-metadata-entry-skips-item-spec-row.md |
 | latest xianyu automation is promoted from feat/android-debug-mcp | 2026-04-08 | 2026-04-08-latest-xianyu-automation-is-promoted-from-feat-android-debug-mcp.md |
+| xianyu collector lives as an isolated subpackage | 2026-04-09 | 2026-04-09-xianyu-collector-lives-as-an-isolated-subpackage.md |
+| xianyu collector applies recovered gradeConfig by default | 2026-04-09 | 2026-04-09-xianyu-collector-applies-recovered-grade-config-by-default.md |
 
-Total: 34
+Total: 36

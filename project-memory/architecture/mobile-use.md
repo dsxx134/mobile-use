@@ -1,6 +1,6 @@
 # mobile-use architecture
 
-Updated: 2026-04-08
+Updated: 2026-04-09
 
 ## High-Level Structure
 - Entry surfaces:
@@ -30,8 +30,22 @@ Updated: 2026-04-08
   - `XianyuMediaSyncService` for local staging and Android media push
   - `XianyuFlowAnalyzer` for pure screen classification and tap-target extraction
   - `XianyuPublishFlowService` for deterministic Xianyu navigation built on `AndroidDebugService`
+- A second Xianyu subsystem now lives under `minitap/mobile_use/collectors/xianyu_collector/` and remains intentionally separate from publish flows. It is API-driven and split into:
+  - cookie/session providers
+  - MTOP signing
+  - proxy-aware HTTP transport
+  - endpoint client wrappers
+  - normalization/filtering
+  - SQLite-backed collector repositories
+  - collector service + CLI
+- That collector package now also understands the recovered config buckets from the old tool:
+  - `gatherConfig` for proxy settings
+  - `gradeConfig["gather_tiao_jian"]` for shared gather filters
+  - `gradeConfig["gather_type"]` and `gradeConfig["gather_type_{n}"]` for per-mode remembered input
+  - special behavior fields inside `gather_tiao_jian` for keyword cap and shop recency filtering
 - The current source-of-truth for that Xianyu layer was promoted on 2026-04-08 from the repo-local branch `feat/android-debug-mcp` into the primary working tree at `D:\github\mobile-use`.
 - Feature promotion for this stack should keep the package code, entry scripts, tests, docs, and project-memory files together so the deterministic flow and its operational context do not drift apart.
+- The collector integration follows the same rule: keep the source package, tests, dependency wiring, and project-memory updates together so the recovered API collector remains reproducible.
 - `XianyuPrepareRunner` for business orchestration across Feishu source, media sync, and the deterministic flow layer
 - `live_prepare.py` for the live-device orchestration glue that resolves the Android serial,
   wires authenticated Feishu downloads into media sync, preheats the Huawei tablet back to the

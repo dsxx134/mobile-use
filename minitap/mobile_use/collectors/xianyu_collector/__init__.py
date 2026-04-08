@@ -1,0 +1,1 @@
+"""Xianyu collector rebuild package."""

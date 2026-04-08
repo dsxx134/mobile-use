@@ -71,5 +71,7 @@
 | xianyu-option-panels-require-multiple-options | 2026-03-18 | xianyu-option-panels-require-multiple-options.md |
 | xianyu-coin-discount-panel-uses-cards-and-enable-button | 2026-03-18 | xianyu-coin-discount-panel-uses-cards-and-enable-button.md |
 | promote-worktree-feature-by-syncing-full-diff | 2026-04-08 | promote-worktree-feature-by-syncing-full-diff.md |
+| vendor-recovered-subsystems-under-mobile-use-collectors | 2026-04-09 | vendor-recovered-subsystems-under-mobile-use-collectors.md |
+| recovered-config-should-drive-runtime-defaults | 2026-04-09 | recovered-config-should-drive-runtime-defaults.md |
 
-Total: 69
+Total: 71
