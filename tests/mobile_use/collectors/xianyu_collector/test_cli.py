@@ -700,3 +700,49 @@ def test_cli_doctor_compare_marks_bitbrowser_disabled_when_not_configured(tmp_pa
     assert exit_code == 0
     output = capsys.readouterr().out
     assert "source=bitbrowser status=disabled" in output
+
+
+def test_cli_doctor_freshness_reports_missing_signing_token(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "doctor",
+            "freshness",
+        ]
+    )
+
+    assert exit_code == 2
+    output = capsys.readouterr().out
+    assert "source=saved" in output
+    assert "status=missing-signing-token" in output
+
+
+def test_cli_doctor_freshness_reports_fresh_saved_cookie(tmp_path, capsys, monkeypatch):
+    db_path = tmp_path / "collector.db"
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_saved_cookie_string("a=1; _m_h5_tk=token_1710003600000; unb=2207148365801")
+
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli._now_ms",
+        lambda: 1710000000000,
+    )
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "doctor",
+            "freshness",
+        ]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "source=saved" in output
+    assert "status=fresh" in output
+    assert "remaining_seconds=3600" in output

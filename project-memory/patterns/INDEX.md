@@ -85,5 +85,6 @@
 | collector-runtime-overrides-should-graduate-into-db-config-once-proven | 2026-04-09 | collector-runtime-overrides-should-graduate-into-db-config-once-proven.md |
 | compare-session-sources-with-one-real-search-probe | 2026-04-09 | compare-session-sources-with-one-real-search-probe.md |
 | strong-browser-session-can-be-cached-into-saved-cookie | 2026-04-09 | strong-browser-session-can-be-cached-into-saved-cookie.md |
+| bitbrowser-open-may-need-retry-while-browser-is-opening | 2026-04-09 | bitbrowser-open-may-need-retry-while-browser-is-opening.md |
 
-Total: 83
+Total: 84

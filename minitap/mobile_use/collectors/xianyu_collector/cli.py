@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import time
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishApiClient, GoofishApiError
@@ -60,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_session_parser.add_argument("--keyword", default="gemini")
     doctor_compare_parser = doctor_subparsers.add_parser("compare")
     doctor_compare_parser.add_argument("--keyword", default="gemini")
+    doctor_subparsers.add_parser("freshness")
 
     collect_parser = subparsers.add_parser("collect")
     collect_subparsers = collect_parser.add_subparsers(dest="collect_command", required=True)
@@ -172,6 +175,13 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
             print(line)
         return 0
 
+    if args.command == "doctor" and args.doctor_command == "freshness":
+        report = _saved_cookie_freshness_report(config_repo.load_saved_cookie_string())
+        print(report)
+        if "status=fresh" in report or "status=stale" in report:
+            return 0
+        return 2
+
     if args.command == "collect":
         factory = service_factory or build_collector_service
         with _collector_runtime_env(args):
@@ -270,6 +280,38 @@ def _cookie_source_name(cookie_provider) -> str:
             return type(session).__name__
         return type(active_provider).__name__
     return type(cookie_provider).__name__
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def _saved_cookie_freshness_report(cookie_string: str) -> str:
+    cookies = SavedCookieProvider(cookie_string).get_cookie_dict()
+    token_value = cookies.get("_m_h5_tk", "")
+    if not token_value:
+        return "source=saved status=missing-signing-token"
+
+    _head, separator, suffix = token_value.rpartition("_")
+    if not separator or not suffix.isdigit():
+        return "source=saved status=unknown-expiry-format"
+
+    expires_at_ms = int(suffix)
+    remaining_ms = expires_at_ms - _now_ms()
+    remaining_seconds = int(remaining_ms / 1000)
+    expires_at = datetime.fromtimestamp(expires_at_ms / 1000, tz=UTC).isoformat()
+
+    if remaining_ms <= 0:
+        status = "expired"
+    elif remaining_ms <= 30 * 60 * 1000:
+        status = "stale"
+    else:
+        status = "fresh"
+
+    return (
+        f"source=saved status={status} remaining_seconds={remaining_seconds} "
+        f"expires_at={expires_at}"
+    )
 
 
 def _resolve_bitbrowser_config(args, config_repo: AppConfigRepository) -> BitBrowserConfig:

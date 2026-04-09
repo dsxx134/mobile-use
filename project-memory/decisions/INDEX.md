@@ -47,5 +47,6 @@
 | xianyu collector persists bitbrowser runtime config | 2026-04-09 | 2026-04-09-xianyu-collector-persists-bitbrowser-runtime-config.md |
 | xianyu collector can compare session sources side by side | 2026-04-09 | 2026-04-09-xianyu-collector-can-compare-session-sources-side-by-side.md |
 | xianyu collector can refresh saved cookie from bitbrowser | 2026-04-09 | 2026-04-09-xianyu-collector-can-refresh-saved-cookie-from-bitbrowser.md |
+| saved cookie freshness comes from m-h5-tk expiry suffix | 2026-04-09 | 2026-04-09-saved-cookie-freshness-comes-from-m-h5-tk-expiry-suffix.md |
 
-Total: 45
+Total: 46

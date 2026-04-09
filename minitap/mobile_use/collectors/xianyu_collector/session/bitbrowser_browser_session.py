@@ -18,6 +18,7 @@ class BitBrowserBrowserSession:
         websocket_factory=None,
         sleep=None,
         max_wait_cycles: int = 10,
+        max_open_attempts: int = 5,
     ):
         self.browser_id = browser_id
         self.api_host = api_host
@@ -26,6 +27,7 @@ class BitBrowserBrowserSession:
         self.websocket_factory = websocket_factory or self._default_websocket_factory
         self.sleep = sleep or time.sleep
         self.max_wait_cycles = max_wait_cycles
+        self.max_open_attempts = max_open_attempts
         self._message_id = 0
 
     def get_cookie_string(self, url: str) -> str:
@@ -52,19 +54,26 @@ class BitBrowserBrowserSession:
         raise RuntimeError("bitbrowser session did not return _m_h5_tk in time")
 
     def _open_browser(self) -> str:
-        response = self.requests_module.post(
-            f"http://{self.api_host}:{self.api_port}/browser/open",
-            json={"id": self.browser_id},
-            timeout=10,
-        )
-        payload = response.json()
-        if not payload.get("success"):
-            raise RuntimeError(payload.get("message") or str(payload))
+        for attempt in range(1, self.max_open_attempts + 1):
+            response = self.requests_module.post(
+                f"http://{self.api_host}:{self.api_port}/browser/open",
+                json={"id": self.browser_id},
+                timeout=10,
+            )
+            payload = response.json()
+            if payload.get("success"):
+                http_address = payload.get("data", {}).get("http")
+                if not http_address:
+                    raise RuntimeError("BitBrowser API response missing data.http")
+                return http_address
 
-        http_address = payload.get("data", {}).get("http")
-        if not http_address:
-            raise RuntimeError("BitBrowser API response missing data.http")
-        return http_address
+            message = payload.get("message") or payload.get("msg") or str(payload)
+            if "正在打开" in str(message) and attempt < self.max_open_attempts:
+                self.sleep(1)
+                continue
+            raise RuntimeError(message)
+
+        raise RuntimeError("unreachable")
 
     def _resolve_websocket_url(self, http_address: str, url: str) -> str:
         response = self.requests_module.get(f"http://{http_address}/json", timeout=10)

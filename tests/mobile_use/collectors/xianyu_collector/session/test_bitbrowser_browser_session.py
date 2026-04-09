@@ -31,6 +31,18 @@ class FakeRequests:
         return FakeResponse(self.targets_payload)
 
 
+class SequencedOpenRequests(FakeRequests):
+    def __init__(self, *, open_payloads, targets_payload):
+        self.open_payloads = list(open_payloads)
+        self.targets_payload = targets_payload
+        self.post_calls = []
+        self.get_calls = []
+
+    def post(self, url, json=None, timeout=None):
+        self.post_calls.append((url, json, timeout))
+        return FakeResponse(self.open_payloads[len(self.post_calls) - 1])
+
+
 class FakeSocket:
     def __init__(self, cookie_batches):
         self.cookie_batches = list(cookie_batches)
@@ -131,3 +143,36 @@ def test_bitbrowser_browser_session_raises_when_browser_open_fails():
 
     with pytest.raises(RuntimeError, match="browser offline"):
         session.get_cookie_string("https://www.goofish.com/")
+
+
+def test_bitbrowser_browser_session_retries_when_browser_is_still_opening():
+    fake_requests = SequencedOpenRequests(
+        open_payloads=[
+            {"success": False, "msg": "浏览器正在打开中"},
+            {"success": True, "data": {"http": "127.0.0.1:58682"}},
+        ],
+        targets_payload=[
+            {
+                "type": "page",
+                "url": "https://www.goofish.com/",
+                "webSocketDebuggerUrl": "ws://debugger/page-1",
+            }
+        ],
+    )
+    fake_socket = FakeSocket(
+        [[{"name": "_m_h5_tk", "value": "token"}, {"name": "unb", "value": "123"}]]
+    )
+
+    session = BitBrowserBrowserSession(
+        browser_id="browser-123",
+        requests_module=fake_requests,
+        websocket_factory=lambda url: fake_socket,
+        sleep=lambda _seconds: None,
+        max_wait_cycles=1,
+        max_open_attempts=2,
+    )
+
+    cookie_string = session.get_cookie_string("https://www.goofish.com/")
+
+    assert cookie_string == "_m_h5_tk=token; unb=123"
+    assert len(fake_requests.post_calls) == 2

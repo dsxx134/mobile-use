@@ -57,6 +57,11 @@ Updated: 2026-04-09
   - `config sync-cookie-from-bitbrowser`
   - it reads the current BitBrowser cookie string and writes it into `gradeConfig["cookices_str"]`
   - this lets the normal saved-cookie-first path reuse a fresh browser-derived session snapshot
+- The doctor surface now splits session diagnosis into three layers:
+  - `doctor session`: probe the currently selected chain end-to-end
+  - `doctor compare`: rank multiple session sources side by side
+  - `doctor freshness`: inspect the cached saved-cookie TTL derived from `_m_h5_tk`
+- BitBrowser session acquisition also now tolerates the transient local-API state `浏览器正在打开中` by retrying the open call before failing.
 - Those temporary BitBrowser flags now have a persisted counterpart inside collector config:
   - `gradeConfig["bitbrowser_runtime"]`
   - runtime gives explicit CLI/env overrides higher priority, then falls back to the saved DB config
