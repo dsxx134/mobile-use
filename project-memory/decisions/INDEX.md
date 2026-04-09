@@ -54,5 +54,6 @@
 | ensure-searchable is the shortest preflight path | 2026-04-09 | 2026-04-09-ensure-searchable-is-the-shortest-preflight-path.md |
 | collect can preflight saved searchability | 2026-04-09 | 2026-04-09-collect-can-preflight-saved-searchability.md |
 | collector profiles store stable config not volatile sessions | 2026-04-09 | 2026-04-09-collector-profiles-store-stable-config-not-volatile-sessions.md |
+| profile overwrite requires explicit opt-in | 2026-04-09 | 2026-04-09-profile-overwrite-requires-explicit-opt-in.md |
 
-Total: 52
+Total: 53

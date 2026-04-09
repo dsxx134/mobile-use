@@ -207,3 +207,30 @@ def test_apply_profile_restores_saved_runtime_configuration(tmp_path):
     assert repo.load_selected_gather_type() == 1
     assert repo.load_gather_type_input(0) == "gemini"
     assert repo.load_region_list_str() == "上海-上海-黄浦区"
+
+
+def test_save_profile_rejects_overwrite_by_default(tmp_path):
+    db = CollectorDatabase(tmp_path / "collector.db")
+    db.initialize()
+    repo = AppConfigRepository(db)
+
+    repo.save_profile("default")
+
+    try:
+        repo.save_profile("default")
+    except FileExistsError as exc:
+        assert "default" in str(exc)
+    else:
+        raise AssertionError("expected FileExistsError when overwriting profile without opt-in")
+
+
+def test_delete_profile_removes_saved_profile(tmp_path):
+    db = CollectorDatabase(tmp_path / "collector.db")
+    db.initialize()
+    repo = AppConfigRepository(db)
+
+    repo.save_profile("default")
+    repo.delete_profile("default")
+
+    assert repo.list_profile_names() == []
+    assert repo.load_profile("default") is None

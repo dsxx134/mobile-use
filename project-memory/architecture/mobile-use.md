@@ -84,6 +84,10 @@ Updated: 2026-04-09
   - `config load-profile --name ...`
   - `config list-profiles`
 - Those profiles are intentionally scoped to stable collector intent/config and exclude saved-cookie session state.
+- Profile lifecycle is now explicit:
+  - `save-profile --name ...`
+  - `save-profile --name ... --overwrite`
+  - `delete-profile --name ...`
 - BitBrowser session acquisition also now tolerates the transient local-API state `浏览器正在打开中` by retrying the open call before failing.
 - Those temporary BitBrowser flags now have a persisted counterpart inside collector config:
   - `gradeConfig["bitbrowser_runtime"]`

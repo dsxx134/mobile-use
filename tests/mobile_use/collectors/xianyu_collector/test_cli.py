@@ -209,6 +209,95 @@ def test_cli_profile_save_list_and_load_round_trip_current_runtime_config(tmp_pa
     )
 
 
+def test_cli_profile_save_requires_overwrite_flag_for_existing_name(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+
+    first_exit = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "save-profile",
+            "--name",
+            "default",
+        ]
+    )
+
+    try:
+        main(
+            [
+                "--db-path",
+                str(db_path),
+                "config",
+                "save-profile",
+                "--name",
+                "default",
+            ]
+        )
+    except SystemExit as exc:
+        second_exit = exc.code
+    else:
+        raise AssertionError("expected argparse exit when overwriting profile without --overwrite")
+
+    overwrite_exit = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "save-profile",
+            "--name",
+            "default",
+            "--overwrite",
+        ]
+    )
+
+    assert first_exit == 0
+    assert second_exit == 2
+    assert overwrite_exit == 0
+    stderr = capsys.readouterr().err
+    assert "profile already exists" in stderr
+
+
+def test_cli_delete_profile_removes_existing_profile(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+
+    main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "save-profile",
+            "--name",
+            "default",
+        ]
+    )
+
+    delete_exit = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "delete-profile",
+            "--name",
+            "default",
+        ]
+    )
+    list_exit = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "list-profiles",
+        ]
+    )
+
+    assert delete_exit == 0
+    assert list_exit == 0
+    output = capsys.readouterr().out
+    assert "profile deleted" in output
+    assert "default" not in output
+
+
 def test_cli_db_list_item_ids_prints_saved_item_ids(tmp_path, capsys):
     db = CollectorDatabase(tmp_path / "collector.db")
     db.initialize()

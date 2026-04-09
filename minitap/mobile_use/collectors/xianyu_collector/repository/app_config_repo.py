@@ -119,8 +119,10 @@ class AppConfigRepository:
         profiles = self._load_profiles_payload()
         return sorted(profiles.keys())
 
-    def save_profile(self, name: str) -> None:
+    def save_profile(self, name: str, *, overwrite: bool = False) -> None:
         profiles = self._load_profiles_payload()
+        if not overwrite and name in profiles:
+            raise FileExistsError(f"profile already exists: {name}")
         profiles[name] = CollectorProfileConfig(
             proxy_config=self.load_gather_config(),
             bitbrowser_config=self.load_bitbrowser_config(),
@@ -133,6 +135,13 @@ class AppConfigRepository:
             },
             region_list_str=self.load_region_list_str(),
         ).to_dict()
+        self._save_grade_config_value("collector_profiles", profiles)
+
+    def delete_profile(self, name: str) -> None:
+        profiles = self._load_profiles_payload()
+        if name not in profiles:
+            raise KeyError(name)
+        profiles.pop(name, None)
         self._save_grade_config_value("collector_profiles", profiles)
 
     def load_profile(self, name: str) -> CollectorProfileConfig | None:

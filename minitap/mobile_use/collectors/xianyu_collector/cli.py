@@ -53,8 +53,11 @@ def build_parser() -> argparse.ArgumentParser:
     config_subparsers.add_parser("sync-cookie-from-bitbrowser")
     save_profile_parser = config_subparsers.add_parser("save-profile")
     save_profile_parser.add_argument("--name", required=True)
+    save_profile_parser.add_argument("--overwrite", action="store_true")
     load_profile_parser = config_subparsers.add_parser("load-profile")
     load_profile_parser.add_argument("--name", required=True)
+    delete_profile_parser = config_subparsers.add_parser("delete-profile")
+    delete_profile_parser.add_argument("--name", required=True)
     config_subparsers.add_parser("list-profiles")
 
     db_parser = subparsers.add_parser("db")
@@ -150,7 +153,10 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
         return 0
 
     if args.command == "config" and args.config_command == "save-profile":
-        config_repo.save_profile(args.name)
+        try:
+            config_repo.save_profile(args.name, overwrite=args.overwrite)
+        except FileExistsError:
+            parser.error(f"profile already exists: {args.name}; pass --overwrite to replace it")
         print("profile saved")
         return 0
 
@@ -160,6 +166,14 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
         except KeyError:
             parser.error(f"profile not found: {args.name}")
         print("profile loaded")
+        return 0
+
+    if args.command == "config" and args.config_command == "delete-profile":
+        try:
+            config_repo.delete_profile(args.name)
+        except KeyError:
+            parser.error(f"profile not found: {args.name}")
+        print("profile deleted")
         return 0
 
     if args.command == "config" and args.config_command == "list-profiles":

@@ -92,5 +92,6 @@
 | preflight-commands-should-end-at-ready-to-run | 2026-04-09 | preflight-commands-should-end-at-ready-to-run.md |
 | collection-commands-should-front-load-session-readiness | 2026-04-09 | collection-commands-should-front-load-session-readiness.md |
 | profiles-should-capture-intent-not-ephemera | 2026-04-09 | profiles-should-capture-intent-not-ephemera.md |
+| profile-management-should-separate-save-replace-and-delete | 2026-04-09 | profile-management-should-separate-save-replace-and-delete.md |
 
-Total: 90
+Total: 91
