@@ -51,6 +51,7 @@ class CollectorProfileConfig:
     selected_gather_type: int | None
     gather_type_inputs: dict[int, str]
     region_list_str: str = ""
+    run_defaults: "CollectorRunDefaults" | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -63,6 +64,9 @@ class CollectorProfileConfig:
             "selected_gather_type": self.selected_gather_type,
             "gather_type_inputs": {str(key): value for key, value in self.gather_type_inputs.items()},
             "region_list_str": self.region_list_str,
+            "run_defaults": (
+                self.run_defaults.to_dict() if self.run_defaults is not None else CollectorRunDefaults().to_dict()
+            ),
         }
 
     @classmethod
@@ -92,6 +96,29 @@ class CollectorProfileConfig:
             ),
             gather_type_inputs={int(key): str(value) for key, value in gather_inputs_payload.items()},
             region_list_str=str(payload.get("region_list_str", "")),
+            run_defaults=CollectorRunDefaults.from_dict(
+                payload.get("run_defaults") if isinstance(payload.get("run_defaults"), dict) else None
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CollectorRunDefaults:
+    ensure_searchable_default: bool = False
+    keyword_pages_default: int = 1
+    shop_pages_default: int = 1
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object] | None) -> "CollectorRunDefaults":
+        if not payload:
+            return cls()
+        return cls(
+            ensure_searchable_default=bool(payload.get("ensure_searchable_default", False)),
+            keyword_pages_default=int(payload.get("keyword_pages_default", 1) or 1),
+            shop_pages_default=int(payload.get("shop_pages_default", 1) or 1),
         )
 
 

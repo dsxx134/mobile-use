@@ -6,6 +6,7 @@ from typing import Any
 from minitap.mobile_use.collectors.xianyu_collector.models import (
     BitBrowserConfig,
     CollectorProfileConfig,
+    CollectorRunDefaults,
     GatherConditionConfig,
 )
 from minitap.mobile_use.collectors.xianyu_collector.repository.sqlite_db import CollectorDatabase
@@ -100,6 +101,15 @@ class AppConfigRepository:
     def save_gather_conditions(self, config: GatherConditionConfig) -> None:
         self._save_grade_config_value("gather_tiao_jian", config.to_dict())
 
+    def load_run_defaults(self) -> CollectorRunDefaults:
+        payload = self._load_grade_config_value("collector_run_defaults")
+        if not isinstance(payload, dict):
+            return CollectorRunDefaults()
+        return CollectorRunDefaults.from_dict(payload)
+
+    def save_run_defaults(self, defaults: CollectorRunDefaults) -> None:
+        self._save_grade_config_value("collector_run_defaults", defaults.to_dict())
+
     def load_selected_gather_type(self) -> int | None:
         value = self._load_grade_config_value("gather_type")
         if value is None:
@@ -134,6 +144,7 @@ class AppConfigRepository:
                 2: self.load_gather_type_input(2),
             },
             region_list_str=self.load_region_list_str(),
+            run_defaults=self.load_run_defaults(),
         ).to_dict()
         self._save_grade_config_value("collector_profiles", profiles)
 
@@ -163,6 +174,8 @@ class AppConfigRepository:
         for gather_type, value in profile.gather_type_inputs.items():
             self.save_gather_type_input(gather_type, value)
         self.save_region_list_str(profile.region_list_str)
+        if profile.run_defaults is not None:
+            self.save_run_defaults(profile.run_defaults)
 
     def load_grade_config(self) -> dict[str, Any]:
         with self.database.connect() as connection:

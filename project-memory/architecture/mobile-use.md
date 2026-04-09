@@ -88,6 +88,14 @@ Updated: 2026-04-09
   - `save-profile --name ...`
   - `save-profile --name ... --overwrite`
   - `delete-profile --name ...`
+- Profiles now also carry a small run-defaults layer:
+  - `ensure_searchable_default`
+  - `keyword_pages_default`
+  - `shop_pages_default`
+- CLI precedence is now:
+  - explicit CLI flag/value
+  - saved run default
+  - built-in fallback
 - BitBrowser session acquisition also now tolerates the transient local-API state `浏览器正在打开中` by retrying the open call before failing.
 - Those temporary BitBrowser flags now have a persisted counterpart inside collector config:
   - `gradeConfig["bitbrowser_runtime"]`

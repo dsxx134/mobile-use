@@ -2,7 +2,11 @@ import os
 
 from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishBurstError
 from minitap.mobile_use.collectors.xianyu_collector.cli import main
-from minitap.mobile_use.collectors.xianyu_collector.models import BitBrowserConfig, GatherConditionConfig
+from minitap.mobile_use.collectors.xianyu_collector.models import (
+    BitBrowserConfig,
+    CollectorRunDefaults,
+    GatherConditionConfig,
+)
 from minitap.mobile_use.collectors.xianyu_collector.repository.app_config_repo import AppConfigRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.goods_repo import GoodsRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.sqlite_db import CollectorDatabase
@@ -80,6 +84,37 @@ def test_cli_set_bitbrowser_persists_runtime_config(tmp_path, capsys):
     assert "bitbrowser config saved" in output
 
 
+def test_cli_set_run_defaults_persists_default_collect_parameters(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "set-run-defaults",
+            "--ensure-searchable-default",
+            "--keyword-pages-default",
+            "3",
+            "--shop-pages-default",
+            "5",
+        ]
+    )
+
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+
+    assert exit_code == 0
+    assert repo.load_run_defaults() == CollectorRunDefaults(
+        ensure_searchable_default=True,
+        keyword_pages_default=3,
+        shop_pages_default=5,
+    )
+    output = capsys.readouterr().out
+    assert "run defaults saved" in output
+
+
 def test_cli_sync_cookie_from_bitbrowser_persists_saved_cookie_string(tmp_path, capsys, monkeypatch):
     db_path = tmp_path / "collector.db"
     db = CollectorDatabase(db_path)
@@ -153,6 +188,13 @@ def test_cli_profile_save_list_and_load_round_trip_current_runtime_config(tmp_pa
     repo.save_selected_gather_type(2)
     repo.save_gather_type_input(2, "https://www.goofish.com/?userId=seller-a")
     repo.save_region_list_str("上海-上海-黄浦区")
+    repo.save_run_defaults(
+        CollectorRunDefaults(
+            ensure_searchable_default=True,
+            keyword_pages_default=3,
+            shop_pages_default=5,
+        )
+    )
 
     save_exit = main(
         [
@@ -206,6 +248,11 @@ def test_cli_profile_save_list_and_load_round_trip_current_runtime_config(tmp_pa
         browser_id="browser-123",
         api_host="127.0.0.1",
         api_port=54345,
+    )
+    assert repo.load_run_defaults() == CollectorRunDefaults(
+        ensure_searchable_default=True,
+        keyword_pages_default=3,
+        shop_pages_default=5,
     )
 
 
@@ -1179,6 +1226,83 @@ def test_cli_collect_keyword_can_preflight_ensure_searchable(tmp_path, capsys, m
     output = capsys.readouterr().out
     assert "preflight source=saved status=searchable" in output
     assert "saved=2" in output
+
+
+def test_cli_collect_keyword_uses_saved_run_defaults_when_args_are_omitted(tmp_path, capsys, monkeypatch):
+    db_path = tmp_path / "collector.db"
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_run_defaults(
+        CollectorRunDefaults(
+            ensure_searchable_default=True,
+            keyword_pages_default=3,
+        )
+    )
+    fake_service = FakeService()
+    captured = {}
+
+    def fake_ensure_saved_searchable(*, service, config_repo, keyword):
+        captured["keyword"] = keyword
+        return {
+            "source": "saved",
+            "status": "searchable",
+            "cookie_source": "SavedCookieProvider",
+            "item_count": 30,
+            "repair": "not-needed",
+            "freshness": "fresh",
+        }
+
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli._ensure_saved_searchable",
+        fake_ensure_saved_searchable,
+    )
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "collect",
+            "keyword",
+            "--keyword",
+            "gemini",
+        ],
+        service_factory=lambda _db_path: fake_service,
+    )
+
+    assert exit_code == 0
+    assert captured["keyword"] == "gemini"
+    assert fake_service.calls[0][1]["pages"] == 3
+    output = capsys.readouterr().out
+    assert "preflight source=saved status=searchable" in output
+
+
+def test_cli_collect_shop_uses_saved_shop_pages_default_when_pages_are_omitted(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_run_defaults(
+        CollectorRunDefaults(
+            shop_pages_default=4,
+        )
+    )
+    fake_service = FakeService()
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "collect",
+            "shop",
+            "--shop-url",
+            "https://www.goofish.com/?userId=seller-x",
+        ],
+        service_factory=lambda _db_path: fake_service,
+    )
+
+    assert exit_code == 0
+    assert fake_service.calls[0][1]["pages"] == 4
 
 
 def test_cli_collect_stops_when_preflight_cannot_make_saved_searchable(tmp_path, capsys, monkeypatch):

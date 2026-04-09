@@ -9,7 +9,11 @@ from pathlib import Path
 
 from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishApiClient, GoofishApiError
 from minitap.mobile_use.collectors.xianyu_collector.domain.filter_config import FilterConfig
-from minitap.mobile_use.collectors.xianyu_collector.models import BitBrowserConfig, GatherConditionConfig
+from minitap.mobile_use.collectors.xianyu_collector.models import (
+    BitBrowserConfig,
+    CollectorRunDefaults,
+    GatherConditionConfig,
+)
 from minitap.mobile_use.collectors.xianyu_collector.repository.app_config_repo import AppConfigRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.goods_repo import GoodsRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.sqlite_db import CollectorDatabase
@@ -50,6 +54,14 @@ def build_parser() -> argparse.ArgumentParser:
     set_bitbrowser_parser.add_argument("--browser-id", required=True)
     set_bitbrowser_parser.add_argument("--api-host", default="127.0.0.1")
     set_bitbrowser_parser.add_argument("--api-port", type=int, default=54345)
+    set_run_defaults_parser = config_subparsers.add_parser("set-run-defaults")
+    set_run_defaults_parser.add_argument(
+        "--ensure-searchable-default",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
+    set_run_defaults_parser.add_argument("--keyword-pages-default", type=int)
+    set_run_defaults_parser.add_argument("--shop-pages-default", type=int)
     config_subparsers.add_parser("sync-cookie-from-bitbrowser")
     save_profile_parser = config_subparsers.add_parser("save-profile")
     save_profile_parser.add_argument("--name", required=True)
@@ -84,21 +96,33 @@ def build_parser() -> argparse.ArgumentParser:
     collect_manual_parser = collect_subparsers.add_parser("manual")
     collect_manual_parser.add_argument("--item-url", action="append")
     collect_manual_parser.add_argument("--multi-spec-enabled", action="store_true")
-    collect_manual_parser.add_argument("--ensure-searchable", action="store_true")
+    collect_manual_parser.add_argument(
+        "--ensure-searchable",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
     collect_manual_parser.add_argument("--ensure-searchable-keyword")
 
     collect_keyword_parser = collect_subparsers.add_parser("keyword")
     collect_keyword_parser.add_argument("--keyword", action="append")
-    collect_keyword_parser.add_argument("--pages", type=int, default=1)
+    collect_keyword_parser.add_argument("--pages", type=int)
     collect_keyword_parser.add_argument("--multi-spec-enabled", action="store_true")
-    collect_keyword_parser.add_argument("--ensure-searchable", action="store_true")
+    collect_keyword_parser.add_argument(
+        "--ensure-searchable",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
     collect_keyword_parser.add_argument("--ensure-searchable-keyword")
 
     collect_shop_parser = collect_subparsers.add_parser("shop")
     collect_shop_parser.add_argument("--shop-url", action="append")
-    collect_shop_parser.add_argument("--pages", type=int, default=1)
+    collect_shop_parser.add_argument("--pages", type=int)
     collect_shop_parser.add_argument("--multi-spec-enabled", action="store_true")
-    collect_shop_parser.add_argument("--ensure-searchable", action="store_true")
+    collect_shop_parser.add_argument(
+        "--ensure-searchable",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
     collect_shop_parser.add_argument("--ensure-searchable-keyword")
 
     return parser
@@ -137,6 +161,30 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
             )
         )
         print("bitbrowser config saved")
+        return 0
+
+    if args.command == "config" and args.config_command == "set-run-defaults":
+        current = config_repo.load_run_defaults()
+        config_repo.save_run_defaults(
+            CollectorRunDefaults(
+                ensure_searchable_default=(
+                    current.ensure_searchable_default
+                    if args.ensure_searchable_default is None
+                    else args.ensure_searchable_default
+                ),
+                keyword_pages_default=(
+                    current.keyword_pages_default
+                    if args.keyword_pages_default is None
+                    else args.keyword_pages_default
+                ),
+                shop_pages_default=(
+                    current.shop_pages_default
+                    if args.shop_pages_default is None
+                    else args.shop_pages_default
+                ),
+            )
+        )
+        print("run defaults saved")
         return 0
 
     if args.command == "config" and args.config_command == "sync-cookie-from-bitbrowser":
@@ -263,6 +311,7 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
             service = factory(Path(args.db_path))
         proxy_config = getattr(service, "default_proxy_config", None)
         gather_conditions = getattr(service, "default_gather_conditions", None)
+        run_defaults = config_repo.load_run_defaults()
         if gather_conditions is None:
             gather_conditions = config_repo.load_gather_conditions()
         filter_config = (
@@ -275,7 +324,12 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
             if isinstance(gather_conditions, GatherConditionConfig)
             else False
         )
-        if getattr(args, "ensure_searchable", False):
+        ensure_searchable = (
+            run_defaults.ensure_searchable_default
+            if getattr(args, "ensure_searchable", None) is None
+            else bool(args.ensure_searchable)
+        )
+        if ensure_searchable:
             preflight_keyword = _resolve_preflight_keyword(args, config_repo)
             result = _ensure_saved_searchable(
                 service=service,
@@ -306,7 +360,7 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
             try:
                 summary = service.collect_keyword(
                     keywords=keywords,
-                    pages=args.pages,
+                    pages=args.pages if args.pages is not None else run_defaults.keyword_pages_default,
                     filter_config=filter_config,
                     multi_spec_enabled=multi_spec_enabled,
                     proxy_config=proxy_config,
@@ -326,7 +380,7 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
             try:
                 summary = service.collect_shop(
                     shop_urls=shop_urls,
-                    pages=args.pages,
+                    pages=args.pages if args.pages is not None else run_defaults.shop_pages_default,
                     filter_config=filter_config,
                     multi_spec_enabled=multi_spec_enabled,
                     proxy_config=proxy_config,

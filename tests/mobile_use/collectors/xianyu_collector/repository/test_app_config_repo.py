@@ -1,6 +1,7 @@
 from minitap.mobile_use.collectors.xianyu_collector.models import (
     BitBrowserConfig,
     CollectorProfileConfig,
+    CollectorRunDefaults,
     GatherConditionConfig,
 )
 from minitap.mobile_use.collectors.xianyu_collector.repository.app_config_repo import AppConfigRepository
@@ -136,6 +137,26 @@ def test_bitbrowser_config_round_trips_through_grade_config(tmp_path):
     )
 
 
+def test_run_defaults_round_trip_through_grade_config(tmp_path):
+    db = CollectorDatabase(tmp_path / "collector.db")
+    db.initialize()
+    repo = AppConfigRepository(db)
+
+    repo.save_run_defaults(
+        CollectorRunDefaults(
+            ensure_searchable_default=True,
+            keyword_pages_default=3,
+            shop_pages_default=5,
+        )
+    )
+
+    assert repo.load_run_defaults() == CollectorRunDefaults(
+        ensure_searchable_default=True,
+        keyword_pages_default=3,
+        shop_pages_default=5,
+    )
+
+
 def test_collector_profile_round_trips_stable_runtime_configuration(tmp_path):
     db = CollectorDatabase(tmp_path / "collector.db")
     db.initialize()
@@ -151,6 +172,13 @@ def test_collector_profile_round_trips_stable_runtime_configuration(tmp_path):
     repo.save_gather_type_input(1, "https://www.goofish.com/item?id=1")
     repo.save_gather_type_input(2, "https://www.goofish.com/?userId=seller-a")
     repo.save_region_list_str("上海-上海-黄浦区")
+    repo.save_run_defaults(
+        CollectorRunDefaults(
+            ensure_searchable_default=True,
+            keyword_pages_default=3,
+            shop_pages_default=5,
+        )
+    )
 
     repo.save_profile("default")
 
@@ -170,6 +198,11 @@ def test_collector_profile_round_trips_stable_runtime_configuration(tmp_path):
             2: "https://www.goofish.com/?userId=seller-a",
         },
         region_list_str="上海-上海-黄浦区",
+        run_defaults=CollectorRunDefaults(
+            ensure_searchable_default=True,
+            keyword_pages_default=3,
+            shop_pages_default=5,
+        ),
     )
 
 
@@ -186,6 +219,13 @@ def test_apply_profile_restores_saved_runtime_configuration(tmp_path):
     repo.save_selected_gather_type(1)
     repo.save_gather_type_input(0, "gemini")
     repo.save_region_list_str("上海-上海-黄浦区")
+    repo.save_run_defaults(
+        CollectorRunDefaults(
+            ensure_searchable_default=True,
+            keyword_pages_default=3,
+            shop_pages_default=5,
+        )
+    )
     repo.save_profile("default")
 
     repo.save_gather_config(ProxyConfig())
@@ -194,6 +234,7 @@ def test_apply_profile_restores_saved_runtime_configuration(tmp_path):
     repo.save_selected_gather_type(0)
     repo.save_gather_type_input(0, "other")
     repo.save_region_list_str("")
+    repo.save_run_defaults(CollectorRunDefaults())
 
     repo.apply_profile("default")
 
@@ -207,6 +248,11 @@ def test_apply_profile_restores_saved_runtime_configuration(tmp_path):
     assert repo.load_selected_gather_type() == 1
     assert repo.load_gather_type_input(0) == "gemini"
     assert repo.load_region_list_str() == "上海-上海-黄浦区"
+    assert repo.load_run_defaults() == CollectorRunDefaults(
+        ensure_searchable_default=True,
+        keyword_pages_default=3,
+        shop_pages_default=5,
+    )
 
 
 def test_save_profile_rejects_overwrite_by_default(tmp_path):
