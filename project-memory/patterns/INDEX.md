@@ -77,5 +77,7 @@
 | collector-cli-can-fallback-to-saved-gather-inputs | 2026-04-09 | collector-cli-can-fallback-to-saved-gather-inputs.md |
 | drission-auto-port-can-bootstrap-browser-cookies-without-9222 | 2026-04-09 | drission-auto-port-can-bootstrap-browser-cookies-without-9222.md |
 | chrome-profiles-may-still-only-yield-minimal-goofish-cookies | 2026-04-09 | chrome-profiles-may-still-only-yield-minimal-goofish-cookies.md |
+| proxy-source-can-fail-with-whitelist-json-error | 2026-04-09 | proxy-source-can-fail-with-whitelist-json-error.md |
+| browser-page-itself-can-show-session-expired-on-goofish-search | 2026-04-09 | browser-page-itself-can-show-session-expired-on-goofish-search.md |
 
-Total: 75
+Total: 77

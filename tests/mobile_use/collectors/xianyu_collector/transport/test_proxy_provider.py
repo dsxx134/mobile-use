@@ -26,3 +26,12 @@ def test_fetch_proxy_map_rejects_invalid_first_proxy_line():
 
     with pytest.raises(ProxySourceError, match="invalid proxy format"):
         provider.fetch_proxy_map("http://proxy-source")
+
+
+def test_fetch_proxy_map_surfaces_proxy_source_json_error_message():
+    provider = HttpProxyProvider(
+        fetch_text=lambda _: '{"code":10101,"msg":"36.27.95.180未匹配到对应白名单用户名!","data":""}'
+    )
+
+    with pytest.raises(ProxySourceError, match="白名单用户名"):
+        provider.fetch_proxy_map("http://proxy-source")

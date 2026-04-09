@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from typing import Callable
 
@@ -22,6 +23,13 @@ class HttpProxyProvider:
             raise ProxySourceError("proxy source URL is empty")
 
         payload = self._fetch_text(proxy_url).strip()
+        if payload.startswith("{"):
+            try:
+                obj = json.loads(payload)
+            except json.JSONDecodeError:
+                obj = None
+            if isinstance(obj, dict) and obj.get("msg"):
+                raise ProxySourceError(str(obj["msg"]))
         first_line = next((line.strip() for line in payload.splitlines() if line.strip()), "")
         if not PROXY_PATTERN.match(first_line):
             raise ProxySourceError("invalid proxy format")
