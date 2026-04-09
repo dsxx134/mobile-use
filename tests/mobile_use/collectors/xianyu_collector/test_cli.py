@@ -959,3 +959,79 @@ def test_cli_doctor_ensure_searchable_refreshes_from_bitbrowser_when_saved_fails
     assert "status=searchable" in output
     assert "item_count=3" in output
     assert "repair=performed" in output
+
+
+def test_cli_collect_keyword_can_preflight_ensure_searchable(tmp_path, capsys, monkeypatch):
+    fake_service = FakeService()
+    captured = {}
+
+    def fake_ensure_saved_searchable(*, service, config_repo, keyword):
+        captured["keyword"] = keyword
+        return {
+            "source": "saved",
+            "status": "searchable",
+            "cookie_source": "SavedCookieProvider",
+            "item_count": 30,
+            "repair": "not-needed",
+            "freshness": "fresh",
+        }
+
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli._ensure_saved_searchable",
+        fake_ensure_saved_searchable,
+    )
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_path / "collector.db"),
+            "collect",
+            "keyword",
+            "--ensure-searchable",
+            "--keyword",
+            "gemini",
+            "--pages",
+            "1",
+        ],
+        service_factory=lambda _db_path: fake_service,
+    )
+
+    assert exit_code == 0
+    assert captured["keyword"] == "gemini"
+    assert fake_service.calls[0][0] == "keyword"
+    output = capsys.readouterr().out
+    assert "preflight source=saved status=searchable" in output
+    assert "saved=2" in output
+
+
+def test_cli_collect_stops_when_preflight_cannot_make_saved_searchable(tmp_path, capsys, monkeypatch):
+    fake_service = FakeService()
+
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli._ensure_saved_searchable",
+        lambda **kwargs: {
+            "source": "saved",
+            "status": "signing-only",
+            "cookie_source": "SavedCookieProvider",
+            "repair": "failed",
+            "reason": "RGV587",
+        },
+    )
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_path / "collector.db"),
+            "collect",
+            "keyword",
+            "--ensure-searchable",
+            "--keyword",
+            "gemini",
+        ],
+        service_factory=lambda _db_path: fake_service,
+    )
+
+    assert exit_code == 2
+    assert fake_service.calls == []
+    output = capsys.readouterr().out
+    assert "preflight source=saved status=signing-only" in output

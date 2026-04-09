@@ -75,6 +75,10 @@ Updated: 2026-04-09
   - deep diagnosis: `freshness` / `compare`
   - business readiness: `ensure-searchable`
   - actual work: `collect ...`
+- The `collect` layer can now optionally absorb that readiness step itself:
+  - `collect ... --ensure-searchable`
+  - preflight runs before any collection API work
+  - failure aborts early with a preflight line instead of a misleading collection result
 - BitBrowser session acquisition also now tolerates the transient local-API state `浏览器正在打开中` by retrying the open call before failing.
 - Those temporary BitBrowser flags now have a persisted counterpart inside collector config:
   - `gradeConfig["bitbrowser_runtime"]`

@@ -76,16 +76,22 @@ def build_parser() -> argparse.ArgumentParser:
     collect_manual_parser = collect_subparsers.add_parser("manual")
     collect_manual_parser.add_argument("--item-url", action="append")
     collect_manual_parser.add_argument("--multi-spec-enabled", action="store_true")
+    collect_manual_parser.add_argument("--ensure-searchable", action="store_true")
+    collect_manual_parser.add_argument("--ensure-searchable-keyword")
 
     collect_keyword_parser = collect_subparsers.add_parser("keyword")
     collect_keyword_parser.add_argument("--keyword", action="append")
     collect_keyword_parser.add_argument("--pages", type=int, default=1)
     collect_keyword_parser.add_argument("--multi-spec-enabled", action="store_true")
+    collect_keyword_parser.add_argument("--ensure-searchable", action="store_true")
+    collect_keyword_parser.add_argument("--ensure-searchable-keyword")
 
     collect_shop_parser = collect_subparsers.add_parser("shop")
     collect_shop_parser.add_argument("--shop-url", action="append")
     collect_shop_parser.add_argument("--pages", type=int, default=1)
     collect_shop_parser.add_argument("--multi-spec-enabled", action="store_true")
+    collect_shop_parser.add_argument("--ensure-searchable", action="store_true")
+    collect_shop_parser.add_argument("--ensure-searchable-keyword")
 
     return parser
 
@@ -232,6 +238,16 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
             if isinstance(gather_conditions, GatherConditionConfig)
             else False
         )
+        if getattr(args, "ensure_searchable", False):
+            preflight_keyword = _resolve_preflight_keyword(args, config_repo)
+            result = _ensure_saved_searchable(
+                service=service,
+                config_repo=config_repo,
+                keyword=preflight_keyword,
+            )
+            print(f"preflight {_format_probe_result(result)}")
+            if result.get("status") != "searchable":
+                return 2
         if args.collect_command == "manual":
             urls = args.item_url or _load_saved_lines(config_repo, 1)
             if not urls:
@@ -299,6 +315,17 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
 def _load_saved_lines(config_repo: AppConfigRepository, gather_type: int) -> list[str]:
     raw = config_repo.load_gather_type_input(gather_type)
     return [line.strip() for line in raw.splitlines() if line.strip()]
+
+
+def _resolve_preflight_keyword(args, config_repo: AppConfigRepository) -> str:
+    explicit = getattr(args, "ensure_searchable_keyword", None)
+    if explicit:
+        return explicit
+    if getattr(args, "collect_command", None) == "keyword":
+        keywords = args.keyword or _load_saved_lines(config_repo, 0)
+        if keywords:
+            return keywords[0]
+    return "gemini"
 
 
 def _cookie_source_name(cookie_provider) -> str:
