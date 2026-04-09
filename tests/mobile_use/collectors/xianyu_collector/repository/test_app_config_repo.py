@@ -280,3 +280,52 @@ def test_delete_profile_removes_saved_profile(tmp_path):
 
     assert repo.list_profile_names() == []
     assert repo.load_profile("default") is None
+
+
+def test_export_profile_payload_contains_name_and_profile_dict(tmp_path):
+    db = CollectorDatabase(tmp_path / "collector.db")
+    db.initialize()
+    repo = AppConfigRepository(db)
+
+    repo.save_profile("default")
+
+    exported = repo.export_profile_payload("default")
+
+    assert exported["format_version"] == 1
+    assert exported["name"] == "default"
+    assert isinstance(exported["profile"], dict)
+
+
+def test_import_profile_payload_restores_named_profile(tmp_path):
+    db = CollectorDatabase(tmp_path / "collector.db")
+    db.initialize()
+    repo = AppConfigRepository(db)
+
+    payload = {
+        "format_version": 1,
+        "name": "work",
+        "profile": CollectorProfileConfig(
+            proxy_config=ProxyConfig(is_open_proxy=True, proxy_url="http://proxy-source"),
+            bitbrowser_config=BitBrowserConfig(browser_id="browser-123", api_host="127.0.0.1", api_port=54345),
+            gather_conditions=GatherConditionConfig(liuLanLiang_text="100"),
+            selected_gather_type=2,
+            gather_type_inputs={0: "gemini"},
+            region_list_str="上海-上海-黄浦区",
+            run_defaults=CollectorRunDefaults(
+                ensure_searchable_default=True,
+                keyword_pages_default=3,
+                shop_pages_default=5,
+            ),
+        ).to_dict(),
+    }
+
+    imported_name = repo.import_profile_payload(payload)
+
+    assert imported_name == "work"
+    profile = repo.load_profile("work")
+    assert profile is not None
+    assert profile.run_defaults == CollectorRunDefaults(
+        ensure_searchable_default=True,
+        keyword_pages_default=3,
+        shop_pages_default=5,
+    )

@@ -56,5 +56,6 @@
 | collector profiles store stable config not volatile sessions | 2026-04-09 | 2026-04-09-collector-profiles-store-stable-config-not-volatile-sessions.md |
 | profile overwrite requires explicit opt-in | 2026-04-09 | 2026-04-09-profile-overwrite-requires-explicit-opt-in.md |
 | profiles can carry default collect parameters | 2026-04-09 | 2026-04-09-profiles-can-carry-default-collect-parameters.md |
+| collector profiles can be exported as json | 2026-04-09 | 2026-04-09-collector-profiles-can-be-exported-as-json.md |
 
-Total: 54
+Total: 55

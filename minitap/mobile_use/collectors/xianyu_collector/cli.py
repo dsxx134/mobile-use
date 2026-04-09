@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import time
 from contextlib import contextmanager
@@ -70,6 +71,13 @@ def build_parser() -> argparse.ArgumentParser:
     load_profile_parser.add_argument("--name", required=True)
     delete_profile_parser = config_subparsers.add_parser("delete-profile")
     delete_profile_parser.add_argument("--name", required=True)
+    export_profile_parser = config_subparsers.add_parser("export-profile")
+    export_profile_parser.add_argument("--name", required=True)
+    export_profile_parser.add_argument("--output", required=True)
+    import_profile_parser = config_subparsers.add_parser("import-profile")
+    import_profile_parser.add_argument("--input", required=True)
+    import_profile_parser.add_argument("--name")
+    import_profile_parser.add_argument("--overwrite", action="store_true")
     config_subparsers.add_parser("list-profiles")
 
     db_parser = subparsers.add_parser("db")
@@ -222,6 +230,33 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
         except KeyError:
             parser.error(f"profile not found: {args.name}")
         print("profile deleted")
+        return 0
+
+    if args.command == "config" and args.config_command == "export-profile":
+        try:
+            payload = config_repo.export_profile_payload(args.name)
+        except KeyError:
+            parser.error(f"profile not found: {args.name}")
+        output_path = Path(args.output)
+        output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        print("profile exported")
+        return 0
+
+    if args.command == "config" and args.config_command == "import-profile":
+        payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
+        try:
+            imported_name = config_repo.import_profile_payload(
+                payload,
+                overwrite=args.overwrite,
+                name_override=args.name,
+            )
+        except FileExistsError:
+            parser.error(
+                f"profile already exists: {args.name or payload.get('name')}; pass --overwrite to replace it"
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
+        print(f"profile imported: {imported_name}")
         return 0
 
     if args.command == "config" and args.config_command == "list-profiles":

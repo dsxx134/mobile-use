@@ -96,6 +96,10 @@ Updated: 2026-04-09
   - explicit CLI flag/value
   - saved run default
   - built-in fallback
+- Profiles now have a file-transfer layer on top of the DB layer:
+  - `config export-profile --name ... --output ...`
+  - `config import-profile --input ... [--name ...] [--overwrite]`
+- Exported files are JSON envelopes with `format_version`, `name`, and `profile`.
 - BitBrowser session acquisition also now tolerates the transient local-API state `浏览器正在打开中` by retrying the open call before failing.
 - Those temporary BitBrowser flags now have a persisted counterpart inside collector config:
   - `gradeConfig["bitbrowser_runtime"]`

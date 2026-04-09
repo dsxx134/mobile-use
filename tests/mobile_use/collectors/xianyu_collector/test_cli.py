@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishBurstError
 from minitap.mobile_use.collectors.xianyu_collector.cli import main
@@ -343,6 +344,127 @@ def test_cli_delete_profile_removes_existing_profile(tmp_path, capsys):
     output = capsys.readouterr().out
     assert "profile deleted" in output
     assert "default" not in output
+
+
+def test_cli_export_and_import_profile_round_trip_json_file(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+    export_path = tmp_path / "work-profile.json"
+
+    main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "set-proxy",
+            "--proxy-url",
+            "http://proxy-source",
+            "--enabled",
+        ]
+    )
+    main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "save-profile",
+            "--name",
+            "work",
+        ]
+    )
+
+    export_exit = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "export-profile",
+            "--name",
+            "work",
+            "--output",
+            str(export_path),
+        ]
+    )
+
+    main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "delete-profile",
+            "--name",
+            "work",
+        ]
+    )
+
+    import_exit = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "import-profile",
+            "--input",
+            str(export_path),
+        ]
+    )
+
+    assert export_exit == 0
+    assert import_exit == 0
+    assert export_path.exists()
+    output = capsys.readouterr().out
+    assert "profile exported" in output
+    assert "profile imported" in output
+
+
+def test_cli_import_profile_requires_overwrite_for_existing_name(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+    export_path = tmp_path / "work-profile.json"
+
+    main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "save-profile",
+            "--name",
+            "work",
+        ]
+    )
+    export_path.write_text(
+        '{"format_version":1,"name":"work","profile":{"proxy_config":{"is_open_proxy":false,"proxy_url":""},"bitbrowser_config":{"browser_id":"","api_host":"127.0.0.1","api_port":54345},"gather_conditions":{"liuLanLiang_text":"","xiangYaoRenShu_text":"","comboBox_faBuTianShu_text":"","faBuTianShu_text":"","binRiChuDan_text":"","ziXunLv_text":"","jia_ge_start":"","jia_ge_end":"","xiao_dao_jia_start":"","xiao_dao_jia_end":"","lineEdit_guan_jian_ci_cai_ji_xian_zhi":"","dian_pu_cai_ji_fa_bu_tian_shu_text":"","buCaiJiCiZu":"","is_kai_qi_duo_gui_ge_cai_ji":false},"selected_gather_type":null,"gather_type_inputs":{},"region_list_str":"","run_defaults":{"ensure_searchable_default":false,"keyword_pages_default":1,"shop_pages_default":1}}}',
+        encoding="utf-8",
+    )
+
+    try:
+        main(
+            [
+                "--db-path",
+                str(db_path),
+                "config",
+                "import-profile",
+                "--input",
+                str(export_path),
+            ]
+        )
+    except SystemExit as exc:
+        exit_code = exc.code
+    else:
+        raise AssertionError("expected argparse exit when importing existing profile without --overwrite")
+
+    overwrite_exit = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "import-profile",
+            "--input",
+            str(export_path),
+            "--overwrite",
+        ]
+    )
+
+    assert exit_code == 2
+    assert overwrite_exit == 0
+    assert "profile already exists" in capsys.readouterr().err
 
 
 def test_cli_db_list_item_ids_prints_saved_item_ids(tmp_path, capsys):

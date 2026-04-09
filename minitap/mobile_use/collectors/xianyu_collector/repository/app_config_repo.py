@@ -155,6 +155,38 @@ class AppConfigRepository:
         profiles.pop(name, None)
         self._save_grade_config_value("collector_profiles", profiles)
 
+    def export_profile_payload(self, name: str) -> dict[str, Any]:
+        profile = self.load_profile(name)
+        if profile is None:
+            raise KeyError(name)
+        return {
+            "format_version": 1,
+            "name": name,
+            "profile": profile.to_dict(),
+        }
+
+    def import_profile_payload(
+        self,
+        payload: dict[str, Any],
+        *,
+        overwrite: bool = False,
+        name_override: str | None = None,
+    ) -> str:
+        raw_name = name_override or payload.get("name")
+        name = str(raw_name or "").strip()
+        if not name:
+            raise ValueError("profile payload missing name")
+        profile_payload = payload.get("profile")
+        if not isinstance(profile_payload, dict):
+            raise ValueError("profile payload missing profile object")
+        profiles = self._load_profiles_payload()
+        if not overwrite and name in profiles:
+            raise FileExistsError(f"profile already exists: {name}")
+        profile = CollectorProfileConfig.from_dict(profile_payload)
+        profiles[name] = profile.to_dict()
+        self._save_grade_config_value("collector_profiles", profiles)
+        return name
+
     def load_profile(self, name: str) -> CollectorProfileConfig | None:
         profiles = self._load_profiles_payload()
         payload = profiles.get(name)
