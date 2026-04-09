@@ -83,5 +83,6 @@
 | bitbrowser-local-api-can-feed-collector-browser-cookies | 2026-04-09 | bitbrowser-local-api-can-feed-collector-browser-cookies.md |
 | collector-doctor-should-probe-searchability-without-writing-data | 2026-04-09 | collector-doctor-should-probe-searchability-without-writing-data.md |
 | collector-runtime-overrides-should-graduate-into-db-config-once-proven | 2026-04-09 | collector-runtime-overrides-should-graduate-into-db-config-once-proven.md |
+| compare-session-sources-with-one-real-search-probe | 2026-04-09 | compare-session-sources-with-one-real-search-probe.md |
 
-Total: 81
+Total: 82

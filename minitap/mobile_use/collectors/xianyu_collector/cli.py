@@ -5,13 +5,23 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 
-from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishApiError
+from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishApiClient, GoofishApiError
 from minitap.mobile_use.collectors.xianyu_collector.domain.filter_config import FilterConfig
 from minitap.mobile_use.collectors.xianyu_collector.models import BitBrowserConfig, GatherConditionConfig
 from minitap.mobile_use.collectors.xianyu_collector.repository.app_config_repo import AppConfigRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.goods_repo import GoodsRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.sqlite_db import CollectorDatabase
 from minitap.mobile_use.collectors.xianyu_collector.runtime import build_collector_service
+from minitap.mobile_use.collectors.xianyu_collector.session.anonymous_bootstrap_cookie_provider import (
+    AnonymousBootstrapCookieProvider,
+)
+from minitap.mobile_use.collectors.xianyu_collector.session.browser_cookie_provider import (
+    BrowserCookieProvider,
+)
+from minitap.mobile_use.collectors.xianyu_collector.session.bitbrowser_browser_session import (
+    BitBrowserBrowserSession,
+)
+from minitap.mobile_use.collectors.xianyu_collector.session.saved_cookie_provider import SavedCookieProvider
 from minitap.mobile_use.collectors.xianyu_collector.transport.proxy_config import ProxyConfig
 
 
@@ -47,6 +57,8 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_subparsers = doctor_parser.add_subparsers(dest="doctor_command", required=True)
     doctor_session_parser = doctor_subparsers.add_parser("session")
     doctor_session_parser.add_argument("--keyword", default="gemini")
+    doctor_compare_parser = doctor_subparsers.add_parser("compare")
+    doctor_compare_parser.add_argument("--keyword", default="gemini")
 
     collect_parser = subparsers.add_parser("collect")
     collect_subparsers = collect_parser.add_subparsers(dest="collect_command", required=True)
@@ -138,6 +150,14 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
         )
         return 0
 
+    if args.command == "doctor" and args.doctor_command == "compare":
+        factory = service_factory or build_collector_service
+        with _collector_runtime_env(args):
+            service = factory(Path(args.db_path))
+        for line in _doctor_compare_lines(service=service, config_repo=config_repo, keyword=args.keyword):
+            print(line)
+        return 0
+
     if args.command == "collect":
         factory = service_factory or build_collector_service
         with _collector_runtime_env(args):
@@ -226,6 +246,9 @@ def _load_saved_lines(config_repo: AppConfigRepository, gather_type: int) -> lis
 
 
 def _cookie_source_name(cookie_provider) -> str:
+    direct_session = getattr(cookie_provider, "session", None)
+    if direct_session is not None:
+        return type(direct_session).__name__
     active_provider = getattr(cookie_provider, "_active_provider", None)
     if active_provider is not None:
         session = getattr(active_provider, "session", None)
@@ -233,6 +256,86 @@ def _cookie_source_name(cookie_provider) -> str:
             return type(session).__name__
         return type(active_provider).__name__
     return type(cookie_provider).__name__
+
+
+def _doctor_compare_lines(*, service, config_repo: AppConfigRepository, keyword: str) -> list[str]:
+    transport = service.api_client.transport
+    signer = service.api_client.signer
+    proxy_config = getattr(service, "default_proxy_config", None)
+    bitbrowser_config = getattr(service, "default_bitbrowser_config", BitBrowserConfig())
+
+    lines = [
+        _probe_provider(
+            source_name="saved",
+            cookie_provider=SavedCookieProvider(config_repo.load_saved_cookie_string()),
+            transport=transport,
+            signer=signer,
+            keyword=keyword,
+            proxy_config=proxy_config,
+        )
+    ]
+
+    if bitbrowser_config.enabled:
+        lines.append(
+            _probe_provider(
+                source_name="bitbrowser",
+                cookie_provider=BrowserCookieProvider(
+                    BitBrowserBrowserSession(
+                        browser_id=bitbrowser_config.browser_id,
+                        api_host=bitbrowser_config.api_host,
+                        api_port=bitbrowser_config.api_port,
+                    ),
+                    "https://www.goofish.com/",
+                ),
+                transport=transport,
+                signer=signer,
+                keyword=keyword,
+                proxy_config=proxy_config,
+            )
+        )
+    else:
+        lines.append("source=bitbrowser status=disabled")
+
+    lines.append(
+        _probe_provider(
+            source_name="bootstrap",
+            cookie_provider=AnonymousBootstrapCookieProvider(
+                transport=transport,
+                signer=signer,
+                proxy_config=proxy_config or ProxyConfig(),
+            ),
+            transport=transport,
+            signer=signer,
+            keyword=keyword,
+            proxy_config=proxy_config,
+        )
+    )
+    return lines
+
+
+def _probe_provider(*, source_name: str, cookie_provider, transport, signer, keyword: str, proxy_config):
+    cookie_source = _cookie_source_name(cookie_provider)
+    try:
+        cookies = dict(cookie_provider.get_cookie_dict())
+    except Exception as exc:
+        return f"source={source_name} status=unavailable cookie_source={cookie_source} reason={exc}"
+
+    api_client = GoofishApiClient(
+        transport=transport,
+        cookie_provider=cookie_provider,
+        signer=signer,
+    )
+    try:
+        item_ids = api_client.search_items(page=1, keyword=keyword, proxy_config=proxy_config)
+    except GoofishApiError as exc:
+        return f"source={source_name} status=signing-only cookie_source={cookie_source} reason={exc}"
+    except Exception as exc:
+        return f"source={source_name} status=unavailable cookie_source={cookie_source} reason={exc}"
+
+    return (
+        f"source={source_name} status=searchable cookie_source={cookie_source} "
+        f"item_count={len(item_ids)}"
+    )
 
 
 @contextmanager

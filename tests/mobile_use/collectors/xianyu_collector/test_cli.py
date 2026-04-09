@@ -505,3 +505,157 @@ def test_cli_doctor_session_unwraps_browser_cookie_provider_to_session_name(tmp_
     assert exit_code == 0
     output = capsys.readouterr().out
     assert "cookie_source=BitBrowserBrowserSession" in output
+
+
+def test_cli_doctor_compare_reports_probe_rows(tmp_path, capsys, monkeypatch):
+    class DummySigner:
+        pass
+
+    class CompareService(FakeService):
+        def __init__(self):
+            super().__init__()
+            self.api_client.transport = object()
+            self.api_client.signer = DummySigner()
+            self.default_bitbrowser_config = BitBrowserConfig(
+                browser_id="browser-123",
+                api_host="127.0.0.1",
+                api_port=54345,
+            )
+
+    class FakeSavedCookieProvider:
+        def __init__(self, _cookie_string):
+            self.label = "saved"
+
+        def get_cookie_dict(self):
+            raise ValueError("empty saved cookie")
+
+    class FakeBitBrowserBrowserSession:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeBrowserCookieProvider:
+        def __init__(self, session, url):
+            self.label = "bitbrowser"
+            self.session = session
+            self.url = url
+
+        def get_cookie_dict(self):
+            return {"_m_h5_tk": "token", "unb": "123"}
+
+    class FakeAnonymousBootstrapCookieProvider:
+        def __init__(self, **kwargs):
+            self.label = "bootstrap"
+
+        def get_cookie_dict(self):
+            return {"_m_h5_tk": "token"}
+
+    class FakeGoofishApiClient:
+        def __init__(self, *, transport, cookie_provider, signer):
+            self.cookie_provider = cookie_provider
+
+        def search_items(self, **kwargs):
+            if self.cookie_provider.label == "bitbrowser":
+                return ["111", "222"]
+            raise GoofishBurstError("RGV587_ERROR::SM::哎哟喂,被挤爆啦,请稍后重试!")
+
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.SavedCookieProvider",
+        FakeSavedCookieProvider,
+    )
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.BitBrowserBrowserSession",
+        FakeBitBrowserBrowserSession,
+    )
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.BrowserCookieProvider",
+        FakeBrowserCookieProvider,
+    )
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.AnonymousBootstrapCookieProvider",
+        FakeAnonymousBootstrapCookieProvider,
+    )
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.GoofishApiClient",
+        FakeGoofishApiClient,
+    )
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_path / "collector.db"),
+            "doctor",
+            "compare",
+            "--keyword",
+            "gemini",
+        ],
+        service_factory=lambda _db_path: CompareService(),
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "source=saved status=unavailable" in output
+    assert "source=bitbrowser status=searchable" in output
+    assert "item_count=2" in output
+    assert "source=bootstrap status=signing-only" in output
+
+
+def test_cli_doctor_compare_marks_bitbrowser_disabled_when_not_configured(tmp_path, capsys, monkeypatch):
+    class DummySigner:
+        pass
+
+    class CompareService(FakeService):
+        def __init__(self):
+            super().__init__()
+            self.api_client.transport = object()
+            self.api_client.signer = DummySigner()
+            self.default_bitbrowser_config = BitBrowserConfig()
+
+    class FakeSavedCookieProvider:
+        def __init__(self, _cookie_string):
+            self.label = "saved"
+
+        def get_cookie_dict(self):
+            raise ValueError("empty saved cookie")
+
+    class FakeAnonymousBootstrapCookieProvider:
+        def __init__(self, **kwargs):
+            self.label = "bootstrap"
+
+        def get_cookie_dict(self):
+            return {"_m_h5_tk": "token"}
+
+    class FakeGoofishApiClient:
+        def __init__(self, *, transport, cookie_provider, signer):
+            self.cookie_provider = cookie_provider
+
+        def search_items(self, **kwargs):
+            raise GoofishBurstError("RGV587_ERROR::SM::哎哟喂,被挤爆啦,请稍后重试!")
+
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.SavedCookieProvider",
+        FakeSavedCookieProvider,
+    )
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.AnonymousBootstrapCookieProvider",
+        FakeAnonymousBootstrapCookieProvider,
+    )
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.GoofishApiClient",
+        FakeGoofishApiClient,
+    )
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_path / "collector.db"),
+            "doctor",
+            "compare",
+            "--keyword",
+            "gemini",
+        ],
+        service_factory=lambda _db_path: CompareService(),
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "source=bitbrowser status=disabled" in output
