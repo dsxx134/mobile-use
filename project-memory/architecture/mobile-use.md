@@ -65,6 +65,9 @@ Updated: 2026-04-09
   - `--refresh-from-bitbrowser-if-needed`
   - it only pulls from BitBrowser when saved state is not already `fresh`
   - after refresh it re-runs the TTL check against the newly saved cookie string
+- The operational contract of that repair path is now two-step:
+  - low-level proof: `_m_h5_tk` TTL becomes `fresh`
+  - business-level proof: the saved-cookie source can be observed as `searchable` again through `doctor compare`
 - BitBrowser session acquisition also now tolerates the transient local-API state `浏览器正在打开中` by retrying the open call before failing.
 - Those temporary BitBrowser flags now have a persisted counterpart inside collector config:
   - `gradeConfig["bitbrowser_runtime"]`

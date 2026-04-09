@@ -87,5 +87,6 @@
 | strong-browser-session-can-be-cached-into-saved-cookie | 2026-04-09 | strong-browser-session-can-be-cached-into-saved-cookie.md |
 | bitbrowser-open-may-need-retry-while-browser-is-opening | 2026-04-09 | bitbrowser-open-may-need-retry-while-browser-is-opening.md |
 | freshness-checks-should-offer-a-low-noise-repair-path | 2026-04-09 | freshness-checks-should-offer-a-low-noise-repair-path.md |
+| auto-refresh-should-end-with-a-business-level-proof | 2026-04-09 | auto-refresh-should-end-with-a-business-level-proof.md |
 
-Total: 85
+Total: 86

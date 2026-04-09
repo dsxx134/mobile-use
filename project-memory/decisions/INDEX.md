@@ -49,5 +49,6 @@
 | xianyu collector can refresh saved cookie from bitbrowser | 2026-04-09 | 2026-04-09-xianyu-collector-can-refresh-saved-cookie-from-bitbrowser.md |
 | saved cookie freshness comes from m-h5-tk expiry suffix | 2026-04-09 | 2026-04-09-saved-cookie-freshness-comes-from-m-h5-tk-expiry-suffix.md |
 | saved cookie freshness can auto-refresh from bitbrowser | 2026-04-09 | 2026-04-09-saved-cookie-freshness-can-auto-refresh-from-bitbrowser.md |
+| auto-refresh can recover saved searchability | 2026-04-09 | 2026-04-09-auto-refresh-can-recover-saved-searchability.md |
 
-Total: 47
+Total: 48
