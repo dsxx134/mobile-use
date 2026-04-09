@@ -46,5 +46,6 @@
 | primary working copy moved to e-drive xianyu path | 2026-04-09 | 2026-04-09-primary-working-copy-moved-to-e-drive-xianyu-path.md |
 | xianyu collector persists bitbrowser runtime config | 2026-04-09 | 2026-04-09-xianyu-collector-persists-bitbrowser-runtime-config.md |
 | xianyu collector can compare session sources side by side | 2026-04-09 | 2026-04-09-xianyu-collector-can-compare-session-sources-side-by-side.md |
+| xianyu collector can refresh saved cookie from bitbrowser | 2026-04-09 | 2026-04-09-xianyu-collector-can-refresh-saved-cookie-from-bitbrowser.md |
 
-Total: 44
+Total: 45

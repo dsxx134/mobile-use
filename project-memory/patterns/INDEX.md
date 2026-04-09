@@ -84,5 +84,6 @@
 | collector-doctor-should-probe-searchability-without-writing-data | 2026-04-09 | collector-doctor-should-probe-searchability-without-writing-data.md |
 | collector-runtime-overrides-should-graduate-into-db-config-once-proven | 2026-04-09 | collector-runtime-overrides-should-graduate-into-db-config-once-proven.md |
 | compare-session-sources-with-one-real-search-probe | 2026-04-09 | compare-session-sources-with-one-real-search-probe.md |
+| strong-browser-session-can-be-cached-into-saved-cookie | 2026-04-09 | strong-browser-session-can-be-cached-into-saved-cookie.md |
 
-Total: 82
+Total: 83

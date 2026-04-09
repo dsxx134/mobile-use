@@ -48,6 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     set_bitbrowser_parser.add_argument("--browser-id", required=True)
     set_bitbrowser_parser.add_argument("--api-host", default="127.0.0.1")
     set_bitbrowser_parser.add_argument("--api-port", type=int, default=54345)
+    config_subparsers.add_parser("sync-cookie-from-bitbrowser")
 
     db_parser = subparsers.add_parser("db")
     db_subparsers = db_parser.add_subparsers(dest="db_command", required=True)
@@ -113,6 +114,19 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
             )
         )
         print("bitbrowser config saved")
+        return 0
+
+    if args.command == "config" and args.config_command == "sync-cookie-from-bitbrowser":
+        bitbrowser_config = _resolve_bitbrowser_config(args, config_repo)
+        if not bitbrowser_config.enabled:
+            parser.error("sync-cookie-from-bitbrowser requires saved or explicit BitBrowser config")
+        cookie_string = BitBrowserBrowserSession(
+            browser_id=bitbrowser_config.browser_id,
+            api_host=bitbrowser_config.api_host,
+            api_port=bitbrowser_config.api_port,
+        ).get_cookie_string("https://www.goofish.com/")
+        config_repo.save_saved_cookie_string(cookie_string)
+        print("cookie string synced from bitbrowser")
         return 0
 
     if args.command == "db" and args.db_command == "list-item-ids":
@@ -256,6 +270,18 @@ def _cookie_source_name(cookie_provider) -> str:
             return type(session).__name__
         return type(active_provider).__name__
     return type(cookie_provider).__name__
+
+
+def _resolve_bitbrowser_config(args, config_repo: AppConfigRepository) -> BitBrowserConfig:
+    saved_config = config_repo.load_bitbrowser_config()
+    browser_id = getattr(args, "bitbrowser_id", None) or saved_config.browser_id
+    api_host = getattr(args, "bitbrowser_api_host", None) or saved_config.api_host
+    api_port = getattr(args, "bitbrowser_api_port", None) or saved_config.api_port
+    return BitBrowserConfig(
+        browser_id=browser_id,
+        api_host=api_host,
+        api_port=api_port,
+    )
 
 
 def _doctor_compare_lines(*, service, config_repo: AppConfigRepository, keyword: str) -> list[str]:

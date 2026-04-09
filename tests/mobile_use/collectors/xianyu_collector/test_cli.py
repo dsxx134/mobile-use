@@ -80,6 +80,47 @@ def test_cli_set_bitbrowser_persists_runtime_config(tmp_path, capsys):
     assert "bitbrowser config saved" in output
 
 
+def test_cli_sync_cookie_from_bitbrowser_persists_saved_cookie_string(tmp_path, capsys, monkeypatch):
+    db_path = tmp_path / "collector.db"
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_bitbrowser_config(
+        BitBrowserConfig(
+            browser_id="browser-123",
+            api_host="127.0.0.1",
+            api_port=54345,
+        )
+    )
+
+    class FakeBitBrowserBrowserSession:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def get_cookie_string(self, url: str) -> str:
+            assert url == "https://www.goofish.com/"
+            return "a=1; _m_h5_tk=token_123; unb=2207148365801"
+
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.BitBrowserBrowserSession",
+        FakeBitBrowserBrowserSession,
+    )
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "sync-cookie-from-bitbrowser",
+        ]
+    )
+
+    assert exit_code == 0
+    assert repo.load_saved_cookie_string() == "a=1; _m_h5_tk=token_123; unb=2207148365801"
+    output = capsys.readouterr().out
+    assert "cookie string synced from bitbrowser" in output
+
+
 def test_cli_db_list_item_ids_prints_saved_item_ids(tmp_path, capsys):
     db = CollectorDatabase(tmp_path / "collector.db")
     db.initialize()

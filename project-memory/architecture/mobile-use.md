@@ -53,6 +53,10 @@ Updated: 2026-04-09
   - direct BitBrowser selection flags that temporarily feed the runtime (`--bitbrowser-id`, `--bitbrowser-api-host`, `--bitbrowser-api-port`)
   - a non-mutating `doctor session` probe that issues one real search request and reports whether the active cookie chain is merely sign-capable or actually searchable
 - The same doctor surface now also has `doctor compare`, which fans out a single keyword probe across saved cookies, BitBrowser, and bootstrap to classify each source without writing collected rows.
+- The collector config surface now also has a bridging command between strong live sessions and saved state:
+  - `config sync-cookie-from-bitbrowser`
+  - it reads the current BitBrowser cookie string and writes it into `gradeConfig["cookices_str"]`
+  - this lets the normal saved-cookie-first path reuse a fresh browser-derived session snapshot
 - Those temporary BitBrowser flags now have a persisted counterpart inside collector config:
   - `gradeConfig["bitbrowser_runtime"]`
   - runtime gives explicit CLI/env overrides higher priority, then falls back to the saved DB config
