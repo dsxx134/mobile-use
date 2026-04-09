@@ -51,5 +51,6 @@
 | saved cookie freshness can auto-refresh from bitbrowser | 2026-04-09 | 2026-04-09-saved-cookie-freshness-can-auto-refresh-from-bitbrowser.md |
 | auto-refresh can recover saved searchability | 2026-04-09 | 2026-04-09-auto-refresh-can-recover-saved-searchability.md |
 | ensure-searchable prioritizes business readiness over ttl | 2026-04-09 | 2026-04-09-ensure-searchable-prioritizes-business-readiness-over-ttl.md |
+| ensure-searchable is the shortest preflight path | 2026-04-09 | 2026-04-09-ensure-searchable-is-the-shortest-preflight-path.md |
 
-Total: 49
+Total: 50
