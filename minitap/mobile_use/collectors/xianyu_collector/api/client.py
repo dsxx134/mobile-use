@@ -200,18 +200,34 @@ class GoofishApiClient:
         sign, timestamp = self.signer.sign(cookies, payload)
         params = self._build_params(endpoint, sign=sign, timestamp=timestamp)
         headers = MULTI_SPEC_HEADERS if endpoint == MULTI_SPEC_ENDPOINT else DEFAULT_HEADERS
-        response = self.transport.request(
-            "POST",
-            endpoint.url,
-            headers=headers,
-            cookies=cookies,
-            params=params,
-            data=payload,
-            timeout=10,
-            proxy_config=proxy_config or ProxyConfig(),
-        )
-        self._raise_for_upstream_error(response)
-        return response
+        active_proxy_config = proxy_config or ProxyConfig()
+        max_attempts = 2 if active_proxy_config.enabled and hasattr(self.transport, "proxy_state") else 1
+
+        for attempt in range(1, max_attempts + 1):
+            response = self.transport.request(
+                "POST",
+                endpoint.url,
+                headers=headers,
+                cookies=cookies,
+                params=params,
+                data=payload,
+                timeout=10,
+                proxy_config=active_proxy_config,
+            )
+            try:
+                self._raise_for_upstream_error(response)
+                return response
+            except GoofishBurstError:
+                if (
+                    active_proxy_config.enabled
+                    and hasattr(self.transport, "proxy_state")
+                    and attempt < max_attempts
+                ):
+                    self.transport.proxy_state.clear()
+                    continue
+                raise
+
+        raise RuntimeError("unreachable")
 
     @staticmethod
     def _build_params(endpoint: EndpointSpec, *, sign: str, timestamp: int) -> dict[str, str]:

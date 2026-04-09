@@ -7,8 +7,10 @@ from minitap.mobile_use.collectors.xianyu_collector.api.client import (
     GoofishSystemError,
 )
 from minitap.mobile_use.collectors.xianyu_collector.session.saved_cookie_provider import SavedCookieProvider
+from minitap.mobile_use.collectors.xianyu_collector.transport.http_client import CollectorHttpClient
 from minitap.mobile_use.collectors.xianyu_collector.signing.mtop_signer import MtopSigner
 from minitap.mobile_use.collectors.xianyu_collector.transport.proxy_config import ProxyConfig
+from minitap.mobile_use.collectors.xianyu_collector.transport.proxy_state import ProxyState
 
 
 class FakeResponse:
@@ -28,6 +30,39 @@ class RecordingTransport:
     def request(self, method: str, url: str, **kwargs):
         self.calls.append((method, url, kwargs))
         return self.response
+
+
+class SequencedTransport:
+    def __init__(self, responses, proxy_state=None):
+        self.responses = list(responses)
+        self.calls = []
+        self.proxy_state = proxy_state
+
+    def request(self, method: str, url: str, **kwargs):
+        self.calls.append((method, url, kwargs))
+        return self.responses[len(self.calls) - 1]
+
+
+class RecordingSession:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def request(self, method: str, url: str, **kwargs):
+        self.calls.append((method, url, kwargs))
+        return self.responses[len(self.calls) - 1]
+
+
+class RotatingProvider:
+    def __init__(self):
+        self.calls = 0
+
+    def fetch_proxy_map(self, proxy_url: str) -> dict[str, str]:
+        self.calls += 1
+        return {
+            "http": f"http://10.0.0.{self.calls}:8080",
+            "https": f"http://10.0.0.{self.calls}:8080",
+        }
 
 
 def build_client(response_payload: dict) -> tuple[GoofishApiClient, RecordingTransport]:
@@ -180,3 +215,52 @@ def test_get_item_detail_raises_system_error_when_ret_contains_retryable_system_
 
     with pytest.raises(GoofishSystemError, match="系统错误请稍候再试"):
         client.get_item_detail("555")
+
+
+def test_search_items_clears_proxy_and_retries_once_after_burst_error():
+    provider = RotatingProvider()
+    proxy_state = ProxyState(provider)
+    session = RecordingSession(
+        [
+            FakeResponse(
+                {
+                    "ret": ["RGV587_ERROR::SM::哎哟喂,被挤爆啦,请稍后重试!"],
+                    "data": {"url": "https://passport.goofish.com/mini_login.htm?foo=bar"},
+                }
+            ),
+            FakeResponse(
+                {
+                    "data": {
+                        "resultList": [
+                            {"data": {"item": {"main": {"exContent": {"itemId": "111"}}}}},
+                        ]
+                    }
+                }
+            ),
+        ]
+    )
+    transport = CollectorHttpClient(
+        session=session,
+        proxy_state=proxy_state,
+        max_attempts=1,
+    )
+    cookie_provider = SavedCookieProvider(
+        "_m_h5_tk=abc123_999999; _m_h5_tk_enc=enc999; cna=cna-token"
+    )
+    signer = MtopSigner(time_provider=lambda: 1710000000.123)
+    client = GoofishApiClient(
+        transport=transport,
+        cookie_provider=cookie_provider,
+        signer=signer,
+    )
+
+    item_ids = client.search_items(
+        page=1,
+        keyword="gemini",
+        proxy_config=ProxyConfig(is_open_proxy=True, proxy_url="http://proxy-source"),
+    )
+
+    assert item_ids == ["111"]
+    assert provider.calls == 2
+    assert session.calls[0][2]["proxies"]["http"] == "http://10.0.0.1:8080"
+    assert session.calls[1][2]["proxies"]["http"] == "http://10.0.0.2:8080"

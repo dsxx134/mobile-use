@@ -39,5 +39,6 @@
 | xianyu collector lives as an isolated subpackage | 2026-04-09 | 2026-04-09-xianyu-collector-lives-as-an-isolated-subpackage.md |
 | xianyu collector applies recovered gradeConfig by default | 2026-04-09 | 2026-04-09-xianyu-collector-applies-recovered-grade-config-by-default.md |
 | xianyu collector surfaces upstream ret errors | 2026-04-09 | 2026-04-09-xianyu-collector-surfaces-upstream-ret-errors.md |
+| xianyu collector retries burst once when proxy is enabled | 2026-04-09 | 2026-04-09-xianyu-collector-retries-burst-once-when-proxy-is-enabled.md |
 
-Total: 37
+Total: 38
