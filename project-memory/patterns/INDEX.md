@@ -86,5 +86,6 @@
 | compare-session-sources-with-one-real-search-probe | 2026-04-09 | compare-session-sources-with-one-real-search-probe.md |
 | strong-browser-session-can-be-cached-into-saved-cookie | 2026-04-09 | strong-browser-session-can-be-cached-into-saved-cookie.md |
 | bitbrowser-open-may-need-retry-while-browser-is-opening | 2026-04-09 | bitbrowser-open-may-need-retry-while-browser-is-opening.md |
+| freshness-checks-should-offer-a-low-noise-repair-path | 2026-04-09 | freshness-checks-should-offer-a-low-noise-repair-path.md |
 
-Total: 84
+Total: 85

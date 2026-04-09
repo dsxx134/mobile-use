@@ -61,6 +61,10 @@ Updated: 2026-04-09
   - `doctor session`: probe the currently selected chain end-to-end
   - `doctor compare`: rank multiple session sources side by side
   - `doctor freshness`: inspect the cached saved-cookie TTL derived from `_m_h5_tk`
+- `doctor freshness` now also has an opt-in repair branch:
+  - `--refresh-from-bitbrowser-if-needed`
+  - it only pulls from BitBrowser when saved state is not already `fresh`
+  - after refresh it re-runs the TTL check against the newly saved cookie string
 - BitBrowser session acquisition also now tolerates the transient local-API state `浏览器正在打开中` by retrying the open call before failing.
 - Those temporary BitBrowser flags now have a persisted counterpart inside collector config:
   - `gradeConfig["bitbrowser_runtime"]`

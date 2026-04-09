@@ -62,7 +62,11 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_session_parser.add_argument("--keyword", default="gemini")
     doctor_compare_parser = doctor_subparsers.add_parser("compare")
     doctor_compare_parser.add_argument("--keyword", default="gemini")
-    doctor_subparsers.add_parser("freshness")
+    doctor_freshness_parser = doctor_subparsers.add_parser("freshness")
+    doctor_freshness_parser.add_argument(
+        "--refresh-from-bitbrowser-if-needed",
+        action="store_true",
+    )
 
     collect_parser = subparsers.add_parser("collect")
     collect_subparsers = collect_parser.add_subparsers(dest="collect_command", required=True)
@@ -176,9 +180,27 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
         return 0
 
     if args.command == "doctor" and args.doctor_command == "freshness":
-        report = _saved_cookie_freshness_report(config_repo.load_saved_cookie_string())
+        details = _saved_cookie_freshness_details(config_repo.load_saved_cookie_string())
+        refresh_state = None
+        if args.refresh_from_bitbrowser_if_needed and details["status"] != "fresh":
+            bitbrowser_config = _resolve_bitbrowser_config(args, config_repo)
+            if bitbrowser_config.enabled:
+                cookie_string = BitBrowserBrowserSession(
+                    browser_id=bitbrowser_config.browser_id,
+                    api_host=bitbrowser_config.api_host,
+                    api_port=bitbrowser_config.api_port,
+                ).get_cookie_string("https://www.goofish.com/")
+                config_repo.save_saved_cookie_string(cookie_string)
+                details = _saved_cookie_freshness_details(cookie_string)
+                refresh_state = "performed"
+            else:
+                refresh_state = "unavailable"
+        elif args.refresh_from_bitbrowser_if_needed:
+            refresh_state = "not-needed"
+
+        report = _format_saved_cookie_freshness_report(details, refresh_state=refresh_state)
         print(report)
-        if "status=fresh" in report or "status=stale" in report:
+        if details["status"] in {"fresh", "stale"}:
             return 0
         return 2
 
@@ -287,14 +309,19 @@ def _now_ms() -> int:
 
 
 def _saved_cookie_freshness_report(cookie_string: str) -> str:
+    details = _saved_cookie_freshness_details(cookie_string)
+    return _format_saved_cookie_freshness_report(details)
+
+
+def _saved_cookie_freshness_details(cookie_string: str) -> dict[str, object]:
     cookies = SavedCookieProvider(cookie_string).get_cookie_dict()
     token_value = cookies.get("_m_h5_tk", "")
     if not token_value:
-        return "source=saved status=missing-signing-token"
+        return {"source": "saved", "status": "missing-signing-token"}
 
     _head, separator, suffix = token_value.rpartition("_")
     if not separator or not suffix.isdigit():
-        return "source=saved status=unknown-expiry-format"
+        return {"source": "saved", "status": "unknown-expiry-format"}
 
     expires_at_ms = int(suffix)
     remaining_ms = expires_at_ms - _now_ms()
@@ -308,10 +335,28 @@ def _saved_cookie_freshness_report(cookie_string: str) -> str:
     else:
         status = "fresh"
 
-    return (
-        f"source=saved status={status} remaining_seconds={remaining_seconds} "
-        f"expires_at={expires_at}"
-    )
+    return {
+        "source": "saved",
+        "status": status,
+        "remaining_seconds": remaining_seconds,
+        "expires_at": expires_at,
+    }
+
+
+def _format_saved_cookie_freshness_report(
+    details: dict[str, object], *, refresh_state: str | None = None
+) -> str:
+    parts = [
+        f"source={details['source']}",
+        f"status={details['status']}",
+    ]
+    if "remaining_seconds" in details:
+        parts.append(f"remaining_seconds={details['remaining_seconds']}")
+    if "expires_at" in details:
+        parts.append(f"expires_at={details['expires_at']}")
+    if refresh_state is not None:
+        parts.append(f"refresh={refresh_state}")
+    return " ".join(parts)
 
 
 def _resolve_bitbrowser_config(args, config_repo: AppConfigRepository) -> BitBrowserConfig:

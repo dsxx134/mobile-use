@@ -746,3 +746,92 @@ def test_cli_doctor_freshness_reports_fresh_saved_cookie(tmp_path, capsys, monke
     assert "source=saved" in output
     assert "status=fresh" in output
     assert "remaining_seconds=3600" in output
+
+
+def test_cli_doctor_freshness_can_auto_refresh_from_bitbrowser(tmp_path, capsys, monkeypatch):
+    db_path = tmp_path / "collector.db"
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_bitbrowser_config(
+        BitBrowserConfig(
+            browser_id="browser-123",
+            api_host="127.0.0.1",
+            api_port=54345,
+        )
+    )
+
+    class FakeBitBrowserBrowserSession:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def get_cookie_string(self, url: str) -> str:
+            return "a=1; _m_h5_tk=token_1710003600000; unb=2207148365801"
+
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.BitBrowserBrowserSession",
+        FakeBitBrowserBrowserSession,
+    )
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli._now_ms",
+        lambda: 1710000000000,
+    )
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "doctor",
+            "freshness",
+            "--refresh-from-bitbrowser-if-needed",
+        ]
+    )
+
+    assert exit_code == 0
+    assert repo.load_saved_cookie_string() == "a=1; _m_h5_tk=token_1710003600000; unb=2207148365801"
+    output = capsys.readouterr().out
+    assert "status=fresh" in output
+    assert "refresh=performed" in output
+
+
+def test_cli_doctor_freshness_skips_refresh_when_cookie_is_already_fresh(tmp_path, capsys, monkeypatch):
+    db_path = tmp_path / "collector.db"
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_saved_cookie_string("a=1; _m_h5_tk=token_1710003600000; unb=2207148365801")
+    repo.save_bitbrowser_config(
+        BitBrowserConfig(
+            browser_id="browser-123",
+            api_host="127.0.0.1",
+            api_port=54345,
+        )
+    )
+
+    class FakeBitBrowserBrowserSession:
+        def __init__(self, **kwargs):
+            raise AssertionError("should not refresh when cookie is already fresh")
+
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.BitBrowserBrowserSession",
+        FakeBitBrowserBrowserSession,
+    )
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli._now_ms",
+        lambda: 1710000000000,
+    )
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "doctor",
+            "freshness",
+            "--refresh-from-bitbrowser-if-needed",
+        ]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "status=fresh" in output
+    assert "refresh=not-needed" in output
