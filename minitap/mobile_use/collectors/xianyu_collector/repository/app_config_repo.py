@@ -3,7 +3,11 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from minitap.mobile_use.collectors.xianyu_collector.models import BitBrowserConfig, GatherConditionConfig
+from minitap.mobile_use.collectors.xianyu_collector.models import (
+    BitBrowserConfig,
+    CollectorProfileConfig,
+    GatherConditionConfig,
+)
 from minitap.mobile_use.collectors.xianyu_collector.repository.sqlite_db import CollectorDatabase
 from minitap.mobile_use.collectors.xianyu_collector.transport.proxy_config import ProxyConfig
 
@@ -111,6 +115,46 @@ class AppConfigRepository:
     def save_gather_type_input(self, gather_type: int, value: str) -> None:
         self._save_grade_config_value(f"gather_type_{gather_type}", value)
 
+    def list_profile_names(self) -> list[str]:
+        profiles = self._load_profiles_payload()
+        return sorted(profiles.keys())
+
+    def save_profile(self, name: str) -> None:
+        profiles = self._load_profiles_payload()
+        profiles[name] = CollectorProfileConfig(
+            proxy_config=self.load_gather_config(),
+            bitbrowser_config=self.load_bitbrowser_config(),
+            gather_conditions=self.load_gather_conditions(),
+            selected_gather_type=self.load_selected_gather_type(),
+            gather_type_inputs={
+                0: self.load_gather_type_input(0),
+                1: self.load_gather_type_input(1),
+                2: self.load_gather_type_input(2),
+            },
+            region_list_str=self.load_region_list_str(),
+        ).to_dict()
+        self._save_grade_config_value("collector_profiles", profiles)
+
+    def load_profile(self, name: str) -> CollectorProfileConfig | None:
+        profiles = self._load_profiles_payload()
+        payload = profiles.get(name)
+        if not isinstance(payload, dict):
+            return None
+        return CollectorProfileConfig.from_dict(payload)
+
+    def apply_profile(self, name: str) -> None:
+        profile = self.load_profile(name)
+        if profile is None:
+            raise KeyError(name)
+        self.save_gather_config(profile.proxy_config)
+        self.save_bitbrowser_config(profile.bitbrowser_config)
+        self.save_gather_conditions(profile.gather_conditions)
+        if profile.selected_gather_type is not None:
+            self.save_selected_gather_type(profile.selected_gather_type)
+        for gather_type, value in profile.gather_type_inputs.items():
+            self.save_gather_type_input(gather_type, value)
+        self.save_region_list_str(profile.region_list_str)
+
     def load_grade_config(self) -> dict[str, Any]:
         with self.database.connect() as connection:
             row = connection.execute(
@@ -122,6 +166,12 @@ class AppConfigRepository:
 
     def _load_grade_config_value(self, key: str) -> Any:
         return self.load_grade_config().get(key)
+
+    def _load_profiles_payload(self) -> dict[str, Any]:
+        payload = self._load_grade_config_value("collector_profiles")
+        if not isinstance(payload, dict):
+            return {}
+        return dict(payload)
 
     def _save_grade_config_value(self, key: str, value: Any) -> None:
         grade_config = self.load_grade_config()

@@ -79,6 +79,11 @@ Updated: 2026-04-09
   - `collect ... --ensure-searchable`
   - preflight runs before any collection API work
   - failure aborts early with a preflight line instead of a misleading collection result
+- Above the raw config keys now sits a minimal stable snapshot layer:
+  - `config save-profile --name ...`
+  - `config load-profile --name ...`
+  - `config list-profiles`
+- Those profiles are intentionally scoped to stable collector intent/config and exclude saved-cookie session state.
 - BitBrowser session acquisition also now tolerates the transient local-API state `浏览器正在打开中` by retrying the open call before failing.
 - Those temporary BitBrowser flags now have a persisted counterpart inside collector config:
   - `gradeConfig["bitbrowser_runtime"]`

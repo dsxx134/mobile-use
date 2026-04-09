@@ -44,6 +44,58 @@ class BitBrowserConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class CollectorProfileConfig:
+    proxy_config: object
+    bitbrowser_config: BitBrowserConfig
+    gather_conditions: "GatherConditionConfig"
+    selected_gather_type: int | None
+    gather_type_inputs: dict[int, str]
+    region_list_str: str = ""
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "proxy_config": {
+                "is_open_proxy": bool(getattr(self.proxy_config, "is_open_proxy", False)),
+                "proxy_url": str(getattr(self.proxy_config, "proxy_url", "")),
+            },
+            "bitbrowser_config": self.bitbrowser_config.to_dict(),
+            "gather_conditions": self.gather_conditions.to_dict(),
+            "selected_gather_type": self.selected_gather_type,
+            "gather_type_inputs": {str(key): value for key, value in self.gather_type_inputs.items()},
+            "region_list_str": self.region_list_str,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object] | None) -> "CollectorProfileConfig":
+        from minitap.mobile_use.collectors.xianyu_collector.transport.proxy_config import ProxyConfig
+
+        payload = payload or {}
+        proxy_payload = payload.get("proxy_config")
+        if not isinstance(proxy_payload, dict):
+            proxy_payload = {}
+        gather_inputs_payload = payload.get("gather_type_inputs")
+        if not isinstance(gather_inputs_payload, dict):
+            gather_inputs_payload = {}
+        return cls(
+            proxy_config=ProxyConfig(
+                is_open_proxy=bool(proxy_payload.get("is_open_proxy", False)),
+                proxy_url=str(proxy_payload.get("proxy_url", "")),
+            ),
+            bitbrowser_config=BitBrowserConfig.from_dict(payload.get("bitbrowser_config") if isinstance(payload.get("bitbrowser_config"), dict) else None),
+            gather_conditions=GatherConditionConfig.from_dict(
+                payload.get("gather_conditions") if isinstance(payload.get("gather_conditions"), dict) else None
+            ),
+            selected_gather_type=(
+                int(payload["selected_gather_type"])
+                if payload.get("selected_gather_type") is not None
+                else None
+            ),
+            gather_type_inputs={int(key): str(value) for key, value in gather_inputs_payload.items()},
+            region_list_str=str(payload.get("region_list_str", "")),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class GatherConditionConfig:
     liuLanLiang_text: str = ""
     xiangYaoRenShu_text: str = ""

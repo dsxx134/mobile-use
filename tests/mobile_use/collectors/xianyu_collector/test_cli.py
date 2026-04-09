@@ -121,6 +121,94 @@ def test_cli_sync_cookie_from_bitbrowser_persists_saved_cookie_string(tmp_path, 
     assert "cookie string synced from bitbrowser" in output
 
 
+def test_cli_profile_save_list_and_load_round_trip_current_runtime_config(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+
+    main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "set-proxy",
+            "--proxy-url",
+            "http://proxy-source",
+            "--enabled",
+        ]
+    )
+    main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "set-bitbrowser",
+            "--browser-id",
+            "browser-123",
+        ]
+    )
+
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_gather_conditions(GatherConditionConfig(liuLanLiang_text="100"))
+    repo.save_selected_gather_type(2)
+    repo.save_gather_type_input(2, "https://www.goofish.com/?userId=seller-a")
+    repo.save_region_list_str("上海-上海-黄浦区")
+
+    save_exit = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "save-profile",
+            "--name",
+            "default",
+        ]
+    )
+    list_exit = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "list-profiles",
+        ]
+    )
+
+    repo.save_gather_config(ProxyConfig())
+    repo.save_bitbrowser_config(BitBrowserConfig())
+    repo.save_gather_conditions(GatherConditionConfig())
+    repo.save_selected_gather_type(0)
+    repo.save_gather_type_input(2, "")
+    repo.save_region_list_str("")
+
+    load_exit = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "load-profile",
+            "--name",
+            "default",
+        ]
+    )
+
+    assert save_exit == 0
+    assert list_exit == 0
+    assert load_exit == 0
+    output = capsys.readouterr().out
+    assert "profile saved" in output
+    assert "default" in output
+    assert "profile loaded" in output
+    assert repo.load_gather_config() == ProxyConfig(
+        is_open_proxy=True,
+        proxy_url="http://proxy-source",
+    )
+    assert repo.load_bitbrowser_config() == BitBrowserConfig(
+        browser_id="browser-123",
+        api_host="127.0.0.1",
+        api_port=54345,
+    )
+
+
 def test_cli_db_list_item_ids_prints_saved_item_ids(tmp_path, capsys):
     db = CollectorDatabase(tmp_path / "collector.db")
     db.initialize()

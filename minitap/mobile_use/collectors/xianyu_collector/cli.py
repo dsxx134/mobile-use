@@ -51,6 +51,11 @@ def build_parser() -> argparse.ArgumentParser:
     set_bitbrowser_parser.add_argument("--api-host", default="127.0.0.1")
     set_bitbrowser_parser.add_argument("--api-port", type=int, default=54345)
     config_subparsers.add_parser("sync-cookie-from-bitbrowser")
+    save_profile_parser = config_subparsers.add_parser("save-profile")
+    save_profile_parser.add_argument("--name", required=True)
+    load_profile_parser = config_subparsers.add_parser("load-profile")
+    load_profile_parser.add_argument("--name", required=True)
+    config_subparsers.add_parser("list-profiles")
 
     db_parser = subparsers.add_parser("db")
     db_subparsers = db_parser.add_subparsers(dest="db_command", required=True)
@@ -142,6 +147,24 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
         ).get_cookie_string("https://www.goofish.com/")
         config_repo.save_saved_cookie_string(cookie_string)
         print("cookie string synced from bitbrowser")
+        return 0
+
+    if args.command == "config" and args.config_command == "save-profile":
+        config_repo.save_profile(args.name)
+        print("profile saved")
+        return 0
+
+    if args.command == "config" and args.config_command == "load-profile":
+        try:
+            config_repo.apply_profile(args.name)
+        except KeyError:
+            parser.error(f"profile not found: {args.name}")
+        print("profile loaded")
+        return 0
+
+    if args.command == "config" and args.config_command == "list-profiles":
+        for name in config_repo.list_profile_names():
+            print(name)
         return 0
 
     if args.command == "db" and args.db_command == "list-item-ids":

@@ -91,5 +91,6 @@
 | business-readiness-command-should-wrap-lower-level-diagnostics | 2026-04-09 | business-readiness-command-should-wrap-lower-level-diagnostics.md |
 | preflight-commands-should-end-at-ready-to-run | 2026-04-09 | preflight-commands-should-end-at-ready-to-run.md |
 | collection-commands-should-front-load-session-readiness | 2026-04-09 | collection-commands-should-front-load-session-readiness.md |
+| profiles-should-capture-intent-not-ephemera | 2026-04-09 | profiles-should-capture-intent-not-ephemera.md |
 
-Total: 89
+Total: 90

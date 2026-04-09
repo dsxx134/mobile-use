@@ -53,5 +53,6 @@
 | ensure-searchable prioritizes business readiness over ttl | 2026-04-09 | 2026-04-09-ensure-searchable-prioritizes-business-readiness-over-ttl.md |
 | ensure-searchable is the shortest preflight path | 2026-04-09 | 2026-04-09-ensure-searchable-is-the-shortest-preflight-path.md |
 | collect can preflight saved searchability | 2026-04-09 | 2026-04-09-collect-can-preflight-saved-searchability.md |
+| collector profiles store stable config not volatile sessions | 2026-04-09 | 2026-04-09-collector-profiles-store-stable-config-not-volatile-sessions.md |
 
-Total: 51
+Total: 52

@@ -1,4 +1,8 @@
-from minitap.mobile_use.collectors.xianyu_collector.models import BitBrowserConfig, GatherConditionConfig
+from minitap.mobile_use.collectors.xianyu_collector.models import (
+    BitBrowserConfig,
+    CollectorProfileConfig,
+    GatherConditionConfig,
+)
 from minitap.mobile_use.collectors.xianyu_collector.repository.app_config_repo import AppConfigRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.sqlite_db import CollectorDatabase
 from minitap.mobile_use.collectors.xianyu_collector.transport.proxy_config import ProxyConfig
@@ -130,3 +134,76 @@ def test_bitbrowser_config_round_trips_through_grade_config(tmp_path):
         api_host="127.0.0.1",
         api_port=54345,
     )
+
+
+def test_collector_profile_round_trips_stable_runtime_configuration(tmp_path):
+    db = CollectorDatabase(tmp_path / "collector.db")
+    db.initialize()
+    repo = AppConfigRepository(db)
+
+    repo.save_gather_config(ProxyConfig(is_open_proxy=True, proxy_url="http://proxy-source"))
+    repo.save_bitbrowser_config(
+        BitBrowserConfig(browser_id="browser-123", api_host="127.0.0.1", api_port=54345)
+    )
+    repo.save_gather_conditions(GatherConditionConfig(liuLanLiang_text="100"))
+    repo.save_selected_gather_type(2)
+    repo.save_gather_type_input(0, "gemini")
+    repo.save_gather_type_input(1, "https://www.goofish.com/item?id=1")
+    repo.save_gather_type_input(2, "https://www.goofish.com/?userId=seller-a")
+    repo.save_region_list_str("上海-上海-黄浦区")
+
+    repo.save_profile("default")
+
+    assert repo.list_profile_names() == ["default"]
+    assert repo.load_profile("default") == CollectorProfileConfig(
+        proxy_config=ProxyConfig(is_open_proxy=True, proxy_url="http://proxy-source"),
+        bitbrowser_config=BitBrowserConfig(
+            browser_id="browser-123",
+            api_host="127.0.0.1",
+            api_port=54345,
+        ),
+        gather_conditions=GatherConditionConfig(liuLanLiang_text="100"),
+        selected_gather_type=2,
+        gather_type_inputs={
+            0: "gemini",
+            1: "https://www.goofish.com/item?id=1",
+            2: "https://www.goofish.com/?userId=seller-a",
+        },
+        region_list_str="上海-上海-黄浦区",
+    )
+
+
+def test_apply_profile_restores_saved_runtime_configuration(tmp_path):
+    db = CollectorDatabase(tmp_path / "collector.db")
+    db.initialize()
+    repo = AppConfigRepository(db)
+
+    repo.save_gather_config(ProxyConfig(is_open_proxy=True, proxy_url="http://proxy-source"))
+    repo.save_bitbrowser_config(
+        BitBrowserConfig(browser_id="browser-123", api_host="127.0.0.1", api_port=54345)
+    )
+    repo.save_gather_conditions(GatherConditionConfig(liuLanLiang_text="100"))
+    repo.save_selected_gather_type(1)
+    repo.save_gather_type_input(0, "gemini")
+    repo.save_region_list_str("上海-上海-黄浦区")
+    repo.save_profile("default")
+
+    repo.save_gather_config(ProxyConfig())
+    repo.save_bitbrowser_config(BitBrowserConfig())
+    repo.save_gather_conditions(GatherConditionConfig())
+    repo.save_selected_gather_type(0)
+    repo.save_gather_type_input(0, "other")
+    repo.save_region_list_str("")
+
+    repo.apply_profile("default")
+
+    assert repo.load_gather_config() == ProxyConfig(is_open_proxy=True, proxy_url="http://proxy-source")
+    assert repo.load_bitbrowser_config() == BitBrowserConfig(
+        browser_id="browser-123",
+        api_host="127.0.0.1",
+        api_port=54345,
+    )
+    assert repo.load_gather_conditions() == GatherConditionConfig(liuLanLiang_text="100")
+    assert repo.load_selected_gather_type() == 1
+    assert repo.load_gather_type_input(0) == "gemini"
+    assert repo.load_region_list_str() == "上海-上海-黄浦区"
