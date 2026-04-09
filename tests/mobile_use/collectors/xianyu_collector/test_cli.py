@@ -1,3 +1,5 @@
+import os
+
 from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishBurstError
 from minitap.mobile_use.collectors.xianyu_collector.cli import main
 from minitap.mobile_use.collectors.xianyu_collector.models import GatherConditionConfig
@@ -68,6 +70,18 @@ class FakeService:
             is_open_proxy=True,
             proxy_url="http://proxy-source",
         )
+        self.api_client = type(
+            "FakeApiClient",
+            (),
+            {
+                "search_items": lambda _self, **kwargs: ["111", "222"],
+                "cookie_provider": type(
+                    "FakeCookieProvider",
+                    (),
+                    {"_active_provider": type("SavedCookieProvider", (), {})(), "get_cookie_dict": lambda _self: {"_m_h5_tk": "token", "unb": "123"}} ,
+                )(),
+            },
+        )()
 
     def collect_manual(self, **kwargs):
         self.calls.append(("manual", kwargs))
@@ -323,3 +337,139 @@ def test_cli_collect_keyword_returns_nonzero_when_service_raises_collector_error
 
     assert exit_code == 2
     assert "collector error" in capsys.readouterr().out
+
+
+def test_cli_collect_keyword_passes_bitbrowser_cli_args_through_environment(tmp_path, capsys):
+    captured = {}
+
+    def service_factory(_db_path):
+        captured["bitbrowser_id"] = os.environ.get("XIANYU_COLLECTOR_BITBROWSER_ID")
+        captured["bitbrowser_host"] = os.environ.get("XIANYU_COLLECTOR_BITBROWSER_API_HOST")
+        captured["bitbrowser_port"] = os.environ.get("XIANYU_COLLECTOR_BITBROWSER_API_PORT")
+        return FakeService()
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_path / "collector.db"),
+            "--bitbrowser-id",
+            "browser-123",
+            "--bitbrowser-api-host",
+            "127.0.0.2",
+            "--bitbrowser-api-port",
+            "60000",
+            "collect",
+            "keyword",
+            "--keyword",
+            "gemini",
+        ],
+        service_factory=service_factory,
+    )
+
+    assert exit_code == 0
+    assert captured == {
+        "bitbrowser_id": "browser-123",
+        "bitbrowser_host": "127.0.0.2",
+        "bitbrowser_port": "60000",
+    }
+    assert "saved=2" in capsys.readouterr().out
+    assert os.environ.get("XIANYU_COLLECTOR_BITBROWSER_ID") is None
+
+
+def test_cli_doctor_session_reports_searchable_cookie_source(tmp_path, capsys):
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_path / "collector.db"),
+            "doctor",
+            "session",
+            "--keyword",
+            "gemini",
+        ],
+        service_factory=lambda _db_path: FakeService(),
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "session=searchable" in output
+    assert "cookie_source=SavedCookieProvider" in output
+    assert "item_count=2" in output
+
+
+def test_cli_doctor_session_reports_signing_only_when_search_is_blocked(tmp_path, capsys):
+    class FailingSearchApiClient:
+        def __init__(self):
+            self.cookie_provider = type(
+                "FakeCookieProvider",
+                (),
+                {"_active_provider": type("BitBrowserBrowserSession", (), {})(), "get_cookie_dict": lambda _self: {"_m_h5_tk": "token"}} ,
+            )()
+
+        def search_items(self, **kwargs):
+            raise GoofishBurstError("RGV587_ERROR::SM::哎哟喂,被挤爆啦,请稍后重试!")
+
+    class FailingService(FakeService):
+        def __init__(self):
+            super().__init__()
+            self.api_client = FailingSearchApiClient()
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_path / "collector.db"),
+            "doctor",
+            "session",
+            "--keyword",
+            "gemini",
+        ],
+        service_factory=lambda _db_path: FailingService(),
+    )
+
+    assert exit_code == 2
+    output = capsys.readouterr().out
+    assert "session=signing-only" in output
+    assert "cookie_source=BitBrowserBrowserSession" in output
+    assert "RGV587_ERROR::SM" in output
+
+
+def test_cli_doctor_session_unwraps_browser_cookie_provider_to_session_name(tmp_path, capsys):
+    class WrappedBrowserApiClient:
+        def __init__(self):
+            session = type("BitBrowserBrowserSession", (), {})()
+            active_provider = type(
+                "BrowserCookieProvider",
+                (),
+                {
+                    "session": session,
+                    "get_cookie_dict": lambda _self: {"_m_h5_tk": "token", "unb": "123"},
+                },
+            )()
+            self.cookie_provider = type(
+                "FallbackCookieProvider",
+                (),
+                {"_active_provider": active_provider, "get_cookie_dict": lambda _self: {"_m_h5_tk": "token", "unb": "123"}},
+            )()
+
+        def search_items(self, **kwargs):
+            return ["111"]
+
+    class WrappedBrowserService(FakeService):
+        def __init__(self):
+            super().__init__()
+            self.api_client = WrappedBrowserApiClient()
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(tmp_path / "collector.db"),
+            "doctor",
+            "session",
+            "--keyword",
+            "gemini",
+        ],
+        service_factory=lambda _db_path: WrappedBrowserService(),
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "cookie_source=BitBrowserBrowserSession" in output

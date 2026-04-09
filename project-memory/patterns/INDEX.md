@@ -81,5 +81,6 @@
 | browser-page-itself-can-show-session-expired-on-goofish-search | 2026-04-09 | browser-page-itself-can-show-session-expired-on-goofish-search.md |
 | bitbrowser-logged-in-cookie-string-can-unblock-live-collector-search | 2026-04-09 | bitbrowser-logged-in-cookie-string-can-unblock-live-collector-search.md |
 | bitbrowser-local-api-can-feed-collector-browser-cookies | 2026-04-09 | bitbrowser-local-api-can-feed-collector-browser-cookies.md |
+| collector-doctor-should-probe-searchability-without-writing-data | 2026-04-09 | collector-doctor-should-probe-searchability-without-writing-data.md |
 
-Total: 79
+Total: 80

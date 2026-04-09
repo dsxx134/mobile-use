@@ -48,6 +48,9 @@ Updated: 2026-04-09
   - logged-in BitBrowser session when `XIANYU_COLLECTOR_BITBROWSER_ID` or `BIT_BROWSER_ID` is provided
   - DrissionPage browser session otherwise
   - anonymous bootstrap only as the weakest fallback
+- The collector CLI now has two operator-facing session controls:
+  - direct BitBrowser selection flags that temporarily feed the runtime (`--bitbrowser-id`, `--bitbrowser-api-host`, `--bitbrowser-api-port`)
+  - a non-mutating `doctor session` probe that issues one real search request and reports whether the active cookie chain is merely sign-capable or actually searchable
 - The current source-of-truth for that Xianyu layer was promoted on 2026-04-08 from the repo-local branch `feat/android-debug-mcp` into the primary working tree at `D:\github\mobile-use`.
 - Feature promotion for this stack should keep the package code, entry scripts, tests, docs, and project-memory files together so the deterministic flow and its operational context do not drift apart.
 - The collector integration follows the same rule: keep the source package, tests, dependency wiring, and project-memory updates together so the recovered API collector remains reproducible.

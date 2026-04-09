@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+from contextlib import contextmanager
 from pathlib import Path
 
 from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishApiError
@@ -16,6 +18,9 @@ from minitap.mobile_use.collectors.xianyu_collector.transport.proxy_config impor
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="xianyu-collector")
     parser.add_argument("--db-path", required=True)
+    parser.add_argument("--bitbrowser-id")
+    parser.add_argument("--bitbrowser-api-host")
+    parser.add_argument("--bitbrowser-api-port", type=int)
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -32,6 +37,11 @@ def build_parser() -> argparse.ArgumentParser:
     db_parser = subparsers.add_parser("db")
     db_subparsers = db_parser.add_subparsers(dest="db_command", required=True)
     db_subparsers.add_parser("list-item-ids")
+
+    doctor_parser = subparsers.add_parser("doctor")
+    doctor_subparsers = doctor_parser.add_subparsers(dest="doctor_command", required=True)
+    doctor_session_parser = doctor_subparsers.add_parser("session")
+    doctor_session_parser.add_argument("--keyword", default="gemini")
 
     collect_parser = subparsers.add_parser("collect")
     collect_subparsers = collect_parser.add_subparsers(dest="collect_command", required=True)
@@ -82,9 +92,40 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
             print(item_id)
         return 0
 
+    if args.command == "doctor" and args.doctor_command == "session":
+        factory = service_factory or build_collector_service
+        with _collector_runtime_env(args):
+            service = factory(Path(args.db_path))
+        cookie_provider = service.api_client.cookie_provider
+        cookies = dict(cookie_provider.get_cookie_dict())
+        cookie_source = _cookie_source_name(cookie_provider)
+        try:
+            item_ids = service.api_client.search_items(
+                page=1,
+                keyword=args.keyword,
+                proxy_config=getattr(service, "default_proxy_config", None),
+            )
+        except GoofishApiError as exc:
+            print(
+                "session=signing-only "
+                f"cookie_source={cookie_source} "
+                f"cookie_keys={','.join(sorted(cookies.keys()))} "
+                f"reason={exc}"
+            )
+            return 2
+        print(
+            "session=searchable "
+            f"cookie_source={cookie_source} "
+            f"cookie_keys={','.join(sorted(cookies.keys()))} "
+            f"item_count={len(item_ids)} "
+            f"keyword={args.keyword}"
+        )
+        return 0
+
     if args.command == "collect":
         factory = service_factory or build_collector_service
-        service = factory(Path(args.db_path))
+        with _collector_runtime_env(args):
+            service = factory(Path(args.db_path))
         proxy_config = getattr(service, "default_proxy_config", None)
         gather_conditions = getattr(service, "default_gather_conditions", None)
         if gather_conditions is None:
@@ -166,6 +207,39 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
 def _load_saved_lines(config_repo: AppConfigRepository, gather_type: int) -> list[str]:
     raw = config_repo.load_gather_type_input(gather_type)
     return [line.strip() for line in raw.splitlines() if line.strip()]
+
+
+def _cookie_source_name(cookie_provider) -> str:
+    active_provider = getattr(cookie_provider, "_active_provider", None)
+    if active_provider is not None:
+        session = getattr(active_provider, "session", None)
+        if session is not None:
+            return type(session).__name__
+        return type(active_provider).__name__
+    return type(cookie_provider).__name__
+
+
+@contextmanager
+def _collector_runtime_env(args):
+    overrides = {}
+    if getattr(args, "bitbrowser_id", None):
+        overrides["XIANYU_COLLECTOR_BITBROWSER_ID"] = args.bitbrowser_id
+    if getattr(args, "bitbrowser_api_host", None):
+        overrides["XIANYU_COLLECTOR_BITBROWSER_API_HOST"] = args.bitbrowser_api_host
+    if getattr(args, "bitbrowser_api_port", None) is not None:
+        overrides["XIANYU_COLLECTOR_BITBROWSER_API_PORT"] = str(args.bitbrowser_api_port)
+
+    previous = {key: os.environ.get(key) for key in overrides}
+    try:
+        for key, value in overrides.items():
+            os.environ[key] = value
+        yield
+    finally:
+        for key, old_value in previous.items():
+            if old_value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old_value
 
 
 if __name__ == "__main__":
