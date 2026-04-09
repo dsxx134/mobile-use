@@ -43,6 +43,11 @@ Updated: 2026-04-09
   - `gradeConfig["gather_tiao_jian"]` for shared gather filters
   - `gradeConfig["gather_type"]` and `gradeConfig["gather_type_{n}"]` for per-mode remembered input
   - special behavior fields inside `gather_tiao_jian` for keyword cap and shop recency filtering
+- Its cookie acquisition chain is now intentionally layered by session strength:
+  - saved cookie string from `gradeConfig["cookices_str"]`
+  - logged-in BitBrowser session when `XIANYU_COLLECTOR_BITBROWSER_ID` or `BIT_BROWSER_ID` is provided
+  - DrissionPage browser session otherwise
+  - anonymous bootstrap only as the weakest fallback
 - The current source-of-truth for that Xianyu layer was promoted on 2026-04-08 from the repo-local branch `feat/android-debug-mcp` into the primary working tree at `D:\github\mobile-use`.
 - Feature promotion for this stack should keep the package code, entry scripts, tests, docs, and project-memory files together so the deterministic flow and its operational context do not drift apart.
 - The collector integration follows the same rule: keep the source package, tests, dependency wiring, and project-memory updates together so the recovered API collector remains reproducible.

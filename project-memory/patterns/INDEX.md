@@ -79,5 +79,7 @@
 | chrome-profiles-may-still-only-yield-minimal-goofish-cookies | 2026-04-09 | chrome-profiles-may-still-only-yield-minimal-goofish-cookies.md |
 | proxy-source-can-fail-with-whitelist-json-error | 2026-04-09 | proxy-source-can-fail-with-whitelist-json-error.md |
 | browser-page-itself-can-show-session-expired-on-goofish-search | 2026-04-09 | browser-page-itself-can-show-session-expired-on-goofish-search.md |
+| bitbrowser-logged-in-cookie-string-can-unblock-live-collector-search | 2026-04-09 | bitbrowser-logged-in-cookie-string-can-unblock-live-collector-search.md |
+| bitbrowser-local-api-can-feed-collector-browser-cookies | 2026-04-09 | bitbrowser-local-api-can-feed-collector-browser-cookies.md |
 
-Total: 77
+Total: 79

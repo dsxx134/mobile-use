@@ -17,6 +17,9 @@ from minitap.mobile_use.collectors.xianyu_collector.session.anonymous_bootstrap_
 from minitap.mobile_use.collectors.xianyu_collector.session.browser_cookie_provider import (
     BrowserCookieProvider,
 )
+from minitap.mobile_use.collectors.xianyu_collector.session.bitbrowser_browser_session import (
+    BitBrowserBrowserSession,
+)
 from minitap.mobile_use.collectors.xianyu_collector.session.drission_browser_session import (
     DrissionBrowserSession,
 )
@@ -42,13 +45,29 @@ def build_collector_service(db_path: Path | str) -> CollectorService:
     signer = MtopSigner()
     proxy_config = app_config_repo.load_gather_config()
     browser_port = os.environ.get("XIANYU_COLLECTOR_BROWSER_PORT") or None
+    bitbrowser_id = os.environ.get("XIANYU_COLLECTOR_BITBROWSER_ID") or os.environ.get(
+        "BIT_BROWSER_ID"
+    )
+    bitbrowser_host = os.environ.get("XIANYU_COLLECTOR_BITBROWSER_API_HOST") or os.environ.get(
+        "BIT_BROWSER_API_HOST", "127.0.0.1"
+    )
+    bitbrowser_port = int(
+        os.environ.get("XIANYU_COLLECTOR_BITBROWSER_API_PORT")
+        or os.environ.get("BIT_BROWSER_API_PORT", "54345")
+    )
+    browser_session = (
+        BitBrowserBrowserSession(
+            browser_id=bitbrowser_id,
+            api_host=bitbrowser_host,
+            api_port=bitbrowser_port,
+        )
+        if bitbrowser_id
+        else DrissionBrowserSession(local_port=browser_port)
+    )
     cookie_provider = FallbackCookieProvider(
         [
             SavedCookieProvider(app_config_repo.load_saved_cookie_string()),
-            BrowserCookieProvider(
-                DrissionBrowserSession(local_port=browser_port),
-                "https://www.goofish.com/",
-            ),
+            BrowserCookieProvider(browser_session, "https://www.goofish.com/"),
             AnonymousBootstrapCookieProvider(
                 transport=transport,
                 signer=signer,

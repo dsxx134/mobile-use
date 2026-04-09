@@ -40,5 +40,7 @@
 | xianyu collector applies recovered gradeConfig by default | 2026-04-09 | 2026-04-09-xianyu-collector-applies-recovered-grade-config-by-default.md |
 | xianyu collector surfaces upstream ret errors | 2026-04-09 | 2026-04-09-xianyu-collector-surfaces-upstream-ret-errors.md |
 | xianyu collector retries burst once when proxy is enabled | 2026-04-09 | 2026-04-09-xianyu-collector-retries-burst-once-when-proxy-is-enabled.md |
+| bitbrowser cookie string proves session source is the key blocker | 2026-04-09 | 2026-04-09-bitbrowser-cookie-string-proves-session-source-is-the-key-blocker.md |
+| xianyu collector can source cookies from bitbrowser runtime | 2026-04-09 | 2026-04-09-xianyu-collector-can-source-cookies-from-bitbrowser-runtime.md |
 
-Total: 38
+Total: 40
