@@ -835,3 +835,127 @@ def test_cli_doctor_freshness_skips_refresh_when_cookie_is_already_fresh(tmp_pat
     output = capsys.readouterr().out
     assert "status=fresh" in output
     assert "refresh=not-needed" in output
+
+
+def test_cli_doctor_ensure_searchable_skips_refresh_when_saved_is_already_searchable(
+    tmp_path, capsys, monkeypatch
+):
+    db_path = tmp_path / "collector.db"
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_saved_cookie_string("a=1; _m_h5_tk=token_1710003600000; unb=2207148365801")
+    repo.save_bitbrowser_config(
+        BitBrowserConfig(
+            browser_id="browser-123",
+            api_host="127.0.0.1",
+            api_port=54345,
+        )
+    )
+
+    class GuardBitBrowserBrowserSession:
+        def __init__(self, **kwargs):
+            raise AssertionError("should not refresh when saved is already searchable")
+
+    class FakeGoofishApiClient:
+        def __init__(self, *, transport, cookie_provider, signer):
+            self.cookie_provider = cookie_provider
+
+        def search_items(self, **kwargs):
+            return ["111", "222"]
+
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.BitBrowserBrowserSession",
+        GuardBitBrowserBrowserSession,
+    )
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.GoofishApiClient",
+        FakeGoofishApiClient,
+    )
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli._now_ms",
+        lambda: 1710000000000,
+    )
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "doctor",
+            "ensure-searchable",
+            "--keyword",
+            "gemini",
+        ]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "source=saved" in output
+    assert "status=searchable" in output
+    assert "item_count=2" in output
+    assert "repair=not-needed" in output
+
+
+def test_cli_doctor_ensure_searchable_refreshes_from_bitbrowser_when_saved_fails(
+    tmp_path, capsys, monkeypatch
+):
+    db_path = tmp_path / "collector.db"
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_bitbrowser_config(
+        BitBrowserConfig(
+            browser_id="browser-123",
+            api_host="127.0.0.1",
+            api_port=54345,
+        )
+    )
+
+    class FakeBitBrowserBrowserSession:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def get_cookie_string(self, url: str) -> str:
+            return "a=1; _m_h5_tk=token_1710003600000; unb=2207148365801"
+
+    class FakeGoofishApiClient:
+        def __init__(self, *, transport, cookie_provider, signer):
+            self.cookie_provider = cookie_provider
+
+        def search_items(self, **kwargs):
+            cookies = self.cookie_provider.get_cookie_dict()
+            if cookies.get("_m_h5_tk"):
+                return ["111", "222", "333"]
+            raise GoofishBurstError("RGV587_ERROR::SM::哎哟喂,被挤爆啦,请稍后重试!")
+
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.BitBrowserBrowserSession",
+        FakeBitBrowserBrowserSession,
+    )
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli.GoofishApiClient",
+        FakeGoofishApiClient,
+    )
+    monkeypatch.setattr(
+        "minitap.mobile_use.collectors.xianyu_collector.cli._now_ms",
+        lambda: 1710000000000,
+    )
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "doctor",
+            "ensure-searchable",
+            "--keyword",
+            "gemini",
+        ]
+    )
+
+    assert exit_code == 0
+    assert repo.load_saved_cookie_string() == "a=1; _m_h5_tk=token_1710003600000; unb=2207148365801"
+    output = capsys.readouterr().out
+    assert "source=saved" in output
+    assert "status=searchable" in output
+    assert "item_count=3" in output
+    assert "repair=performed" in output

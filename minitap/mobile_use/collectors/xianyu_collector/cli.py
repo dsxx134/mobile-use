@@ -67,6 +67,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--refresh-from-bitbrowser-if-needed",
         action="store_true",
     )
+    doctor_ensure_parser = doctor_subparsers.add_parser("ensure-searchable")
+    doctor_ensure_parser.add_argument("--keyword", default="gemini")
 
     collect_parser = subparsers.add_parser("collect")
     collect_subparsers = collect_parser.add_subparsers(dest="collect_command", required=True)
@@ -203,6 +205,14 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
         if details["status"] in {"fresh", "stale"}:
             return 0
         return 2
+
+    if args.command == "doctor" and args.doctor_command == "ensure-searchable":
+        factory = service_factory or build_collector_service
+        with _collector_runtime_env(args):
+            service = factory(Path(args.db_path))
+        result = _ensure_saved_searchable(service=service, config_repo=config_repo, keyword=args.keyword)
+        print(_format_probe_result(result))
+        return 0 if result.get("status") == "searchable" else 2
 
     if args.command == "collect":
         factory = service_factory or build_collector_service
@@ -426,12 +436,82 @@ def _doctor_compare_lines(*, service, config_repo: AppConfigRepository, keyword:
     return lines
 
 
+def _ensure_saved_searchable(*, service, config_repo: AppConfigRepository, keyword: str) -> dict[str, object]:
+    transport = getattr(service.api_client, "transport", None)
+    signer = getattr(service.api_client, "signer", None)
+    proxy_config = getattr(service, "default_proxy_config", None)
+    bitbrowser_config = getattr(service, "default_bitbrowser_config", BitBrowserConfig())
+
+    saved_cookie_string = config_repo.load_saved_cookie_string()
+    saved_result = _probe_provider_result(
+        source_name="saved",
+        cookie_provider=SavedCookieProvider(saved_cookie_string),
+        transport=transport,
+        signer=signer,
+        keyword=keyword,
+        proxy_config=proxy_config,
+    )
+    if saved_result["status"] == "searchable":
+        saved_result["repair"] = "not-needed"
+        details = _saved_cookie_freshness_details(saved_cookie_string)
+        saved_result["freshness"] = details["status"]
+        return saved_result
+
+    if not bitbrowser_config.enabled:
+        saved_result["repair"] = "unavailable"
+        return saved_result
+
+    try:
+        cookie_string = BitBrowserBrowserSession(
+            browser_id=bitbrowser_config.browser_id,
+            api_host=bitbrowser_config.api_host,
+            api_port=bitbrowser_config.api_port,
+        ).get_cookie_string("https://www.goofish.com/")
+    except Exception as exc:
+        saved_result["repair"] = "failed"
+        saved_result["reason"] = str(exc)
+        return saved_result
+
+    config_repo.save_saved_cookie_string(cookie_string)
+    repaired_result = _probe_provider_result(
+        source_name="saved",
+        cookie_provider=SavedCookieProvider(cookie_string),
+        transport=transport,
+        signer=signer,
+        keyword=keyword,
+        proxy_config=proxy_config,
+    )
+    repaired_result["repair"] = "performed"
+    repaired_result["freshness"] = _saved_cookie_freshness_details(cookie_string)["status"]
+    return repaired_result
+
+
 def _probe_provider(*, source_name: str, cookie_provider, transport, signer, keyword: str, proxy_config):
+    return _format_probe_result(
+        _probe_provider_result(
+            source_name=source_name,
+            cookie_provider=cookie_provider,
+            transport=transport,
+            signer=signer,
+            keyword=keyword,
+            proxy_config=proxy_config,
+        )
+    )
+
+
+def _probe_provider_result(
+    *, source_name: str, cookie_provider, transport, signer, keyword: str, proxy_config
+) -> dict[str, object]:
     cookie_source = _cookie_source_name(cookie_provider)
     try:
         cookies = dict(cookie_provider.get_cookie_dict())
     except Exception as exc:
-        return f"source={source_name} status=unavailable cookie_source={cookie_source} reason={exc}"
+        return {
+            "source": source_name,
+            "status": "unavailable",
+            "cookie_source": cookie_source,
+            "reason": str(exc),
+        }
 
     api_client = GoofishApiClient(
         transport=transport,
@@ -441,14 +521,41 @@ def _probe_provider(*, source_name: str, cookie_provider, transport, signer, key
     try:
         item_ids = api_client.search_items(page=1, keyword=keyword, proxy_config=proxy_config)
     except GoofishApiError as exc:
-        return f"source={source_name} status=signing-only cookie_source={cookie_source} reason={exc}"
+        return {
+            "source": source_name,
+            "status": "signing-only",
+            "cookie_source": cookie_source,
+            "reason": str(exc),
+        }
     except Exception as exc:
-        return f"source={source_name} status=unavailable cookie_source={cookie_source} reason={exc}"
+        return {
+            "source": source_name,
+            "status": "unavailable",
+            "cookie_source": cookie_source,
+            "reason": str(exc),
+        }
 
-    return (
-        f"source={source_name} status=searchable cookie_source={cookie_source} "
-        f"item_count={len(item_ids)}"
-    )
+    return {
+        "source": source_name,
+        "status": "searchable",
+        "cookie_source": cookie_source,
+        "item_count": len(item_ids),
+    }
+
+
+def _format_probe_result(result: dict[str, object]) -> str:
+    parts = [f"source={result['source']}", f"status={result['status']}"]
+    if "cookie_source" in result:
+        parts.append(f"cookie_source={result['cookie_source']}")
+    if "item_count" in result:
+        parts.append(f"item_count={result['item_count']}")
+    if "freshness" in result:
+        parts.append(f"freshness={result['freshness']}")
+    if "repair" in result:
+        parts.append(f"repair={result['repair']}")
+    if "reason" in result:
+        parts.append(f"reason={result['reason']}")
+    return " ".join(parts)
 
 
 @contextmanager

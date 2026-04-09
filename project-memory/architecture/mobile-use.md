@@ -68,6 +68,9 @@ Updated: 2026-04-09
 - The operational contract of that repair path is now two-step:
   - low-level proof: `_m_h5_tk` TTL becomes `fresh`
   - business-level proof: the saved-cookie source can be observed as `searchable` again through `doctor compare`
+- Above those low-level doctor commands now sits one business-facing command:
+  - `doctor ensure-searchable`
+  - it treats saved-cookie searchability as the end goal, only refreshing from BitBrowser when needed, and then re-proves saved searchability directly
 - BitBrowser session acquisition also now tolerates the transient local-API state `浏览器正在打开中` by retrying the open call before failing.
 - Those temporary BitBrowser flags now have a persisted counterpart inside collector config:
   - `gradeConfig["bitbrowser_runtime"]`

@@ -88,5 +88,6 @@
 | bitbrowser-open-may-need-retry-while-browser-is-opening | 2026-04-09 | bitbrowser-open-may-need-retry-while-browser-is-opening.md |
 | freshness-checks-should-offer-a-low-noise-repair-path | 2026-04-09 | freshness-checks-should-offer-a-low-noise-repair-path.md |
 | auto-refresh-should-end-with-a-business-level-proof | 2026-04-09 | auto-refresh-should-end-with-a-business-level-proof.md |
+| business-readiness-command-should-wrap-lower-level-diagnostics | 2026-04-09 | business-readiness-command-should-wrap-lower-level-diagnostics.md |
 
-Total: 86
+Total: 87
