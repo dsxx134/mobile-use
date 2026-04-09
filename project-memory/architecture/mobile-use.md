@@ -6,6 +6,7 @@ Updated: 2026-04-09
 - Entry surfaces:
   - CLI in `minitap/mobile_use/main.py`
   - SDK in `minitap/mobile_use/sdk/agent.py`
+- The primary local working copy for this architecture is now `E:\github2.0\xianyu`.
 - Core runtime:
   - LangGraph state machine in `minitap/mobile_use/graph/graph.py`
   - Node chain: planner -> orchestrator -> contextor -> cortex -> executor -> tools -> summarizer

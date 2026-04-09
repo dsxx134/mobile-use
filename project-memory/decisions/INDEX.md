@@ -43,5 +43,6 @@
 | bitbrowser cookie string proves session source is the key blocker | 2026-04-09 | 2026-04-09-bitbrowser-cookie-string-proves-session-source-is-the-key-blocker.md |
 | xianyu collector can source cookies from bitbrowser runtime | 2026-04-09 | 2026-04-09-xianyu-collector-can-source-cookies-from-bitbrowser-runtime.md |
 | xianyu collector exposes bitbrowser and session doctor in cli | 2026-04-09 | 2026-04-09-xianyu-collector-exposes-bitbrowser-and-session-doctor-in-cli.md |
+| primary working copy moved to e-drive xianyu path | 2026-04-09 | 2026-04-09-primary-working-copy-moved-to-e-drive-xianyu-path.md |
 
-Total: 41
+Total: 42

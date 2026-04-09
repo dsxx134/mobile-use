@@ -1,7 +1,7 @@
 # mobile-use
 
 Updated: 2026-04-09
-Repo: `D:\github\mobile-use`
+Repo: `E:\github2.0\xianyu`
 Status: Active
 
 ## Summary
@@ -22,6 +22,7 @@ Status: Active
 - On 2026-04-09, a decisive live test proved that the collector can successfully search `gemini` when fed a full cookie string from the user's logged-in BitBrowser session: the local CLI run against a copied DB returned `saved=30`, which confirms the main blocker is session-source quality rather than the signing algorithm alone.
 - On 2026-04-09, the collector runtime itself gained a BitBrowser-backed browser session source keyed by `XIANYU_COLLECTOR_BITBROWSER_ID` / `BIT_BROWSER_ID`, and a fresh live CLI run against `gemini` succeeded through that runtime path with `saved=30` without manual cookie injection.
 - On 2026-04-09, the collector CLI itself gained direct BitBrowser flags plus a `doctor session` command; a fresh live run showed `doctor session --keyword gemini` classifying the BitBrowser path as `session=searchable`, and `collect keyword --keyword gemini` again saved `30` rows through the same CLI-specified browser id.
+- On 2026-04-09, the project's primary working copy was migrated from `D:\github\mobile-use` to `E:\github2.0\xianyu`; the old E-drive recovery-only workspace was preserved at `E:\github2.0\xianyu-recovery-backup-20260409-152943`, and future git maintenance now belongs to the new independent repo at `E:\github2.0\xianyu`.
 - On 2026-04-08, the latest local Xianyu automation implementation was traced to the repo-local worktree branch `feat/android-debug-mcp`, not the placeholder repo `E:\github2.0\xianyu`.
 - On 2026-04-08, `D:\github\mobile-use` main worktree was synced with the full Xianyu automation diff from `feat/android-debug-mcp`, including code, tests, docs, and project-memory updates.
 - The latest local Xianyu automation commit identified during that migration is `f4d0fee` from 2026-03-20, which is newer than the pushed `origin/feat/android-debug-mcp` tip from 2026-03-18.
