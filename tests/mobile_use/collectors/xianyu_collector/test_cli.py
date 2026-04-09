@@ -2,7 +2,7 @@ import os
 
 from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishBurstError
 from minitap.mobile_use.collectors.xianyu_collector.cli import main
-from minitap.mobile_use.collectors.xianyu_collector.models import GatherConditionConfig
+from minitap.mobile_use.collectors.xianyu_collector.models import BitBrowserConfig, GatherConditionConfig
 from minitap.mobile_use.collectors.xianyu_collector.repository.app_config_repo import AppConfigRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.goods_repo import GoodsRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.sqlite_db import CollectorDatabase
@@ -46,6 +46,38 @@ def test_cli_set_cookie_persists_saved_cookie_string(tmp_path, capsys):
     assert exit_code == 0
     output = capsys.readouterr().out
     assert "cookie string saved" in output
+
+
+def test_cli_set_bitbrowser_persists_runtime_config(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "set-bitbrowser",
+            "--browser-id",
+            "browser-123",
+            "--api-host",
+            "127.0.0.2",
+            "--api-port",
+            "60000",
+        ]
+    )
+
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+
+    assert exit_code == 0
+    assert repo.load_bitbrowser_config() == BitBrowserConfig(
+        browser_id="browser-123",
+        api_host="127.0.0.2",
+        api_port=60000,
+    )
+    output = capsys.readouterr().out
+    assert "bitbrowser config saved" in output
 
 
 def test_cli_db_list_item_ids_prints_saved_item_ids(tmp_path, capsys):

@@ -20,6 +20,30 @@ def _to_float(value: str, *, default: float | None = None) -> float | None:
 
 
 @dataclass(frozen=True, slots=True)
+class BitBrowserConfig:
+    browser_id: str = ""
+    api_host: str = "127.0.0.1"
+    api_port: int = 54345
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.browser_id.strip())
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object] | None) -> "BitBrowserConfig":
+        if not payload:
+            return cls()
+        return cls(
+            browser_id=str(payload.get("browser_id", "")),
+            api_host=str(payload.get("api_host", "127.0.0.1") or "127.0.0.1"),
+            api_port=int(payload.get("api_port", 54345) or 54345),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class GatherConditionConfig:
     liuLanLiang_text: str = ""
     xiangYaoRenShu_text: str = ""

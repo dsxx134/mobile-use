@@ -52,6 +52,9 @@ Updated: 2026-04-09
 - The collector CLI now has two operator-facing session controls:
   - direct BitBrowser selection flags that temporarily feed the runtime (`--bitbrowser-id`, `--bitbrowser-api-host`, `--bitbrowser-api-port`)
   - a non-mutating `doctor session` probe that issues one real search request and reports whether the active cookie chain is merely sign-capable or actually searchable
+- Those temporary BitBrowser flags now have a persisted counterpart inside collector config:
+  - `gradeConfig["bitbrowser_runtime"]`
+  - runtime gives explicit CLI/env overrides higher priority, then falls back to the saved DB config
 - The current source-of-truth for that Xianyu layer was promoted on 2026-04-08 from the repo-local branch `feat/android-debug-mcp` into the primary working tree at `D:\github\mobile-use`.
 - Feature promotion for this stack should keep the package code, entry scripts, tests, docs, and project-memory files together so the deterministic flow and its operational context do not drift apart.
 - The collector integration follows the same rule: keep the source package, tests, dependency wiring, and project-memory updates together so the recovered API collector remains reproducible.

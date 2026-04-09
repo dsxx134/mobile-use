@@ -6,7 +6,7 @@ from pathlib import Path
 from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishApiClient
 from minitap.mobile_use.collectors.xianyu_collector.domain.filter_engine import FilterEngine
 from minitap.mobile_use.collectors.xianyu_collector.domain.item_normalizer import ItemNormalizer
-from minitap.mobile_use.collectors.xianyu_collector.models import GatherConditionConfig
+from minitap.mobile_use.collectors.xianyu_collector.models import BitBrowserConfig, GatherConditionConfig
 from minitap.mobile_use.collectors.xianyu_collector.repository.app_config_repo import AppConfigRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.goods_repo import GoodsRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.sqlite_db import CollectorDatabase
@@ -44,24 +44,29 @@ def build_collector_service(db_path: Path | str) -> CollectorService:
     transport = CollectorHttpClient(proxy_state=proxy_state)
     signer = MtopSigner()
     proxy_config = app_config_repo.load_gather_config()
+    saved_bitbrowser_config = app_config_repo.load_bitbrowser_config()
     browser_port = os.environ.get("XIANYU_COLLECTOR_BROWSER_PORT") or None
     bitbrowser_id = os.environ.get("XIANYU_COLLECTOR_BITBROWSER_ID") or os.environ.get(
         "BIT_BROWSER_ID"
-    )
+    ) or saved_bitbrowser_config.browser_id
     bitbrowser_host = os.environ.get("XIANYU_COLLECTOR_BITBROWSER_API_HOST") or os.environ.get(
-        "BIT_BROWSER_API_HOST", "127.0.0.1"
-    )
-    bitbrowser_port = int(
-        os.environ.get("XIANYU_COLLECTOR_BITBROWSER_API_PORT")
-        or os.environ.get("BIT_BROWSER_API_PORT", "54345")
+        "BIT_BROWSER_API_HOST"
+    ) or saved_bitbrowser_config.api_host
+    bitbrowser_config = BitBrowserConfig(
+        browser_id=bitbrowser_id,
+        api_host=bitbrowser_host,
+        api_port=int(
+            os.environ.get("XIANYU_COLLECTOR_BITBROWSER_API_PORT")
+            or os.environ.get("BIT_BROWSER_API_PORT", str(saved_bitbrowser_config.api_port))
+        ),
     )
     browser_session = (
         BitBrowserBrowserSession(
-            browser_id=bitbrowser_id,
-            api_host=bitbrowser_host,
-            api_port=bitbrowser_port,
+            browser_id=bitbrowser_config.browser_id,
+            api_host=bitbrowser_config.api_host,
+            api_port=bitbrowser_config.api_port,
         )
-        if bitbrowser_id
+        if bitbrowser_config.enabled
         else DrissionBrowserSession(local_port=browser_port)
     )
     cookie_provider = FallbackCookieProvider(
@@ -88,6 +93,7 @@ def build_collector_service(db_path: Path | str) -> CollectorService:
         filter_engine=FilterEngine(),
     )
     service.default_proxy_config = proxy_config
+    service.default_bitbrowser_config = bitbrowser_config
     service.default_gather_conditions = app_config_repo.load_gather_conditions()
     service.default_selected_gather_type = app_config_repo.load_selected_gather_type()
     return service

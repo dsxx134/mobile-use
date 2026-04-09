@@ -44,5 +44,6 @@
 | xianyu collector can source cookies from bitbrowser runtime | 2026-04-09 | 2026-04-09-xianyu-collector-can-source-cookies-from-bitbrowser-runtime.md |
 | xianyu collector exposes bitbrowser and session doctor in cli | 2026-04-09 | 2026-04-09-xianyu-collector-exposes-bitbrowser-and-session-doctor-in-cli.md |
 | primary working copy moved to e-drive xianyu path | 2026-04-09 | 2026-04-09-primary-working-copy-moved-to-e-drive-xianyu-path.md |
+| xianyu collector persists bitbrowser runtime config | 2026-04-09 | 2026-04-09-xianyu-collector-persists-bitbrowser-runtime-config.md |
 
-Total: 42
+Total: 43

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishApiError
 from minitap.mobile_use.collectors.xianyu_collector.domain.filter_config import FilterConfig
-from minitap.mobile_use.collectors.xianyu_collector.models import GatherConditionConfig
+from minitap.mobile_use.collectors.xianyu_collector.models import BitBrowserConfig, GatherConditionConfig
 from minitap.mobile_use.collectors.xianyu_collector.repository.app_config_repo import AppConfigRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.goods_repo import GoodsRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.sqlite_db import CollectorDatabase
@@ -33,6 +33,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     set_cookie_parser = config_subparsers.add_parser("set-cookie")
     set_cookie_parser.add_argument("--cookie-string", required=True)
+
+    set_bitbrowser_parser = config_subparsers.add_parser("set-bitbrowser")
+    set_bitbrowser_parser.add_argument("--browser-id", required=True)
+    set_bitbrowser_parser.add_argument("--api-host", default="127.0.0.1")
+    set_bitbrowser_parser.add_argument("--api-port", type=int, default=54345)
 
     db_parser = subparsers.add_parser("db")
     db_subparsers = db_parser.add_subparsers(dest="db_command", required=True)
@@ -85,6 +90,17 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
     if args.command == "config" and args.config_command == "set-cookie":
         config_repo.save_saved_cookie_string(args.cookie_string)
         print("cookie string saved")
+        return 0
+
+    if args.command == "config" and args.config_command == "set-bitbrowser":
+        config_repo.save_bitbrowser_config(
+            BitBrowserConfig(
+                browser_id=args.browser_id,
+                api_host=args.api_host,
+                api_port=args.api_port,
+            )
+        )
+        print("bitbrowser config saved")
         return 0
 
     if args.command == "db" and args.db_command == "list-item-ids":

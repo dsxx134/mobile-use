@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from minitap.mobile_use.collectors.xianyu_collector.models import GatherConditionConfig
+from minitap.mobile_use.collectors.xianyu_collector.models import BitBrowserConfig, GatherConditionConfig
 from minitap.mobile_use.collectors.xianyu_collector.repository.sqlite_db import CollectorDatabase
 from minitap.mobile_use.collectors.xianyu_collector.transport.proxy_config import ProxyConfig
 
@@ -77,6 +77,15 @@ class AppConfigRepository:
 
     def save_region_list_str(self, region_list_str: str) -> None:
         self._save_grade_config_value("region_list_str", region_list_str)
+
+    def load_bitbrowser_config(self) -> BitBrowserConfig:
+        payload = self._load_grade_config_value("bitbrowser_runtime")
+        if not isinstance(payload, dict):
+            return BitBrowserConfig()
+        return BitBrowserConfig.from_dict(payload)
+
+    def save_bitbrowser_config(self, config: BitBrowserConfig) -> None:
+        self._save_grade_config_value("bitbrowser_runtime", config.to_dict())
 
     def load_gather_conditions(self) -> GatherConditionConfig:
         payload = self._load_grade_config_value("gather_tiao_jian")

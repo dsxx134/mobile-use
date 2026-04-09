@@ -1,4 +1,4 @@
-from minitap.mobile_use.collectors.xianyu_collector.models import GatherConditionConfig
+from minitap.mobile_use.collectors.xianyu_collector.models import BitBrowserConfig, GatherConditionConfig
 from minitap.mobile_use.collectors.xianyu_collector.repository.app_config_repo import AppConfigRepository
 from minitap.mobile_use.collectors.xianyu_collector.repository.sqlite_db import CollectorDatabase
 from minitap.mobile_use.collectors.xianyu_collector.transport.proxy_config import ProxyConfig
@@ -110,3 +110,23 @@ def test_updating_one_grade_config_key_preserves_existing_values(tmp_path):
 
     assert repo.load_saved_cookie_string() == "cookie=1"
     assert repo.load_region_list_str() == "北京-北京-东城"
+
+
+def test_bitbrowser_config_round_trips_through_grade_config(tmp_path):
+    db = CollectorDatabase(tmp_path / "collector.db")
+    db.initialize()
+    repo = AppConfigRepository(db)
+
+    repo.save_bitbrowser_config(
+        BitBrowserConfig(
+            browser_id="93d2f197e35a42e4813d990522a19189",
+            api_host="127.0.0.1",
+            api_port=54345,
+        )
+    )
+
+    assert repo.load_bitbrowser_config() == BitBrowserConfig(
+        browser_id="93d2f197e35a42e4813d990522a19189",
+        api_host="127.0.0.1",
+        api_port=54345,
+    )
