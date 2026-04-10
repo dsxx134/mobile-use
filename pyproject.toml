@@ -56,6 +56,7 @@ dev = [
 
 [project.scripts]
 mobile-use = "minitap.mobile_use.main:cli"
+mobile-use-xianyu = "minitap.mobile_use.xianyu_cli:main"
 mobile-use-android-debug-mcp = "minitap.mobile_use.mcp.android_debug_mcp:main"
 mobile-use-xianyu-collector = "minitap.mobile_use.collectors.xianyu_collector.cli:main"
 mobile-use-xianyu-prepare = "minitap.mobile_use.scenarios.xianyu_publish.prepare_cli:main"

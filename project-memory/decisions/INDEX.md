@@ -58,5 +58,6 @@
 | profiles can carry default collect parameters | 2026-04-09 | 2026-04-09-profiles-can-carry-default-collect-parameters.md |
 | collector profiles can be exported as json | 2026-04-09 | 2026-04-09-collector-profiles-can-be-exported-as-json.md |
 | xianyu operator entrypoints graduate from scripts to console commands | 2026-04-09 | 2026-04-09-xianyu-operator-entrypoints-graduate-from-scripts-to-console-commands.md |
+| unified xianyu cli wraps collector and publish surfaces | 2026-04-10 | 2026-04-10-unified-xianyu-cli-wraps-collector-and-publish-surfaces.md |
 
-Total: 56
+Total: 57

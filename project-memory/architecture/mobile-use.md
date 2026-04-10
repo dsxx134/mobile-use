@@ -6,6 +6,7 @@ Updated: 2026-04-09
 - Entry surfaces:
   - CLI in `minitap/mobile_use/main.py`
   - SDK in `minitap/mobile_use/sdk/agent.py`
+  - Unified Xianyu operator CLI in `minitap/mobile_use/xianyu_cli.py`
   - Xianyu operator CLIs in `minitap/mobile_use/scenarios/xianyu_publish/*_cli.py`
 - The primary local working copy for this architecture is now `E:\github2.0\xianyu`.
 - Core runtime:
@@ -124,6 +125,9 @@ Updated: 2026-04-09
   - `mobile-use-xianyu-publish`
   - `mobile-use-xianyu-publish-auto`
   - `mobile-use-xianyu-publish-schedule`
+- A higher-level dispatcher command now sits above them:
+  - `mobile-use-xianyu`
+  - it forwards subcommands to either the collector CLI or the publish-oriented CLIs
 - The old `scripts/xianyu_*.py` files now serve only as compatibility wrappers over the package
   entrypoints.
 - The live queue path now writes two levels of Feishu observability:
