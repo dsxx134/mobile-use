@@ -277,9 +277,93 @@ uv run python scripts/android_debug_mcp_smoke.py
 - Inspect screenshots, hierarchy XML, and foreground app state from one MCP endpoint
 - Support Xianyu publishing automation with a repo-local Android debugging toolchain
 
+## Xianyu Collector
+
+The repository now also ships a separate API-driven Xianyu collector package under
+`minitap/mobile_use/collectors/xianyu_collector/`. It is intentionally isolated from the
+publish-flow code so collection and posting can evolve independently.
+
+### What the collector already covers
+
+- Stable SQLite-backed collection for `keyword`, `manual`, and `shop` modes
+- Recovered `gradeConfig` defaults for gather filters, multi-spec mode, keyword caps, and shop
+  recency presets
+- A session ladder that prefers:
+  - saved cookie string
+  - logged-in BitBrowser browser session
+  - browser bootstrap / anonymous signing only as the weakest fallback
+- Operator-facing diagnostics and repair commands:
+  - `doctor session`
+  - `doctor compare`
+  - `doctor freshness`
+  - `doctor ensure-searchable`
+- Stable config profiles with:
+  - `save-profile`
+  - `load-profile`
+  - `delete-profile`
+  - `export-profile`
+  - `import-profile`
+
+### Recommended entrypoint
+
+```bash
+uv run mobile-use-xianyu-collector --db-path .tmp/xianyu-collector.db --help
+```
+
+### Recommended operator workflow
+
+1. Save the logged-in BitBrowser runtime once:
+
+```bash
+uv run mobile-use-xianyu-collector --db-path .tmp/xianyu-collector.db \
+  config set-bitbrowser --browser-id <bitbrowser-id>
+```
+
+2. Save default preflight behavior once:
+
+```bash
+uv run mobile-use-xianyu-collector --db-path .tmp/xianyu-collector.db \
+  config set-run-defaults --ensure-searchable-default --keyword-pages-default 1
+```
+
+3. Confirm the saved-cookie path is actually business-ready:
+
+```bash
+uv run mobile-use-xianyu-collector --db-path .tmp/xianyu-collector.db \
+  doctor ensure-searchable --keyword gemini
+```
+
+4. Run collection with the same installable command:
+
+```bash
+uv run mobile-use-xianyu-collector --db-path .tmp/xianyu-collector.db \
+  collect keyword --keyword gemini
+```
+
+### Session notes
+
+- In the current live environment, anonymous/bootstrap sessions can still stop at
+  `RGV587_ERROR::SM`, so a successful bootstrap signature does **not** prove the search API is
+  usable.
+- The strongest known path is still a genuinely logged-in BitBrowser session.
+- `doctor ensure-searchable` is the current recommended preflight because it reaches the real
+  end-state (`saved` becomes `searchable`) instead of only proving token freshness.
+
+### Profile portability
+
+Export/import is now the preferred way to move stable collector setups across machines or DB files:
+
+```bash
+uv run mobile-use-xianyu-collector --db-path .tmp/xianyu-collector.db \
+  config export-profile --name work --output .tmp/work-profile.json
+
+uv run mobile-use-xianyu-collector --db-path .tmp/another.db \
+  config import-profile --input .tmp/work-profile.json
+```
+
 ## Xianyu Publish Foundation
 
-This branch also includes the first business-layer foundation for Xianyu publishing. It does
+This repo also includes the first business-layer foundation for Xianyu publishing. It does
 not submit listings inside the Xianyu app yet. Instead, it now covers the upstream data/media
 pipeline plus the first deterministic in-app publish navigation layer.
 
@@ -374,11 +458,14 @@ pipeline plus the first deterministic in-app publish navigation layer.
 - `最近批次运行ID`
 - `最近批次运行时间`
 - `最近批次运行结果`
-- `是否允许发布`
-- `允许自动发布`
 - `闲鱼商品ID`
 - `闲鱼商品链接`
 - `发布时间`
+
+Optional compatibility fields:
+
+- `是否允许发布` — only used when `allow_publish_field_name` is explicitly configured
+- `允许自动发布` — only used when `auto_publish_field_name` is explicitly configured
 
 ### Default batch-summary table
 
@@ -412,18 +499,20 @@ uv run python scripts/xianyu_publish_flow_smoke.py
 ### Run the live Feishu-backed prepare runner
 
 ```bash
-uv run python scripts/xianyu_prepare_runner_live.py
+uv run mobile-use-xianyu-prepare
 ```
 
 - The script reads credentials and table settings from `.env`
 - It uses `XIANYU_ANDROID_SERIAL` by default, or `--serial <device>` when you want to override it
 - It preheats Xianyu back to the portrait `发闲置` form before running the deterministic prepare slice
 - It prints the prepared record id, pushed media paths, merged body text, and final screen as JSON
+- `--preheat-attempts` is available when you want a slightly more forgiving preheat on flaky
+  tablets
 
 ### Run the live review runner without submitting
 
 ```bash
-uv run python scripts/xianyu_publish_review_live.py
+uv run mobile-use-xianyu-review
 ```
 
 - This script runs the same deterministic prepare slice, then checks that the editor is still in a
@@ -434,11 +523,12 @@ uv run python scripts/xianyu_publish_review_live.py
 ### Run the live auto-publish runner
 
 ```bash
-uv run python scripts/xianyu_publish_auto_live.py
+uv run mobile-use-xianyu-publish-auto
 ```
 
 - This script runs the same deterministic prepare slice and then taps the visible `发布` target
-- The Bitable row must still satisfy `是否允许发布=true` and now also requires `允许自动发布=true`
+- By default it only requires the row to already be in the publish queue; if you explicitly map
+  `auto_publish_field_name`, the single-item auto-publish path will also respect that boolean gate
 - It writes `发布中` before tapping submit
 - If the analyzer reaches the success screen, it writes back:
   - `发布状态=已发布`
@@ -481,14 +571,14 @@ uv run python scripts/xianyu_publish_auto_live.py
 ### Run the live batch publish worker
 
 ```bash
-uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seconds 5
+uv run mobile-use-xianyu-publish --max-items 3 --cooldown-seconds 5
 ```
 
 - This worker repeatedly reuses the same live auto-publish path, one listing at a time
 - It only pulls rows that still satisfy the base publish queue filter:
-  - `是否允许发布=true`
   - `发布状态=待发布`
   - `商品图片` is not empty
+- If you explicitly configure `allow_publish_field_name`, that extra boolean gate is also applied
 - It also skips rows whose retry budget is already exhausted:
   - `失败重试次数 >= 失败重试上限`
   - when the row does not define `失败重试上限`, the code falls back to the local default `3`
@@ -526,7 +616,7 @@ uv run python scripts/xianyu_publish_queue_live.py --max-items 3 --cooldown-seco
 ### Run the live scheduled batch loop
 
 ```bash
-uv run python scripts/xianyu_publish_queue_schedule_live.py --interval-seconds 300 --max-items 1 --cooldown-seconds 3 --stop-when-idle
+uv run mobile-use-xianyu-publish-schedule --interval-seconds 300 --max-items 1 --cooldown-seconds 3 --stop-when-idle
 ```
 
 - This wrapper repeatedly calls the existing live batch worker on a fixed interval.
@@ -536,6 +626,8 @@ uv run python scripts/xianyu_publish_queue_schedule_live.py --interval-seconds 3
 - Use `--stop-on-batch-error` when you want the outer loop to stop after any failed batch.
 - On Windows, this script is suitable either for a long-lived console session or for wrapping
   inside Task Scheduler.
+- The schedule command now exits with code `2` when any batch contains a failed listing, which
+  makes external schedulers easier to monitor.
 
 ### Current media-selection behavior
 
@@ -554,8 +646,9 @@ uv run python scripts/xianyu_publish_queue_schedule_live.py --interval-seconds 3
   that tail clears instead of tapping `继续` twice
 - The live prepare entrypoint now retries the initial form preheat once when that Huawei-tablet
   start sequence flakes into a transient `unknown` state
-- The controlled auto-publish path reuses that same prepare slice, but it only proceeds when the
-  Feishu row explicitly opts in through `允许自动发布`
+- The controlled auto-publish path reuses that same prepare slice; in the default configuration it
+  follows the normal publish queue, and when `auto_publish_field_name` is explicitly configured it
+  also respects that extra Feishu boolean gate
 - The description path now uses a dedicated editor state with a `完成` control
 - On this Huawei tablet, `input_text()` can already return from that editor back to `listing_form`;
   the flow now detects that and avoids stale `完成` taps that can accidentally open `价格设置`
@@ -700,10 +793,9 @@ uv run python scripts/xianyu_publish_queue_schedule_live.py --interval-seconds 3
   - writes the row back as `待人工发布` when that pre-submit review passes
 - For live Feishu-backed runs, callers should construct `XianyuMediaSyncService` with
   `download_file=source.download_attachment_file`
-- That live assembly is now codified in `scripts/xianyu_prepare_runner_live.py`, which resolves
-  the Android serial, preheats the tablet back to the portrait form, and prints the prepared
-  result as JSON
-- The non-submitting review assembly is now codified in `scripts/xianyu_publish_review_live.py`
+- That live assembly is now exposed as the installable command `mobile-use-xianyu-prepare`
+  (with the legacy script wrapper `scripts/xianyu_prepare_runner_live.py` still preserved)
+- The non-submitting review assembly is now exposed as `mobile-use-xianyu-review`
 - Real-device verification on `E2P6R22708000602` confirmed a full prepare-runner pass that ended
   on `listing_form` with body text and price filled
 - A fresh live Feishu-backed probe on `E2P6R22708000602` also confirmed an end-to-end prepare run

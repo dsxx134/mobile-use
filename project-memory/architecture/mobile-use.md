@@ -6,6 +6,7 @@ Updated: 2026-04-09
 - Entry surfaces:
   - CLI in `minitap/mobile_use/main.py`
   - SDK in `minitap/mobile_use/sdk/agent.py`
+  - Xianyu operator CLIs in `minitap/mobile_use/scenarios/xianyu_publish/*_cli.py`
 - The primary local working copy for this architecture is now `E:\github2.0\xianyu`.
 - Core runtime:
   - LangGraph state machine in `minitap/mobile_use/graph/graph.py`
@@ -116,6 +117,15 @@ Updated: 2026-04-09
 - The same runner now also has an opt-in auto-publish mode that reuses the exact same prepare
   slice, requires a visible `submit_listing` target, then submits once and waits for
   `publish_success` before writing Bitable publish state.
+- Those business-layer flows are now promoted as installable console commands instead of only
+  repo-root scripts:
+  - `mobile-use-xianyu-prepare`
+  - `mobile-use-xianyu-review`
+  - `mobile-use-xianyu-publish`
+  - `mobile-use-xianyu-publish-auto`
+  - `mobile-use-xianyu-publish-schedule`
+- The old `scripts/xianyu_*.py` files now serve only as compatibility wrappers over the package
+  entrypoints.
 - The live queue path now writes two levels of Feishu observability:
   - lightweight per-row batch metadata back onto listing rows
   - a dedicated `批次运行汇总` table for batch-level totals and readable per-item detail text

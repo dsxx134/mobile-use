@@ -57,5 +57,6 @@
 | profile overwrite requires explicit opt-in | 2026-04-09 | 2026-04-09-profile-overwrite-requires-explicit-opt-in.md |
 | profiles can carry default collect parameters | 2026-04-09 | 2026-04-09-profiles-can-carry-default-collect-parameters.md |
 | collector profiles can be exported as json | 2026-04-09 | 2026-04-09-collector-profiles-can-be-exported-as-json.md |
+| xianyu operator entrypoints graduate from scripts to console commands | 2026-04-09 | 2026-04-09-xianyu-operator-entrypoints-graduate-from-scripts-to-console-commands.md |
 
-Total: 55
+Total: 56

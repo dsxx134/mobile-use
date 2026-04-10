@@ -12,6 +12,7 @@ from minitap.mobile_use.scenarios.xianyu_publish.live_prepare import (
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
+        prog="mobile-use-xianyu-publish",
         description="Publish Xianyu listings from Feishu with structured JSON output."
     )
     parser.add_argument(

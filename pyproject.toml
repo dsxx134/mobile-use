@@ -58,6 +58,11 @@ dev = [
 mobile-use = "minitap.mobile_use.main:cli"
 mobile-use-android-debug-mcp = "minitap.mobile_use.mcp.android_debug_mcp:main"
 mobile-use-xianyu-collector = "minitap.mobile_use.collectors.xianyu_collector.cli:main"
+mobile-use-xianyu-prepare = "minitap.mobile_use.scenarios.xianyu_publish.prepare_cli:main"
+mobile-use-xianyu-review = "minitap.mobile_use.scenarios.xianyu_publish.review_cli:main"
+mobile-use-xianyu-publish = "minitap.mobile_use.scenarios.xianyu_publish.publish_cli:main"
+mobile-use-xianyu-publish-auto = "minitap.mobile_use.scenarios.xianyu_publish.auto_publish_cli:main"
+mobile-use-xianyu-publish-schedule = "minitap.mobile_use.scenarios.xianyu_publish.publish_schedule_cli:main"
 
 [project.urls]
 "Homepage" = "https://minitap.ai/"

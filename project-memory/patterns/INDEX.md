@@ -95,5 +95,6 @@
 | profile-management-should-separate-save-replace-and-delete | 2026-04-09 | profile-management-should-separate-save-replace-and-delete.md |
 | default-run-parameters-belong-with-stable-operator-config | 2026-04-09 | default-run-parameters-belong-with-stable-operator-config.md |
 | exported-profile-format-should-be-human-readable-and-versioned | 2026-04-09 | exported-profile-format-should-be-human-readable-and-versioned.md |
+| xianyu-operator-entrypoints-should-live-in-package-modules | 2026-04-09 | xianyu-operator-entrypoints-should-live-in-package-modules.md |
 
-Total: 93
+Total: 94
