@@ -187,6 +187,25 @@ class AppConfigRepository:
         self._save_grade_config_value("collector_profiles", profiles)
         return name
 
+    def current_config_snapshot(self) -> dict[str, Any]:
+        return {
+            "proxy_config": {
+                "is_open_proxy": self.load_gather_config().is_open_proxy,
+                "proxy_url": self.load_gather_config().proxy_url,
+            },
+            "bitbrowser_config": self.load_bitbrowser_config().to_dict(),
+            "gather_conditions": self.load_gather_conditions().to_dict(),
+            "run_defaults": self.load_run_defaults().to_dict(),
+            "selected_gather_type": self.load_selected_gather_type(),
+            "gather_type_inputs": {
+                "0": self.load_gather_type_input(0),
+                "1": self.load_gather_type_input(1),
+                "2": self.load_gather_type_input(2),
+            },
+            "region_list_str": self.load_region_list_str(),
+            "profiles": self.list_profile_names(),
+        }
+
     def load_profile(self, name: str) -> CollectorProfileConfig | None:
         profiles = self._load_profiles_payload()
         payload = profiles.get(name)

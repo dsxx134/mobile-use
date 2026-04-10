@@ -329,3 +329,46 @@ def test_import_profile_payload_restores_named_profile(tmp_path):
         keyword_pages_default=3,
         shop_pages_default=5,
     )
+
+
+def test_current_config_snapshot_includes_stable_runtime_config_and_profile_names(tmp_path):
+    db = CollectorDatabase(tmp_path / "collector.db")
+    db.initialize()
+    repo = AppConfigRepository(db)
+
+    repo.save_gather_config(ProxyConfig(is_open_proxy=True, proxy_url="http://proxy-source"))
+    repo.save_bitbrowser_config(
+        BitBrowserConfig(browser_id="browser-123", api_host="127.0.0.1", api_port=54345)
+    )
+    repo.save_gather_conditions(GatherConditionConfig(liuLanLiang_text="100"))
+    repo.save_run_defaults(
+        CollectorRunDefaults(
+            ensure_searchable_default=True,
+            keyword_pages_default=3,
+            shop_pages_default=5,
+        )
+    )
+    repo.save_selected_gather_type(2)
+    repo.save_gather_type_input(0, "gemini")
+    repo.save_region_list_str("上海-上海-黄浦区")
+    repo.save_profile("default")
+
+    snapshot = repo.current_config_snapshot()
+
+    assert snapshot["proxy_config"] == {
+        "is_open_proxy": True,
+        "proxy_url": "http://proxy-source",
+    }
+    assert snapshot["bitbrowser_config"] == {
+        "browser_id": "browser-123",
+        "api_host": "127.0.0.1",
+        "api_port": 54345,
+    }
+    assert snapshot["run_defaults"] == {
+        "ensure_searchable_default": True,
+        "keyword_pages_default": 3,
+        "shop_pages_default": 5,
+    }
+    assert snapshot["selected_gather_type"] == 2
+    assert snapshot["gather_type_inputs"]["0"] == "gemini"
+    assert snapshot["profiles"] == ["default"]

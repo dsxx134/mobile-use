@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 
 from minitap.mobile_use.collectors.xianyu_collector.api.client import GoofishBurstError
@@ -465,6 +466,68 @@ def test_cli_import_profile_requires_overwrite_for_existing_name(tmp_path, capsy
     assert exit_code == 2
     assert overwrite_exit == 0
     assert "profile already exists" in capsys.readouterr().err
+
+
+def test_cli_show_current_prints_stable_config_snapshot_as_json(tmp_path, capsys):
+    db_path = tmp_path / "collector.db"
+
+    main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "set-proxy",
+            "--proxy-url",
+            "http://proxy-source",
+            "--enabled",
+        ]
+    )
+    main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "set-bitbrowser",
+            "--browser-id",
+            "browser-123",
+        ]
+    )
+    main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "set-run-defaults",
+            "--ensure-searchable-default",
+            "--keyword-pages-default",
+            "3",
+        ]
+    )
+
+    db = CollectorDatabase(db_path)
+    db.initialize()
+    repo = AppConfigRepository(db)
+    repo.save_gather_conditions(GatherConditionConfig(liuLanLiang_text="100"))
+    repo.save_selected_gather_type(2)
+    repo.save_gather_type_input(0, "gemini")
+    repo.save_profile("default")
+    capsys.readouterr()
+
+    exit_code = main(
+        [
+            "--db-path",
+            str(db_path),
+            "config",
+            "show-current",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["proxy_config"]["proxy_url"] == "http://proxy-source"
+    assert payload["bitbrowser_config"]["browser_id"] == "browser-123"
+    assert payload["run_defaults"]["keyword_pages_default"] == 3
+    assert payload["profiles"] == ["default"]
 
 
 def test_cli_db_list_item_ids_prints_saved_item_ids(tmp_path, capsys):

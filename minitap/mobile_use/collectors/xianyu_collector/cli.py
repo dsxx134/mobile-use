@@ -33,7 +33,7 @@ from minitap.mobile_use.collectors.xianyu_collector.transport.proxy_config impor
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="xianyu-collector")
+    parser = argparse.ArgumentParser(prog="mobile-use-xianyu-collector")
     parser.add_argument("--db-path", required=True)
     parser.add_argument("--bitbrowser-id")
     parser.add_argument("--bitbrowser-api-host")
@@ -79,6 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     import_profile_parser.add_argument("--name")
     import_profile_parser.add_argument("--overwrite", action="store_true")
     config_subparsers.add_parser("list-profiles")
+    config_subparsers.add_parser("show-current")
 
     db_parser = subparsers.add_parser("db")
     db_subparsers = db_parser.add_subparsers(dest="db_command", required=True)
@@ -262,6 +263,16 @@ def main(argv: list[str] | None = None, service_factory=None) -> int:
     if args.command == "config" and args.config_command == "list-profiles":
         for name in config_repo.list_profile_names():
             print(name)
+        return 0
+
+    if args.command == "config" and args.config_command == "show-current":
+        print(
+            json.dumps(
+                config_repo.current_config_snapshot(),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
 
     if args.command == "db" and args.db_command == "list-item-ids":
